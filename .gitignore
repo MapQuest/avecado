@@ -1,0 +1,16 @@
+# editor temporary / backup files
+*~
+
+# artefacts from autotools
+INSTALL
+Makefile.in
+aclocal.m4
+autom4te.cache/
+compile
+config.guess
+config.sub
+config.log
+config.status
+configure
+install-sh
+missing
