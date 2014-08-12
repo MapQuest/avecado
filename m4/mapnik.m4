@@ -83,7 +83,7 @@ fi
 dnl Set up environment variables and autoconf substitutions
 
 MAPNIK_CPPFLAGS=`$MAPNIK_CONFIG --cflags`
-MAPNIK_LIBS=`$MAPNIK_CONFIG --libs`
+MAPNIK_LIBS="`$MAPNIK_CONFIG --dep-libs` `$MAPNIK_CONFIG --libs`"
 AC_SUBST(MAPNIK_CPPFLAGS)
 AC_SUBST(MAPNIK_LIBS)
 AC_DEFINE(HAVE_MAPNIK,,[define if Mapnik is available])

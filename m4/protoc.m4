@@ -57,6 +57,7 @@ else
   AC_MSG_RESULT([no])
   AC_MSG_ERROR([cannot find protoc in your path, but it is required for building avecado. Please install protobuf-compiler.])
 fi
+AC_SUBST(PROTOC_BIN)
 
 dnl Check that the headers are present
 
