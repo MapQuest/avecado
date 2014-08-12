@@ -25,3 +25,5 @@ avecado
 *.o
 **/.deps/
 **/.dirstamp
+include/vector_tile.pb.h
+src/vector_tile.pb.cc
