@@ -40,3 +40,10 @@ avecado_SOURCES = \
 
 avecado_LDADD = \
 	libavecado.la
+
+if HAVE_BOOST_PYTHON
+pyexec_LTLIBRARIES = avecado.la
+avecado_la_CXXFLAGS = @PYTHON_CPPFLAGS@
+avecado_la_SOURCES = src/python_module.cpp
+avecado_la_LDFLAGS = -avoid-version -module @PYTHON_LDFLAGS@
+endif

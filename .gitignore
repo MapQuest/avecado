@@ -37,3 +37,4 @@ src/vector_tile.pb.cc
 libavecado.la
 *.lo
 .libs/
+avecado.la
