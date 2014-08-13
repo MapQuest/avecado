@@ -21,8 +21,8 @@ AC_LANG_CPLUSPLUS
 AX_CXX_COMPILE_STDCXX_11([noext],[mandatory])
 AX_BOOST_BASE([1.53], , [AC_MSG_ERROR([cannot find Boost libraries, which are are required for building avecado. Please install libboost-dev.])])
 AX_BOOST_PROGRAM_OPTIONS
+AX_BOOST_PYTHON
 
-AX_PYTHON_DEVEL([>=2.6])
 REQUIRE_MAPNIK([3.0.0])
 REQUIRE_PROTOC
 
