@@ -6,17 +6,19 @@
 #include "vector_tile_processor.hpp"
 #include "vector_tile_backend_pbf.hpp"
 
-bool foo(mapnik::vector::tile &tile,
-         unsigned int path_multiplier,
-         mapnik::Map const& map,
-         int buffer_size,
-         double scale_factor,
-         unsigned int offset_x,
-         unsigned int offset_y,
-         unsigned int tolerance,
-         const std::string &image_format,
-         mapnik::scaling_method_e scaling_method,
-         double scale_denominator) {
+namespace avecado {
+
+bool make_vector_tile(mapnik::vector::tile &tile,
+                      unsigned int path_multiplier,
+                      mapnik::Map const& map,
+                      int buffer_size,
+                      double scale_factor,
+                      unsigned int offset_x,
+                      unsigned int offset_y,
+                      unsigned int tolerance,
+                      const std::string &image_format,
+                      mapnik::scaling_method_e scaling_method,
+                      double scale_denominator) {
   
   typedef mapnik::vector::backend_pbf backend_type;
   typedef mapnik::vector::processor<backend_type> renderer_type;
@@ -42,3 +44,4 @@ bool foo(mapnik::vector::tile &tile,
   return ren.painted();
 }
 
+} // namespace avecado
