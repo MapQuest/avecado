@@ -25,4 +25,4 @@ avecado_SOURCES = \
 nodist_avecado_SOURCES = \
 	src/vector_tile.pb.cc
 
-avecado_LDADD = @MAPNIK_LIBS@ @PROTOC_LIBS@
+avecado_LDADD = @MAPNIK_LIBS@ @PROTOC_LIBS@ @BOOST_PROGRAM_OPTIONS_LIB@
