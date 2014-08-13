@@ -46,4 +46,5 @@ pyexec_LTLIBRARIES = avecado.la
 avecado_la_CXXFLAGS = @PYTHON_CPPFLAGS@
 avecado_la_SOURCES = src/python_module.cpp
 avecado_la_LDFLAGS = -avoid-version -module @PYTHON_LDFLAGS@
+avecado_la_LIBADD = libavecado.la @BOOST_LDFLAGS@ -l@BOOST_PYTHON_LIB@
 endif
