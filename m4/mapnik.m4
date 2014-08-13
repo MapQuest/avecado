@@ -6,7 +6,8 @@
 #
 # If it succeeds, it calls:
 #   AC_SUBST(MAPNIK_CPPFLAGS) and AC_SUBST(MAPNIK_LIBS)
-# and sets HAVE_MAPNIK
+# and sets HAVE_MAPNIK, MAPNIK_DEFAULT_FONT_DIR and
+# MAPNIK_DEFAULT_INPUT_PLUGIN_DIR.
 
 AC_DEFUN([REQUIRE_MAPNIK],
 [
@@ -87,5 +88,9 @@ MAPNIK_LIBS="`$MAPNIK_CONFIG --dep-libs` `$MAPNIK_CONFIG --libs`"
 AC_SUBST(MAPNIK_CPPFLAGS)
 AC_SUBST(MAPNIK_LIBS)
 AC_DEFINE(HAVE_MAPNIK,,[define if Mapnik is available])
+AC_DEFINE_UNQUOTED(MAPNIK_DEFAULT_FONT_DIR,"`$MAPNIK_CONFIG --fonts`",
+  [Mapnik default fonts directory.])
+AC_DEFINE_UNQUOTED(MAPNIK_DEFAULT_INPUT_PLUGIN_DIR,"`$MAPNIK_CONFIG --input-plugins`",
+  [Mapnik default input plugins directory.])
 
 ])
