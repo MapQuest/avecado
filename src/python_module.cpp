@@ -51,5 +51,19 @@ BOOST_PYTHON_MODULE(avecado) {
        arg("tolerance") = 1,
        arg("image_format") = "jpeg",
        arg("scaling_method") = "near",
-       arg("scale_denominator") = 0.0));
+       arg("scale_denominator") = 0.0),
+      "Make a vector tile from a Mapnik map\n"
+      "object and return the serialised PBF.\n"
+      "\n"
+      "Note that you need to import mapnik\n"
+      "before using avecado.\n"
+      "\n"
+      "Usage:\n"
+      ">>> import mapnik\n"
+      ">>> import avecado\n"
+      ">>> m = mapnik.Map(256, 256)\n"
+      ">>> mapnik.load_map(m, 'style.xml')\n"
+      ">>> m.zoom_to_box(mapnik.Box2d(-100, -100, 100, 100))\n"
+      ">>> t = avecado.make_vector_tile(m, path_multiplier = 16, scale_factor = 1.0)\n"
+    );
 }
