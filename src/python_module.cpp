@@ -18,7 +18,7 @@ str mk_tile(object py_map,
             double scale_denominator) {
 
   mapnik::Map const &map = extract<mapnik::Map const &>(py_map);
-  mapnik::vector::tile tile;
+  avecado::tile tile;
 
   mapnik::scaling_method_e scaling_method = mapnik::SCALING_NEAR;
   boost::optional<mapnik::scaling_method_e> method =
@@ -35,12 +35,8 @@ str mk_tile(object py_map,
                             tolerance, image_format, scaling_method,
                             scale_denominator);
 
-  std::string buffer;
-  if (tile.SerializeToString(&buffer)) {
-    return str(buffer.data(), buffer.size());
-  }
-
-  throw std::runtime_error("Error while serializing protocol buffer tile.");
+  std::string buffer = tile.get_data();
+  return str(buffer.data(), buffer.size());
 }
 
 } // anonymous namespace

@@ -1,6 +1,9 @@
 #include "avecado.hpp"
+#include "vector_tile.pb.h"
 
 #include <mapnik/map.hpp>
+
+#include <google/protobuf/io/zero_copy_stream_impl.h>
 
 #include "mapnik3x_compatibility.hpp"
 #include "vector_tile_processor.hpp"
@@ -8,7 +11,36 @@
 
 namespace avecado {
 
-bool make_vector_tile(mapnik::vector::tile &tile,
+tile::tile() 
+  : m_mapnik_tile(new mapnik::vector::tile) {
+}
+
+tile::~tile() {
+}
+
+std::string tile::get_data() const {
+  std::string buffer;
+
+  if (m_mapnik_tile->SerializeToString(&buffer)) {
+    return buffer;
+
+  } else {
+    throw std::runtime_error("Error while serializing protocol buffer tile.");
+  }
+}
+
+std::ostream &operator<<(std::ostream &out, const tile &t) {
+  google::protobuf::io::OstreamOutputStream stream(&out);
+  bool write_ok = t.m_mapnik_tile->SerializeToZeroCopyStream(&stream);
+
+  if (!write_ok) {
+    throw std::runtime_error("Unable to write tile to output stream.");
+  }
+
+  return out;
+}
+
+bool make_vector_tile(tile &tile,
                       unsigned int path_multiplier,
                       mapnik::Map const& map,
                       int buffer_size,
@@ -23,7 +55,7 @@ bool make_vector_tile(mapnik::vector::tile &tile,
   typedef mapnik::vector::backend_pbf backend_type;
   typedef mapnik::vector::processor<backend_type> renderer_type;
   
-  backend_type backend(tile, path_multiplier);
+  backend_type backend(*tile.m_mapnik_tile, path_multiplier);
   
   mapnik::request request(map.width(),
                           map.height(),
