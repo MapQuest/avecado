@@ -110,15 +110,16 @@ AC_MSG_CHECKING(for -lprotobuf)
 if test -n "$ac_protobuf_libdir" ; then
   ax_pb_old_libs=${LIBS}
   LIBS="-L${ac_protobuf_libdir} -lprotobuf"
+  ax_pb_old_cppflags=${CPPFLAGS}
+  CPPFLAGS="$CPPFLAGS $PROTOC_CPPFLAGS"
   AC_LINK_IFELSE(
     [AC_LANG_PROGRAM([[#include <google/protobuf/stubs/common.h>]],
 		     [[google::protobuf::ShutdownProtobufLibrary();]]
        		    )],
-    [AC_MSG_RESULT([yes])
-     PROTOC_LIBS="-L${ac_protobuf_libdir} -lprotobuf"
-    ],
+    [PROTOC_LIBS="-L${ac_protobuf_libdir} -lprotobuf"],
     [AC_MSG_RESULT([no])])
   LIBS=${ax_pb_old_libs}
+  CPPFLAGS=${ax_pb_old_cppflags}
 fi
 
 if test -z "$PROTOC_LIBS" ; then
@@ -126,15 +127,17 @@ if test -z "$PROTOC_LIBS" ; then
     for ax_pb_libdir in $ax_pb_libdirs; do
       ax_pb_old_libs=${LIBS}
       LIBS="-L${ax_pb_libdir}/${ax_pb_libsubdir} -lprotobuf"
+      ax_pb_old_cppflags=${CPPFLAGS}
+      CPPFLAGS="$CPPFLAGS $PROTOC_CPPFLAGS"
       AC_LINK_IFELSE(
         [AC_LANG_PROGRAM([[#include <google/protobuf/stubs/common.h>]],
 	                 [[google::protobuf::ShutdownProtobufLibrary();]]
        		    	 )],
-        [LIBS=${ax_pb_old_libs}
-         PROTOC_LIBS="-L${ax_pb_libdir}/${ax_pb_libsubdir} -lprotobuf"
+        [PROTOC_LIBS="-L${ax_pb_libdir}/${ax_pb_libsubdir} -lprotobuf"
          break
-        ],
-        [LIBS=${ax_pb_old_libs}])
+        ],[])
+      CPPFLAGS=${ax_pb_old_cppflags}
+      LIBS=${ax_pb_old_libs}
     done
     if test -n "$PROTOC_LIBS" ; then break; fi
   done
