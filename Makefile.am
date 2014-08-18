@@ -33,12 +33,18 @@ nodist_libavecado_la_SOURCES = \
 
 libavecado_la_LIBADD = @MAPNIK_LIBS@ @PROTOC_LIBS@ @BOOST_PROGRAM_OPTIONS_LIB@
 
-bin_PROGRAMS = avecado
+bin_PROGRAMS = avecado avecado_server
 
 avecado_SOURCES = \
-	src/avecado_util.cpp
+	src/avecado_exporter.cpp
 
 avecado_LDADD = \
+	libavecado.la
+
+avecado_server_SOURCES = \
+	src/avecado_server.cpp
+	
+avecado_server_LDADD = \
 	libavecado.la
 
 if HAVE_BOOST_PYTHON
