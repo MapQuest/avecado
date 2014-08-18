@@ -83,11 +83,11 @@ dnl The former is specified by FHS, but e.g. Debian does not adhere to
 dnl this (as it rises problems for generic multi-arch support).
 dnl The last entry in the list is chosen by default when no libraries
 dnl are found, e.g. when only header-only libraries are installed!
-libsubdirs="lib"
+ax_pb_libsubdirs="lib"
 ax_arch=`uname -m`
 case $ax_arch in
   x86_64|ppc64|s390x|sparc64|aarch64)
-    libsubdirs="lib64 lib lib64"
+    ax_pb_libsubdirs="lib64 lib lib64"
     ;;
 esac
 
@@ -95,46 +95,46 @@ dnl allow for real multi-arch paths e.g. /usr/lib/x86_64-linux-gnu. Give
 dnl them priority over the other paths since, if libs are found there, they
 dnl are almost assuredly the ones desired.
 AC_REQUIRE([AC_CANONICAL_HOST])
-libsubdirs="lib/${host_cpu}-${host_os} $libsubdirs"
+ax_pb_libsubdirs="lib/${host_cpu}-${host_os} $ax_pb_libsubdirs"
 
 case ${host_cpu} in
   i?86)
-    libsubdirs="lib/i386-${host_os} $libsubdirs"
+    ax_pb_libsubdirs="lib/i386-${host_os} $ax_pb_libsubdirs"
     ;;
 esac
 
-libdirs="/usr /usr/local /opt /opt/local"
+ax_pb_libdirs="/usr /usr/local /opt /opt/local"
 
 AC_MSG_CHECKING(for -lprotobuf)
 
 if test -n "$ac_protobuf_libdir" ; then
-  old_libs=${LIBS}
+  ax_pb_old_libs=${LIBS}
   LIBS="-L${ac_protobuf_libdir} -lprotobuf"
   AC_LINK_IFELSE(
     [AC_LANG_PROGRAM([[#include <google/protobuf/stubs/common.h>]],
 		     [[google::protobuf::ShutdownProtobufLibrary();]]
        		    )],
     [AC_MSG_RESULT([yes])
-     PROTOC_LIBS="-L${libsubdir} -lprotobuf"
+     PROTOC_LIBS="-L${ac_protobuf_libdir} -lprotobuf"
     ],
     [AC_MSG_RESULT([no])])
-  LIBS=${old_libs}
+  LIBS=${ax_pb_old_libs}
 fi
 
 if test -z "$PROTOC_LIBS" ; then
-  for libsubdir in $libsubdirs; do
-    for libdir in $libdirs; do
-      old_libs=${LIBS}
-      LIBS="-L${libdir}/${libsubdir} -lprotobuf"
+  for ax_pb_libsubdir in $ax_pb_libsubdirs; do
+    for ax_pb_libdir in $ax_pb_libdirs; do
+      ax_pb_old_libs=${LIBS}
+      LIBS="-L${ax_pb_libdir}/${ax_pb_libsubdir} -lprotobuf"
       AC_LINK_IFELSE(
         [AC_LANG_PROGRAM([[#include <google/protobuf/stubs/common.h>]],
 	                 [[google::protobuf::ShutdownProtobufLibrary();]]
        		    	 )],
-        [LIBS=${old_libs}
-         PROTOC_LIBS="-L${libdir}/${libsubdir} -lprotobuf"
+        [LIBS=${ax_pb_old_libs}
+         PROTOC_LIBS="-L${ax_pb_libdir}/${ax_pb_libsubdir} -lprotobuf"
          break
         ],
-        [LIBS=${old_libs}])
+        [LIBS=${ax_pb_old_libs}])
     done
     if test -n "$PROTOC_LIBS" ; then break; fi
   done

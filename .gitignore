@@ -19,6 +19,13 @@ Makefile
 include/config.h
 include/config.h.in
 include/stamp-h1
+ltmain.sh
+m4/libtool.m4
+m4/ltoptions.m4
+m4/ltsugar.m4
+m4/ltversion.m4
+m4/lt~obsolete.m4
+libtool
 
 # built objects
 avecado
@@ -27,3 +34,7 @@ avecado
 **/.dirstamp
 include/vector_tile.pb.h
 src/vector_tile.pb.cc
+libavecado.la
+*.lo
+.libs/
+avecado.la

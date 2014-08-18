@@ -1,5 +1,4 @@
 #include <boost/program_options.hpp>
-#include <google/protobuf/io/zero_copy_stream_impl.h>
 #include <fstream>
 
 #include <mapnik/utils.hpp>
@@ -137,10 +136,10 @@ int main(int argc, char *argv[]) {
     scaling_method = *method;
   }
 
-  mapnik::Map map;
-  mapnik::vector::tile tile;
-
   try {
+    mapnik::Map map;
+    avecado::tile tile;
+
     // try to register fonts and input plugins
     mapnik::freetype_engine::register_fonts(fonts_dir);
     mapnik::datasource_cache::instance().register_datasources(input_plugins_dir);
@@ -159,12 +158,7 @@ int main(int argc, char *argv[]) {
 
     // serialise to file
     std::ofstream output(output_file);
-    google::protobuf::io::OstreamOutputStream stream(&output);
-    bool write_ok = tile.SerializeToZeroCopyStream(&stream);
-
-    if (!write_ok) {
-      throw std::runtime_error("Unable to write tile to output file.");
-    }
+    output << tile;
 
   } catch (const std::exception &e) {
     std::cerr << "Unable to make vector tile: " << e.what() << "\n";
