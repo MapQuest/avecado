@@ -42,10 +42,19 @@ avecado_LDADD = \
 	libavecado.la
 
 avecado_server_SOURCES = \
-	src/avecado_server.cpp
-	
+	src/avecado_server.cpp \
+	src/http_server/connection.cpp \
+	src/http_server/mime_types.cpp \
+	src/http_server/reply.cpp \
+	src/http_server/request_handler.cpp \
+	src/http_server/request_parser.cpp \
+	src/http_server/server.cpp
+
+avecado_server_CXXFLAGS = @PTHREAD_CFLAGS@
+
 avecado_server_LDADD = \
-	libavecado.la
+	libavecado.la \
+	@BOOST_LDFLAGS@ @BOOST_ASIO_LIB@ @BOOST_THREAD_LIB@ @PTHREAD_LIBS@
 
 if HAVE_BOOST_PYTHON
 pyexec_LTLIBRARIES = avecado.la

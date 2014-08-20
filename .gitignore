@@ -29,6 +29,7 @@ libtool
 
 # built objects
 avecado
+avecado_server
 *.o
 **/.deps/
 **/.dirstamp
