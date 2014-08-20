@@ -21,7 +21,7 @@ int main(int argc, char *argv[]) {
   bpo::options_description options(
     "Avecado " VERSION "\n"
     "\n"
-    "  Usage: avecado_server [options] <map-file> <port> <num-threads>\n"
+    "  Usage: avecado_server [options] <map-file> <port>\n"
     "\n");
 
   options.add_options()
