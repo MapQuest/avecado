@@ -117,6 +117,11 @@ int main(int argc, char *argv[]) {
 
   //start up the server
   try {
+    // try to register fonts and input plugins
+    mapnik::freetype_engine::register_fonts(fonts_dir);
+    mapnik::datasource_cache::instance().register_datasources(input_plugins_dir);
+
+    // start the server running
     http::server3::server server("*", srv_opts);
     server.run();
 
