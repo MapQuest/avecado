@@ -14,18 +14,35 @@
 #include <boost/shared_ptr.hpp>
 #include <vector>
 
+// for the Map object destructor
+#include <mapnik/map.hpp>
+// for mapnik::load_map
+#include <mapnik/load_map.hpp>
+
+namespace {
+// function to set up the mapnik::Map object on the thread
+// immediately after it has been created.
+void setup_thread(std::string map_xml,
+                  boost::thread_specific_ptr<mapnik::Map> &ptr,
+                  boost::asio::io_service *service) {
+    ptr.reset(new mapnik::Map);
+    mapnik::load_map(*ptr, map_xml);
+    service->run();
+}
+}
+
 namespace http {
 namespace server3 {
 
 server::server(const std::string& address, const std::string& port,
-               const std::string& doc_root, std::size_t thread_pool_size,
-               const boost::optional<std::string> &fail_path,
-               const boost::optional<std::string> &abort_path)
+               const std::string& map_xml, std::size_t thread_pool_size)
   : thread_pool_size_(thread_pool_size),
     signals_(io_service_),
     acceptor_(io_service_),
     new_connection_(),
-    request_handler_(doc_root, fail_path, abort_path)
+    map_xml_(map_xml),
+    thread_specific_ptr_(),
+    request_handler_(thread_specific_ptr_)
 {
   // Register to handle the signals that indicate when the server should exit.
   // It is safe to register for the same signal multiple times in a program,
@@ -49,13 +66,22 @@ server::server(const std::string& address, const std::string& port,
   start_accept();
 }
 
+server::~server()
+{
+}
+
 void server::run()
 {
   // Create a pool of threads to run all of the io_services.
   for (std::size_t i = 0; i < thread_pool_size_; ++i)
   {
-    boost::shared_ptr<boost::thread> thread(new boost::thread(
-          boost::bind(&boost::asio::io_service::run, &io_service_)));
+    boost::shared_ptr<boost::thread> thread(
+        new boost::thread(
+            boost::bind(
+                &setup_thread,
+                map_xml_,
+                boost::ref(thread_specific_ptr_),
+                &io_service_)));
     threads_.push_back(thread);
   }
 }

@@ -14,6 +14,10 @@
 #include <string>
 #include <boost/noncopyable.hpp>
 #include <boost/optional.hpp>
+#include <boost/thread/tss.hpp>
+
+// forward declaration
+namespace mapnik { struct Map; }
 
 namespace http {
 namespace server3 {
@@ -27,22 +31,15 @@ class request_handler
 {
 public:
   /// Construct with a directory containing files to be served.
-  explicit request_handler(const std::string& doc_root,
-                           const boost::optional<std::string> &fail_path,
-                           const boost::optional<std::string> &abort_path);
+  explicit request_handler(const boost::thread_specific_ptr<mapnik::Map> &);
 
   /// Handle a request and produce a reply.
   void handle_request(const request& req, reply& rep);
 
 private:
-  /// The directory containing the files to be served.
-  std::string doc_root_;
-
-  /// optional path prefix for which to return a 500 error
-  boost::optional<std::string> fail_path_;
-
-  /// optional path prefix for which to return a total error - invalid HTTP
-  boost::optional<std::string> abort_path_;
+  /// pointer to thread-local copy of the mapnik Map object used to
+  /// do the rendering.
+  const boost::thread_specific_ptr<mapnik::Map> &map_ptr_;
 
   /// Perform URL-decoding on a string. Returns false if the encoding was
   /// invalid.

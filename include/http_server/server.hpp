@@ -18,8 +18,12 @@
 #include <boost/shared_ptr.hpp>
 #include <boost/thread.hpp>
 #include <boost/optional.hpp>
+#include <boost/thread/tss.hpp>
 #include "http_server/connection.hpp"
 #include "http_server/request_handler.hpp"
+
+// forward declaration
+namespace mapnik { struct Map; }
 
 namespace http {
 namespace server3 {
@@ -30,17 +34,19 @@ class server
 {
 public:
   /// Construct the server to listen on the specified TCP address and port, and
-  /// serve up files from the given directory.
-  explicit server(const std::string& address, const std::string& port,
-                  const std::string& doc_root, std::size_t thread_pool_size,
-                  const boost::optional<std::string> &fail_path = boost::none,
-                  const boost::optional<std::string> &abort_path = boost::none);
+  /// serve up vector tiles based on the map XML file name given.
+  server(const std::string& address, const std::string& port,
+         const std::string& map_xml, std::size_t thread_pool_size);
+
+  /// server destructor will need to call the mapnik::Map destructor, so
+  /// it needs to know the concrete type, which we don't include here.
+  ~server();
 
   /// Run the server's io_service loop.
   void run();
 
-   /// Stop the server's io_service loop.
-   void stop();
+  /// Stop the server's io_service loop.
+  void stop();
 
 private:
   /// Initiate an asynchronous accept operation.
@@ -66,6 +72,14 @@ private:
 
   /// The next connection to be accepted.
   connection_ptr new_connection_;
+
+  /// the map XML config file for mapnik
+  std::string map_xml_;
+
+  /// thread local storage, so that we can construct Mapnik Map objects and
+  /// re-use them on threads without having to worry about locking them or
+  /// having any sort of pool of objects.
+  boost::thread_specific_ptr<mapnik::Map> thread_specific_ptr_;
 
   /// The handler for all incoming requests.
   request_handler request_handler_;

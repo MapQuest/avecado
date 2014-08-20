@@ -45,6 +45,7 @@ avecado_server_SOURCES = \
 	src/avecado_server.cpp \
 	src/http_server/connection.cpp \
 	src/http_server/mime_types.cpp \
+	src/http_server/parse_path.cpp \
 	src/http_server/reply.cpp \
 	src/http_server/request_handler.cpp \
 	src/http_server/request_parser.cpp \
