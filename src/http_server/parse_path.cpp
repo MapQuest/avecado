@@ -1,32 +1,35 @@
 #include "http_server/parse_path.hpp"
 
-#include <boost/spirit/include/qi.hpp>
-#include <boost/spirit/home/qi/numeric/int.hpp>
-#include <boost/spirit/include/qi_int.hpp>
-#include <boost/spirit/include/phoenix_core.hpp>
-#include <boost/spirit/include/phoenix_operator.hpp>
+#include <boost/lexical_cast.hpp>
+#include <boost/algorithm/string/split.hpp>
+#include <boost/algorithm/string/classification.hpp>
 
 namespace http {
 namespace server3 {
 
 bool parse_path(const std::string &path, int &z, int &x, int &y)
 {
-  typedef std::string::const_iterator iterator;
-  using boost::spirit::int_;
-  using boost::spirit::_1;
-  using boost::phoenix::ref;
+  std::vector<std::string> splits;
+  boost::algorithm::split(splits, path, boost::algorithm::is_any_of("/."));
+  
+  if (splits.size() != 4) {
+    return false;
+  }
 
-  iterator first = path.begin();
-  iterator last = path.end();
+  if (splits[3] != "pbf") {
+    return false;
+  }
 
-  bool result = boost::spirit::qi::phrase_parse(
-    first, last,
-    ( boost::spirit::qi::int_[ref(z) = _1] >> '/'
-      int_[ref(x) = _1] >> '/'
-      int_[ref(y) = _1] >> ".pbf"
-    ));
+  try {
+    z = boost::lexical_cast<int>(splits[0]);
+    x = boost::lexical_cast<int>(splits[1]);
+    y = boost::lexical_cast<int>(splits[2]);
 
-  return result && (first == last);
+    return true;
+
+  } catch (...) {
+    return false;
+  }
 }
 
 } }
