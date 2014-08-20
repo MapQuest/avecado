@@ -43,7 +43,7 @@ public:
   ~server();
 
   /// Run the server's io_service loop.
-  void run();
+  void run(bool include_current_thread);
 
   /// Stop the server's io_service loop.
   void stop();

@@ -71,10 +71,11 @@ server::~server()
 {
 }
 
-void server::run()
+void server::run(bool include_current_thread)
 {
   // Create a pool of threads to run all of the io_services.
-  for (std::size_t i = 0; i < thread_pool_size_; ++i)
+  for (std::size_t i = (include_current_thread ? 1 : 0);
+       i < thread_pool_size_; ++i)
   {
     boost::shared_ptr<boost::thread> thread(
         new boost::thread(
@@ -84,6 +85,10 @@ void server::run()
                 boost::ref(thread_specific_ptr_),
                 &io_service_)));
     threads_.push_back(thread);
+  }
+
+  if (include_current_thread) {
+    setup_thread(map_xml_, thread_specific_ptr_, &io_service_);
   }
 }
 

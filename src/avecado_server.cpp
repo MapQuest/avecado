@@ -123,14 +123,7 @@ int main(int argc, char *argv[]) {
 
     // start the server running
     http::server3::server server("*", srv_opts);
-    server.run();
-
-    // TODO: how to pause this thread?
-    while (true) {
-      sleep(60);
-    }
-
-    server.stop();
+    server.run(true);
 
   } catch (std::exception& e) {
     std::cerr << "Exception: " << e.what() << "\n";
