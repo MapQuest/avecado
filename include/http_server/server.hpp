@@ -21,6 +21,7 @@
 #include <boost/thread/tss.hpp>
 #include "http_server/connection.hpp"
 #include "http_server/request_handler.hpp"
+#include "http_server/server_options.hpp"
 
 // forward declaration
 namespace mapnik { struct Map; }
@@ -35,8 +36,7 @@ class server
 public:
   /// Construct the server to listen on the specified TCP address and port, and
   /// serve up vector tiles based on the map XML file name given.
-  server(const std::string& address, const std::string& port,
-         const std::string& map_xml, std::size_t thread_pool_size);
+  server(const std::string& address, const server_options &options);
 
   /// server destructor will need to call the mapnik::Map destructor, so
   /// it needs to know the concrete type, which we don't include here.

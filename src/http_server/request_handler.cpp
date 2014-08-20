@@ -41,8 +41,10 @@ mapnik::box2d<double> box_for_tile(int z, int x, int y) {
 namespace http {
 namespace server3 {
 
-request_handler::request_handler(const boost::thread_specific_ptr<mapnik::Map> &map_ptr)
-    : map_ptr_(map_ptr)
+request_handler::request_handler(const boost::thread_specific_ptr<mapnik::Map> &map_ptr,
+                                 const server_options &options)
+  : map_ptr_(map_ptr),
+    options_(options)
 {
 }
 
@@ -80,17 +82,6 @@ void request_handler::handle_request(const request& req, reply& rep)
   }
 
   try {
-    // TODO: make configurable
-    unsigned int path_multiplier = 16;
-    int buffer_size = 0;
-    double scale_factor = 1.0;
-    unsigned int offset_x = 0;
-    unsigned int offset_y = 0;
-    unsigned int tolerance = 1;
-    std::string image_format = "jpeg";
-    mapnik::scaling_method_e scaling_method = mapnik::SCALING_NEAR;
-    double scale_denominator = 0.0;
-
     // setup map parameters
     map_ptr_->resize(256, 256);
     map_ptr_->zoom_to_box(box_for_tile(z, x, y));
@@ -98,9 +89,12 @@ void request_handler::handle_request(const request& req, reply& rep)
     avecado::tile tile;
 
     // actually making the vector tile
-    bool ok = avecado::make_vector_tile(tile, path_multiplier, *map_ptr_, buffer_size,
-                                        scale_factor, offset_x, offset_y, tolerance,
-                                        image_format, scaling_method, scale_denominator);
+    bool ok = avecado::make_vector_tile(
+      tile, options_.path_multiplier, *map_ptr_, options_.buffer_size,
+      options_.scale_factor, options_.offset_x, options_.offset_y,
+      options_.tolerance, options_.image_format, options_.scaling_method,
+      options_.scale_denominator);
+
     if (!ok) {
       throw std::runtime_error("Unable to make vector tile.");
     }

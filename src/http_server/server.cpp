@@ -34,15 +34,14 @@ void setup_thread(std::string map_xml,
 namespace http {
 namespace server3 {
 
-server::server(const std::string& address, const std::string& port,
-               const std::string& map_xml, std::size_t thread_pool_size)
-  : thread_pool_size_(thread_pool_size),
+server::server(const std::string& address, const server_options &options)
+  : thread_pool_size_(options.thread_hint),
     signals_(io_service_),
     acceptor_(io_service_),
     new_connection_(),
-    map_xml_(map_xml),
+    map_xml_(options.map_file),
     thread_specific_ptr_(),
-    request_handler_(thread_specific_ptr_)
+    request_handler_(thread_specific_ptr_, options)
 {
   // Register to handle the signals that indicate when the server should exit.
   // It is safe to register for the same signal multiple times in a program,
@@ -56,7 +55,7 @@ server::server(const std::string& address, const std::string& port,
 
   // Open the acceptor with the option to reuse the address (i.e. SO_REUSEADDR).
   boost::asio::ip::tcp::resolver resolver(io_service_);
-  boost::asio::ip::tcp::resolver::query query(address, port);
+  boost::asio::ip::tcp::resolver::query query(address, options.port);
   boost::asio::ip::tcp::endpoint endpoint = *resolver.resolve(query);
   acceptor_.open(endpoint.protocol());
   acceptor_.set_option(boost::asio::ip::tcp::acceptor::reuse_address(true));
