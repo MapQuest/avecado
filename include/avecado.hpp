@@ -4,6 +4,9 @@
 #include <memory>
 #include <mapnik/map.hpp>
 #include <mapnik/image_scaling.hpp>
+#include <boost/property_tree/ptree.hpp>
+
+namespace pt = boost::property_tree;
 
 /* Forward declaration of vector tile type. This type is opaque
  * to users of Avecado, but we expose some methods in the
@@ -33,6 +36,8 @@ private:
                                int, double, unsigned int, unsigned int,
                                unsigned int, const std::string &,
                                mapnik::scaling_method_e, double);
+
+  friend void process_vector_tile(tile &, pt::ptree const&, int);
 
   friend std::ostream &operator<<(std::ostream &, const tile &);
 };
@@ -115,6 +120,29 @@ bool make_vector_tile(tile &tile,
                       const std::string &image_format,
                       mapnik::scaling_method_e scaling_method,
                       double scale_denominator);
+
+/**
+ * process_vector_tile looks for post-processing options in the config
+ * and runs mergonalizer, generalizer, and/or labelizer on each layer
+ * where they are specified
+ *
+ * Arguments:
+ *
+ *   tile
+ *     The vector tile to which geometry from the query will be
+ *     added.
+ *
+ *   config
+ *     Configuration tree specifying which processes to run on which
+ *     layers at which zoom levels.
+ *
+ *   zoom_level
+ *     Zoom level of the tile.
+ *
+ * Throws an exception if an unrecoverable error was encountered
+ * while reading config options or processing a vector layer.
+ */
+void process_vector_tile(tile & tile, pt::ptree const& config, int zoom_level);
 
 } // namespace avecado
 

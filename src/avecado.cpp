@@ -3,6 +3,8 @@
 
 #include <mapnik/map.hpp>
 
+#include <boost/property_tree/ptree.hpp>
+
 #include <google/protobuf/io/zero_copy_stream_impl.h>
 
 #include "mapnik3x_compatibility.hpp"
@@ -74,6 +76,68 @@ bool make_vector_tile(tile &tile,
   ren.apply(scale_denominator);
   
   return ren.painted();
+}
+
+/**
+ * Processes "izers" on the given layer, based on the configuration
+ */
+void process_vector_layer(mapnik::vector::tile_layer const& layer,
+                          boost::optional<pt::ptree const&> mergonalize,
+                          boost::optional<pt::ptree const&> generalize,
+                          boost::optional<pt::ptree const&> labelize) {
+
+  if (mergonalize) {
+    pt::ptree const& mergonalizer_conf = mergonalize.get();
+    // TODO: Merganolize!
+  }
+  if (generalize) {
+    pt::ptree const& generalizer_conf = generalize.get();
+    // TODO: Generalize!
+  }
+  if (labelize) {
+    pt::ptree const& labelizer_conf = labelize.get();
+    // TODO: Labelize!
+  }
+}
+
+/**
+ * Find the appropriate config for a given "izer" at a given zoom level, if it exists
+ */
+boost::optional<pt::ptree const&> izer_at_zoom(pt::ptree const& layer_conf,
+                                               std::string const& izer_name,
+                                               int zoom_level) {
+
+  auto optional_conf = layer_conf.get_child_optional(izer_name);
+  if (optional_conf) {
+    pt::ptree const& izer_conf = optional_conf.get();
+    // iterate and check each zoom level range
+    for (auto range : izer_conf) {
+      int min = range.second.get<int>("minzoom");
+      int max = range.second.get<int>("maxzoom");
+      if (zoom_level >= min && zoom_level <= max) {
+        return boost::optional<pt::ptree const&>(range.second);
+      }
+    }
+  }
+  return boost::none;
+}
+
+/**
+ * Processes "izers" on the given tile, based on the configuration
+ */
+void process_vector_tile(tile & tile, pt::ptree const& config, int zoom_level) {
+  // iterate all layers in the tile
+  for (auto layer : tile.m_mapnik_tile->layers()) {
+    // check for config corresponding to this layer
+    auto optional_conf = config.get_child_optional(layer.name());
+    if (optional_conf) {
+      pt::ptree const& layer_conf = optional_conf.get();
+      auto mergonalize = izer_at_zoom(layer_conf, "mergonalize", zoom_level);
+      auto generalize = izer_at_zoom(layer_conf, "generalize", zoom_level);
+      auto labelize = izer_at_zoom(layer_conf, "labelize", zoom_level);
+      process_vector_layer(layer, mergonalize, generalize, labelize);
+    }
+  }
 }
 
 } // namespace avecado
