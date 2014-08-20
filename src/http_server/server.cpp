@@ -25,9 +25,11 @@ namespace {
 void setup_thread(std::string map_xml,
                   boost::thread_specific_ptr<mapnik::Map> &ptr,
                   boost::asio::io_service *service) {
-    ptr.reset(new mapnik::Map);
-    mapnik::load_map(*ptr, map_xml);
-    service->run();
+  std::cout << "Loading mapnik map..." << std::endl;
+  ptr.reset(new mapnik::Map);
+  mapnik::load_map(*ptr, map_xml);
+  std::cout << "Mapnik map loaded." << std::endl;
+  service->run();
 }
 }
 
