@@ -1,5 +1,12 @@
-Avecado
-=======
+  ____  __ __    ___    __   ____  ___     ___
+ /    ||  |  |  /  _]  /  ] /    ||   \   /   \
+|  o  ||  |  | /  [_  /  / |  o  ||    \ |     |
+|     ||  |  ||    _]/  /  |     ||  D  ||  O  |
+|  _  ||  :  ||   [_/   \_ |  _  ||     ||     |
+|  |  | \   / |     \     ||  |  ||     ||     |
+|__|__|  \_/  |_____|\____||__|__||_____| \___/
+
+================================================
 
 Avecado (pronounced "a*vec*ado") is a library for building Mapnik vector tiles, along with language bindings for Python and some utility programs.
 
