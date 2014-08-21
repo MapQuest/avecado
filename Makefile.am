@@ -33,13 +33,29 @@ nodist_libavecado_la_SOURCES = \
 
 libavecado_la_LIBADD = @MAPNIK_LIBS@ @PROTOC_LIBS@ @BOOST_PROGRAM_OPTIONS_LIB@
 
-bin_PROGRAMS = avecado
+bin_PROGRAMS = avecado avecado_server
 
 avecado_SOURCES = \
-	src/avecado_util.cpp
+	src/avecado_exporter.cpp
 
 avecado_LDADD = \
 	libavecado.la
+
+avecado_server_SOURCES = \
+	src/avecado_server.cpp \
+	src/http_server/connection.cpp \
+	src/http_server/mime_types.cpp \
+	src/http_server/parse_path.cpp \
+	src/http_server/reply.cpp \
+	src/http_server/request_handler.cpp \
+	src/http_server/request_parser.cpp \
+	src/http_server/server.cpp
+
+avecado_server_CXXFLAGS = @PTHREAD_CFLAGS@
+
+avecado_server_LDADD = \
+	libavecado.la \
+	@BOOST_LDFLAGS@ @BOOST_ASIO_LIB@ @BOOST_THREAD_LIB@ @PTHREAD_LIBS@
 
 if HAVE_BOOST_PYTHON
 pyexec_LTLIBRARIES = avecado.la
