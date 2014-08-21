@@ -1,7 +1,7 @@
 Avecado
 =======
 
-A library for building Mapnik vector tiles, along with language bindings for Python.
+Avecado (pronounced "a*vec*ado") is a library for building Mapnik vector tiles, along with language bindings for Python and some utility programs.
 
 Building
 --------
