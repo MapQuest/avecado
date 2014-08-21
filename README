@@ -27,7 +27,7 @@ Using
 
 Avecado has three main executable programs:
 
-`avecado`, a simple command-line utility for producing vector tiles. Since each invocation loads a Mapnik map, this is not recommended for generating large volumes of vector tiles. However, it can be useful for one-off testing an debugging of datasource definitions.
+`avecado`, a simple command-line utility for producing vector tiles. Since each invocation loads a Mapnik map, this is not recommended for generating large volumes of vector tiles. However, it can be useful for one-off testing and debugging of datasource definitions.
 
 `avecado_server`, a very simple HTTP server which serves vector tiles according to the input Mapnik map. The HTTP server is extremely basic and, while it might be useful for ad-hoc testing purposes, is not suitable for production use.
 
