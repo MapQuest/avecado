@@ -129,8 +129,7 @@ bool make_vector_tile(tile &tile,
  * Arguments:
  *
  *   tile
- *     The vector tile to which geometry from the query will be
- *     added.
+ *     The vector tile to process.
  *
  *   config
  *     Configuration tree specifying which processes to run on which
