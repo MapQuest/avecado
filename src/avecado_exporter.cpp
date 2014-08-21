@@ -1,4 +1,7 @@
 #include <boost/program_options.hpp>
+#include <boost/property_tree/ptree.hpp>
+#include <boost/property_tree/json_parser.hpp>
+#include <boost/property_tree/exceptions.hpp>
 #include <fstream>
 
 #include <mapnik/utils.hpp>
@@ -10,6 +13,7 @@
 #include "config.h"
 
 namespace bpo = boost::program_options;
+namespace pt = boost::property_tree;
 
 #define WORLD_SIZE (40075016.68)
 
@@ -36,6 +40,7 @@ int main(int argc, char *argv[]) {
   mapnik::scaling_method_e scaling_method = mapnik::SCALING_NEAR;
   double scale_denominator;
   std::string output_file;
+  std::string config_file;
   std::string map_file;
   int z, x, y;
   std::string fonts_dir, input_plugins_dir;
@@ -48,6 +53,10 @@ int main(int argc, char *argv[]) {
 
   options.add_options()
     ("help,h", "Print this help message.")
+    ("config-file,c", bpo::value<std::string>(&config_file),
+     "JSON config file to specify post-processing for data layers.")
+    ("output-file,o", bpo::value<std::string>(&output_file)->default_value("tile.pbf"),
+     "File to serialise the vector tile to.")
     ("path-multiplier,p", bpo::value<unsigned int>(&path_multiplier)->default_value(16),
      "Create a tile with coordinates multiplied by this constant to get sub-pixel "
      "accuracy.")
@@ -69,8 +78,6 @@ int main(int argc, char *argv[]) {
     ("scale-denominator,d", bpo::value<double>(&scale_denominator)->default_value(0.0),
      "Override for scale denominator. A value of 0 means to use the sensible default "
      "which Mapnik will generate from the tile context.")
-    ("output-file,o", bpo::value<std::string>(&output_file)->default_value("tile.pbf"),
-     "File to serialise the vector tile to.")
     ("fonts", bpo::value<std::string>(&fonts_dir)->default_value(MAPNIK_DEFAULT_FONT_DIR),
      "Directory to tell Mapnik to look in for fonts.")
     ("input-plugins", bpo::value<std::string>(&input_plugins_dir)
@@ -136,6 +143,19 @@ int main(int argc, char *argv[]) {
     scaling_method = *method;
   }
 
+  // load *izer config for layers
+  pt::ptree config;
+  if (!config_file.empty()) {
+    try {
+      pt::read_json(config_file, config);
+    }
+    catch (pt::ptree_error & err) {
+      std::cerr << "ERROR while parsing: " << config_file << std::endl;
+      std::cerr << err.what() << std::endl;
+      return EXIT_FAILURE;
+    }
+  }
+
   try {
     mapnik::Map map;
     avecado::tile tile;
@@ -155,6 +175,10 @@ int main(int argc, char *argv[]) {
     avecado::make_vector_tile(tile, path_multiplier, map, buffer_size, scale_factor,
                               offset_x, offset_y, tolerance, image_format,
                               scaling_method, scale_denominator);
+
+    if (!config.empty()) {
+      avecado::process_vector_tile(tile, config, z);
+    }
 
     // serialise to file
     std::ofstream output(output_file);
