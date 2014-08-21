@@ -31,7 +31,7 @@ Avecado has three main executable programs:
 
 `avecado_server`, a very simple HTTP server which serves vector tiles according to the input Mapnik map. The HTTP server is extremely basic and, while it might be useful for ad-hoc testing purposes, is not suitable for production use.
 
-`scripts/override_xml.py`, a utility for altering settings in an XML datasouce configuration. This is useful for correcting or overriding any settings which may be different between the output of Mapbox Studio, or your configuration files in version control, and your local or production setups.
+`scripts/override_xml.py`, a utility for altering settings in an XML datasource configuration. This is useful for correcting or overriding any settings which may be different between the output of Mapbox Studio, or your configuration files in version control, and your local or production setups.
 
 Each of these programs takes as input a Mapnik XML file, although none read the styling information and instead look only at the `Map` definition, `Layer`s and `Datasource`s. These make up the definition of the vector tile, as styling information is applied at the time the vector tile is rendered - either on the client or potentially another server.
 
