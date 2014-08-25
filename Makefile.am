@@ -8,6 +8,8 @@ LIBTOOL_DEPS = @LIBTOOL_DEPS@
 libtool: $(LIBTOOL_DEPS)
 	$(SHELL) ./config.status libtool
 
+noinst_LTLIBRARIES = liblogging.la
+
 BUILT_SOURCES = \
 	include/vector_tile.pb.h \
 	src/vector_tile.pb.cc
@@ -68,7 +70,13 @@ endif
 check_PROGRAMS = \
 	test/make_vector_tile
 
-tests_test_make_vector_tile_SOURCES = test/make_vector_tile.cpp
+liblogging_la_SOURCES = \
+	logging/logger.cpp \
+	logging/stdout_logger.cpp
+
+
+test_make_vector_tile_SOURCES = test/make_vector_tile.cpp
+test_make_vector_tile_LDADD = liblogging.la @BOOST_LDFLAGS@ @BOOST_ASIO_LIB@ @BOOST_THREAD_LIB@ @PTHREAD_LIBS@
 
 TESTS = $(check_PROGRAMS)
 TEST_EXTENSIONS = .sh
