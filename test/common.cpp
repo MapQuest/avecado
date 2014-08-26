@@ -31,7 +31,7 @@
 #include <boost/system/system_error.hpp>
 #include <stdexcept>
 #include <iomanip>
-
+#include <iostream>
 
 #ifdef HAVE_BLACKBOX
 #include <logging/bb_logger.hpp>
@@ -57,10 +57,6 @@ namespace {
 void run_with_output_redirected_to(const string &name, function<void ()> test) {
   // create a file for the output to go to.
   string file_name = string("log/") + name + ".testlog";
-  boost::property_tree::ptree conf;
-  conf.put("type", "file");
-  conf.put("location", file_name);
-  rendermq::log::configure(conf);
 
 #ifdef HAVE_BLACKBOX
   ::blackbox::logging::log::configure(conf);  
