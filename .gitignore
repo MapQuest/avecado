@@ -39,3 +39,8 @@ libavecado.la
 *.lo
 .libs/
 avecado.la
+
+
+# tests
+test/make_vector_tile
+*.log
