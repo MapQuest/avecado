@@ -9,31 +9,28 @@
 namespace avecado {
 
 typedef std::vector<post_process::izer_ptr> izer_vec_t;
-typedef std::shared_ptr<izer_vec_t> izer_vec_ptr;
-struct zoom_range_t {
+typedef struct {
   int minzoom;
   int maxzoom;
-  izer_vec_ptr processes;
-  zoom_range_t () : minzoom(0), maxzoom(0) {
-    processes = std::make_shared<izer_vec_t>();
-  }
-};
+  izer_vec_t processes;
+} zoom_range_t;
 typedef std::vector<zoom_range_t> zoom_range_vec_t;
 typedef std::map<std::string, zoom_range_vec_t> layer_map_t;
 
-class post_processor::process_manager {
+class post_processor::pimpl {
 public:
-  process_manager();
+  pimpl();
   void load(pt::ptree const& config);
-  izer_vec_ptr get_processes(std::string const& layer_name, int zoom_level) const;
+  void process_layer(mapnik::vector::tile_layer & layer, int zoom_level) const;
 private:
   layer_map_t m_layer_processes;
 };
 
-post_processor::process_manager::process_manager()
+post_processor::pimpl::pimpl()
   : m_layer_processes() {}
 
-void post_processor::process_manager::load(pt::ptree const& config) {
+// Parse config tree and initialize izers
+void post_processor::pimpl::load(pt::ptree const& config) {
   post_process::factory<post_process::izer> factory;
   factory.register_type("adminizer", post_process::create_adminizer)
          .register_type("generalizer", post_process::create_generalizer)
@@ -50,7 +47,7 @@ void post_processor::process_manager::load(pt::ptree const& config) {
       for (auto izer_child : process_config) {
         std::string const& type = izer_child.second.get<std::string>("type");
         post_process::izer_ptr p = factory.create(type, izer_child.second);
-        zoom_range.processes->push_back(p);
+        zoom_range.processes.push_back(p);
       }
       zoom_ranges.push_back(std::move(zoom_range));
     }
@@ -58,43 +55,40 @@ void post_processor::process_manager::load(pt::ptree const& config) {
   }
 }
 
-izer_vec_ptr post_processor::process_manager::get_processes(std::string const& layer_name, int zoom_level) const {
-  layer_map_t::const_iterator layer_itr = m_layer_processes.find(layer_name);
+// Find post-processes for given layer at zoom level and run them
+void post_processor::pimpl::process_layer(mapnik::vector::tile_layer & layer, int zoom_level) const {
+  layer_map_t::const_iterator layer_itr = m_layer_processes.find(layer.name());
   if (layer_itr != m_layer_processes.end()) {
     zoom_range_vec_t const& zoom_ranges = layer_itr->second;
     // TODO: Consider ways to optimize zoom range look up
     for (auto range : zoom_ranges) {
       if (zoom_level >= range.minzoom && zoom_level <= range.maxzoom) {
-        return range.processes;
+        // TODO: unserialize geometry objects to pass through izers
+        for (auto p : range.processes) {
+          p->process(layer);
+        }
+        break;
       }
     }
   }
-  return izer_vec_ptr();
 }
 
 post_processor::post_processor()
-  : m_manager(new process_manager()) {}
+  : m_impl(new pimpl()) {}
 
 post_processor::~post_processor() {}
 
 void post_processor::load(pt::ptree const& config) {
-  std::unique_ptr<process_manager> mgr(new process_manager());
-  mgr->load(config);
+  std::unique_ptr<pimpl> impl(new pimpl());
+  impl->load(config);
   // if we got here without throwing an exception, then
   // we should be OK to use this new configuration.
-  m_manager.swap(mgr);
+  m_impl.swap(impl);
 }
 
 void post_processor::process_vector_tile(tile & tile, int zoom_level) const {
-  // iterate all layers in the tile
   for (auto layer : tile.m_mapnik_tile->layers()) {
-    auto processes = m_manager->get_processes(layer.name(), zoom_level);
-    if (processes) {
-      // TODO: Unserialize geometry objects to pass through izers
-      for (auto p : *processes) {
-        p->process(layer);
-      }
-    }
+    m_impl->process_layer(layer, zoom_level);
   }
 }
 

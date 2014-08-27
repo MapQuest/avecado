@@ -47,8 +47,8 @@ public:
   void process_vector_tile(tile & tile, int zoom_level) const;
 
 private:
-  class process_manager;
-  std::unique_ptr<process_manager> m_manager;
+  class pimpl;
+  std::unique_ptr<pimpl> m_impl;
 };
 
 } // namespace avecado
