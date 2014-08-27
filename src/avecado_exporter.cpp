@@ -144,14 +144,21 @@ int main(int argc, char *argv[]) {
   }
 
   // load *izer config for layers
-  pt::ptree config;
+  avecado::post_process::post_processor processor;
   if (!config_file.empty()) {
+    pt::ptree config;
     try {
       pt::read_json(config_file, config);
     }
     catch (pt::ptree_error & err) {
       std::cerr << "ERROR while parsing: " << config_file << std::endl;
       std::cerr << err.what() << std::endl;
+      return EXIT_FAILURE;
+    }
+    try {
+      processor.load(config);
+    } catch (const std::exception &e) {
+      std::cerr << "Unable to load post processors from config: " << e.what() << "\n";
       return EXIT_FAILURE;
     }
   }
@@ -176,9 +183,7 @@ int main(int argc, char *argv[]) {
                               offset_x, offset_y, tolerance, image_format,
                               scaling_method, scale_denominator);
 
-    if (!config.empty()) {
-      avecado::process_vector_tile(tile, config, z);
-    }
+    processor.process_vector_tile(tile, z);
 
     // serialise to file
     std::ofstream output(output_file);
