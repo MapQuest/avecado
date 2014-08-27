@@ -9,6 +9,7 @@
 #include <mapnik/datasource_cache.hpp>
 
 #include "vector_tile.pb.h"
+#include "vector_tile_datasource.hpp"
 
 #include "config.h"
 
@@ -40,6 +41,9 @@ const std::string image_format = "jpeg";
 const mapnik::scaling_method_e scaling_method = mapnik::SCALING_NEAR;
 const double scale_denominator = 0;
 
+const unsigned tile_size = 256;
+const unsigned _x=0,_y=0,_z=0; 
+const mapnik::box2d<double> bbox = box_for_tile(_z, _x, _y);
 
 void setup_mapnik() {
   mapnik::freetype_engine::register_fonts(MAPNIK_DEFAULT_FONT_DIR);
@@ -55,8 +59,8 @@ void test_single_point() {
   avecado::tile tile;
   // to-do: can we do this completely inline?
   mapnik::load_map(map, "test/single_point.xml");
-  map.resize(256, 256);
-  map.zoom_to_box(box_for_tile(0, 0, 0));
+  map.resize(tile_size, tile_size);
+  map.zoom_to_box(bbox);
   avecado::make_vector_tile(tile, path_multiplier, map, buffer_size, scale_factor,
                             offset_x, offset_y, tolerance, image_format,
                             scaling_method, scale_denominator);
@@ -64,6 +68,17 @@ void test_single_point() {
   result.ParseFromString(tile.get_data());
   mapnik::vector::tile_layer layer = result.layers(0);
   test::assert_equal(layer.version(), (unsigned int)(1), "Unknown layer version number");
+  
+  // Query the layer with mapnik
+  mapnik::vector::tile_datasource ds(layer, 0, 0, 0, tile_size);
+
+  mapnik::featureset_ptr fs;
+  fs = ds.features(mapnik::query(bbox));
+/*  mapnik::vector::tile_feature feature = result.layers(0).features(0);
+  test::assert_equal(feature.type(), mapnik::vector::tile_GeomType_Point, "Feature should be a point");
+*/
+  
+  
 }
 
 int main() {
