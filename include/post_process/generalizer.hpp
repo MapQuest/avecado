@@ -10,6 +10,10 @@ namespace pt = boost::property_tree;
 namespace avecado {
 namespace post_process {
 
+/**
+ * Create a new instance of "generalizer", a post-process that
+ * runs a selected generalization algorithm on feature geometries.
+ */
 izer_ptr create_generalizer(pt::ptree const& config);
 
 } // namespace post_process

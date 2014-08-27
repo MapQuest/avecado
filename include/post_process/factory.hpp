@@ -8,6 +8,9 @@ namespace pt = boost::property_tree;
 namespace avecado {
 namespace post_process {
 
+/**
+ * Generic factory class for creating objects based on type name and configuration.
+ */
 template <typename T>
 class factory {
 public:

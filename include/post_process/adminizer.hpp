@@ -10,6 +10,11 @@ namespace pt = boost::property_tree;
 namespace avecado {
 namespace post_process {
 
+/**
+ * Create a new instance of "adminizer", a post-process that
+ * applies administrative region attribution to features,
+ * based on geographic location of the geometry.
+ */
 izer_ptr create_adminizer(pt::ptree const& config);
 
 } // namespace post_process

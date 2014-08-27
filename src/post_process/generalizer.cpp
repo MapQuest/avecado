@@ -3,6 +3,10 @@
 namespace avecado {
 namespace post_process {
 
+/**
+ * Post-process that runs a selected generalization algorithm
+ * on feature geometries.
+ */
 class generalizer : public izer {
 public:
   generalizer() {};

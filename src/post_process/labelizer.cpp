@@ -3,6 +3,10 @@
 namespace avecado {
 namespace post_process {
 
+/**
+ * Post-process that handles shield attribution and concurrencies,
+ * and generates label placements along linear geometries.
+ */
 class labelizer : public izer {
 public:
   labelizer() {}

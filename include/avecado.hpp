@@ -89,28 +89,6 @@ bool make_vector_tile(tile &tile,
                       mapnik::scaling_method_e scaling_method,
                       double scale_denominator);
 
-/**
- * process_vector_tile looks for post-processing options in the config
- * and runs mergonalizer, generalizer, and/or labelizer on each layer
- * where they are specified
- *
- * Arguments:
- *
- *   tile
- *     The vector tile to process.
- *
- *   config
- *     Configuration tree specifying which processes to run on which
- *     layers at which zoom levels.
- *
- *   zoom_level
- *     Zoom level of the tile.
- *
- * Throws an exception if an unrecoverable error was encountered
- * while reading config options or processing a vector layer.
- */
-void process_vector_tile(tile & tile, pt::ptree const& config, int zoom_level);
-
 } // namespace avecado
 
 #endif /* AVECADO_HPP */

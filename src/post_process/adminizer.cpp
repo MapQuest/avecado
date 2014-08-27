@@ -3,6 +3,10 @@
 namespace avecado {
 namespace post_process {
 
+/**
+ * Post-process that applies administrative region attribution
+ * to features, based on geographic location of the geometry.
+ */
 class adminizer : public izer {
 public:
   adminizer() {}

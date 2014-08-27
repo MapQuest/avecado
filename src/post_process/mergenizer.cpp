@@ -3,6 +3,10 @@
 namespace avecado {
 namespace post_process {
 
+/**
+ * Post-process that merges features which have matching attribution
+ * and geometries that are able to be joined or unioned together.
+ */
 class mergenizer : public izer {
 public:
   mergenizer() {}

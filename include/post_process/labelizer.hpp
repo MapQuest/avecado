@@ -10,6 +10,11 @@ namespace pt = boost::property_tree;
 namespace avecado {
 namespace post_process {
 
+/**
+ * Create a new instance of "labelizer", a post-process that
+ * handles shield attribution and concurrencies, and
+ * generates label placements along linear geometries.
+ */
 izer_ptr create_labelizer(pt::ptree const& config);
 
 } // namespace post_process

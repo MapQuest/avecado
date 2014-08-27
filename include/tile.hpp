@@ -22,12 +22,12 @@ namespace post_process { class post_processor; }
  */
 class tile {
 public:
-  // construct an empty vector tile
+  // Construct an empty vector tile
   tile();
 
   ~tile();
 
-  // return the tile contents as PBF
+  // Return the tile contents as PBF
   std::string get_data() const;
 
 private:
@@ -37,8 +37,6 @@ private:
                                int, double, unsigned int, unsigned int,
                                unsigned int, const std::string &,
                                mapnik::scaling_method_e, double);
-
-  friend void process_vector_tile(tile &, pt::ptree const&, int);
 
   friend std::ostream &operator<<(std::ostream &, const tile &);
 
