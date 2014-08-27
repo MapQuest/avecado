@@ -8,6 +8,8 @@
 #include <mapnik/font_engine_freetype.hpp>
 #include <mapnik/datasource_cache.hpp>
 
+#include "vector_tile.pb.h"
+
 #include "config.h"
 
 using std::cout;
@@ -58,6 +60,10 @@ void test_single_point() {
   avecado::make_vector_tile(tile, path_multiplier, map, buffer_size, scale_factor,
                             offset_x, offset_y, tolerance, image_format,
                             scaling_method, scale_denominator);
+  mapnik::vector::tile result;
+  result.ParseFromString(tile.get_data());
+  mapnik::vector::tile_layer layer = result.layers(0);
+  test::assert_equal(layer.version(), (unsigned int)(1), "Unknown layer version number");
 }
 
 int main() {
