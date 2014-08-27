@@ -74,7 +74,6 @@ liblogging_la_SOURCES = \
 	logging/logger.cpp \
 	logging/stdout_logger.cpp
 
-
 test_make_vector_tile_SOURCES = test/make_vector_tile.cpp test/common.cpp
 test_make_vector_tile_LDADD = libavecado.la liblogging.la @BOOST_LDFLAGS@ @BOOST_ASIO_LIB@ @BOOST_THREAD_LIB@ @PTHREAD_LIBS@
 
