@@ -14,8 +14,6 @@ namespace mapnik { namespace vector { struct tile; } }
 
 namespace avecado {
 
-namespace post_process { class post_processor; }
-
 /**
  * Wrapper around the vector tile type, exposing some useful
  * methods but not needing the inclusion of the protobuf header.
@@ -40,7 +38,7 @@ private:
 
   friend std::ostream &operator<<(std::ostream &, const tile &);
 
-  friend class post_process::post_processor;
+  friend class post_processor;
 };
 
 } // namespace avecado

@@ -4,7 +4,6 @@
 #include "tile.hpp"
 
 namespace avecado {
-namespace post_process {
 
 /**
  * Post processor takes a configuration property tree that defines
@@ -52,7 +51,6 @@ private:
   std::unique_ptr<process_manager> m_manager;
 };
 
-} // namespace post_process
 } // namespace avecado
 
 #endif // AVECADO_POST_PROCESSOR_HPP

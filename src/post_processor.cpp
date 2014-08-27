@@ -7,15 +7,14 @@
 #include "post_process/mergenizer.hpp"
 
 namespace avecado {
-namespace post_process {
 
-typedef std::vector<izer_ptr> izer_vec_t;
+typedef std::vector<post_process::izer_ptr> izer_vec_t;
 typedef std::shared_ptr<izer_vec_t> izer_vec_ptr;
 struct zoom_range_t {
   int minzoom;
   int maxzoom;
   izer_vec_ptr processes;
-  zoom_range_t () {
+  zoom_range_t () : minzoom(0), maxzoom(0) {
     processes = std::make_shared<izer_vec_t>();
   }
 };
@@ -35,11 +34,11 @@ post_processor::process_manager::process_manager()
   : m_layer_processes() {}
 
 void post_processor::process_manager::load(pt::ptree const& config) {
-  factory<izer> factory;
-  factory.register_type("adminizer", create_adminizer)
-         .register_type("generalizer", create_generalizer)
-         .register_type("labelizer", create_labelizer)
-         .register_type("mergenizer", create_mergenizer);
+  post_process::factory<post_process::izer> factory;
+  factory.register_type("adminizer", post_process::create_adminizer)
+         .register_type("generalizer", post_process::create_generalizer)
+         .register_type("labelizer", post_process::create_labelizer)
+         .register_type("mergenizer", post_process::create_mergenizer);
 
   for (auto layer_child : config) {
     zoom_range_vec_t zoom_ranges;
@@ -50,7 +49,7 @@ void post_processor::process_manager::load(pt::ptree const& config) {
       pt::ptree const& process_config = range_child.second.get_child("process");
       for (auto izer_child : process_config) {
         std::string const& type = izer_child.second.get<std::string>("type");
-        izer_ptr p = factory.create(type, izer_child.second);
+        post_process::izer_ptr p = factory.create(type, izer_child.second);
         zoom_range.processes->push_back(p);
       }
       zoom_ranges.push_back(std::move(zoom_range));
@@ -99,5 +98,4 @@ void post_processor::process_vector_tile(tile & tile, int zoom_level) const {
   }
 }
 
-} // namespace post_process
 } // namespace avecado

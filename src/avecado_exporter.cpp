@@ -2,6 +2,7 @@
 #include <boost/property_tree/ptree.hpp>
 #include <boost/property_tree/json_parser.hpp>
 #include <boost/property_tree/exceptions.hpp>
+#include <boost/utility/typed_in_place_factory.hpp>
 #include <fstream>
 
 #include <mapnik/utils.hpp>
@@ -143,22 +144,23 @@ int main(int argc, char *argv[]) {
     scaling_method = *method;
   }
 
-  // load *izer config for layers
-  avecado::post_process::post_processor processor;
+  // load post processor config if it is provided
+  boost::optional<avecado::post_processor> post_processor;
   if (!config_file.empty()) {
-    pt::ptree config;
     try {
+      // parse json config
+      pt::ptree config;
       pt::read_json(config_file, config);
-    }
-    catch (pt::ptree_error & err) {
-      std::cerr << "ERROR while parsing: " << config_file << std::endl;
-      std::cerr << err.what() << std::endl;
+      // init processor
+      post_processor = boost::in_place<avecado::post_processor>();
+      post_processor->load(config);
+    } catch (pt::ptree_error const& e) {
+      std::cerr << "Error while parsing config: " << config_file << std::endl;
+      std::cerr << e.what() << std::endl;
       return EXIT_FAILURE;
-    }
-    try {
-      processor.load(config);
-    } catch (const std::exception &e) {
-      std::cerr << "Unable to load post processors from config: " << e.what() << "\n";
+    } catch (std::exception const& e) {
+      std::cerr << "Error while loading config: " << config_file << std::endl;
+      std::cerr << e.what() << std::endl;
       return EXIT_FAILURE;
     }
   }
@@ -178,12 +180,15 @@ int main(int argc, char *argv[]) {
     map.resize(256, 256);
     map.zoom_to_box(box_for_tile(z, x, y));
 
-    // actually making the vector tile
+    // actually make the vector tile
     avecado::make_vector_tile(tile, path_multiplier, map, buffer_size, scale_factor,
                               offset_x, offset_y, tolerance, image_format,
                               scaling_method, scale_denominator);
 
-    processor.process_vector_tile(tile, z);
+    // run post processing if configured
+    if (post_processor) {
+      post_processor->process_vector_tile(tile, z);
+    }
 
     // serialise to file
     std::ofstream output(output_file);
