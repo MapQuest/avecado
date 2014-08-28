@@ -7,7 +7,7 @@ namespace avecado {
 
 /**
  * Post processor takes a configuration property tree that defines
- * post-processes, dubbed "izers" (e.g. generalizer, mergenizer, etc.)
+ * post-processes, dubbed "izers" (e.g. generalizer, unionizer, etc.)
  * The class has one method for running the "izers" on a vector tile.
  */
 class post_processor {

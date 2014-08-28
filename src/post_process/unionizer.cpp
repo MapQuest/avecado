@@ -1,4 +1,4 @@
-#include "post_process/mergenizer.hpp"
+#include "post_process/unionizer.hpp"
 
 namespace avecado {
 namespace post_process {
@@ -7,20 +7,20 @@ namespace post_process {
  * Post-process that merges features which have matching attribution
  * and geometries that are able to be joined or unioned together.
  */
-class mergenizer : public izer {
+class unionizer : public izer {
 public:
-  mergenizer() {}
-  virtual ~mergenizer() {}
+  unionizer() {}
+  virtual ~unionizer() {}
 
   virtual void process(mapnik::vector::tile_layer & layer) const;
 };
 
-void mergenizer::process(mapnik::vector::tile_layer & layer) const {
-  // TODO: mergenizer!
+void unionizer::process(mapnik::vector::tile_layer & layer) const {
+  // TODO: unionize!
 }
 
-izer_ptr create_mergenizer(pt::ptree const& config) {
-  return std::make_shared<mergenizer>();
+izer_ptr create_unionizer(pt::ptree const& config) {
+  return std::make_shared<unionizer>();
 }
 
 } // namespace post_process

@@ -32,7 +32,7 @@ libavecado_la_SOURCES = \
 	src/post_process/adminizer.cpp \
 	src/post_process/generalizer.cpp \
 	src/post_process/labelizer.cpp \
-	src/post_process/mergenizer.cpp
+	src/post_process/unionizer.cpp
 
 nodist_libavecado_la_SOURCES = \
 	src/vector_tile.pb.cc

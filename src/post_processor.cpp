@@ -4,7 +4,7 @@
 #include "post_process/adminizer.hpp"
 #include "post_process/generalizer.hpp"
 #include "post_process/labelizer.hpp"
-#include "post_process/mergenizer.hpp"
+#include "post_process/unionizer.hpp"
 
 namespace avecado {
 
@@ -35,7 +35,7 @@ void post_processor::pimpl::load(pt::ptree const& config) {
   factory.register_type("adminizer", post_process::create_adminizer)
          .register_type("generalizer", post_process::create_generalizer)
          .register_type("labelizer", post_process::create_labelizer)
-         .register_type("mergenizer", post_process::create_mergenizer);
+         .register_type("unionizer", post_process::create_unionizer);
 
   for (auto layer_child : config) {
     zoom_range_vec_t zoom_ranges;
