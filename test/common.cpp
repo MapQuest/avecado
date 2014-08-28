@@ -1,6 +1,6 @@
 /*------------------------------------------------------------------------------
  *
- *  This file is part of rendermq  
+ *  This file is part of avecado
  *
  *  Author: matt.amos@mapquest.com
  *
@@ -33,10 +33,6 @@
 #include <iomanip>
 #include <iostream>
 
-#ifdef HAVE_BLACKBOX
-#include <logging/bb_logger.hpp>
-#endif
-
 using boost::function;
 using std::runtime_error;
 using std::exception;
@@ -57,10 +53,6 @@ namespace {
 void run_with_output_redirected_to(const string &name, function<void ()> test) {
   // create a file for the output to go to.
   string file_name = string("log/") + name + ".testlog";
-
-#ifdef HAVE_BLACKBOX
-  ::blackbox::logging::log::configure(conf);  
-#endif
 
   // run the test
   test();
