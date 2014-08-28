@@ -29,6 +29,8 @@ int main(int argc, char *argv[]) {
     ("path-multiplier,p", bpo::value<unsigned int>(&srv_opts.path_multiplier)->default_value(16),
      "Create a tile with coordinates multiplied by this constant to get sub-pixel "
      "accuracy.")
+    ("tile-size,t", bpo::value<int>(&srv_opts.tile_size)->default_value(256),
+     "Width/height of the tile.")
     ("buffer-size,b", bpo::value<int>(&srv_opts.buffer_size)->default_value(0),
      "Number of pixels around the tile to buffer in order to allow for features "
      "whose rendering effects extend beyond the geometric extent.")

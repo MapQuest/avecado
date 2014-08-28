@@ -32,6 +32,7 @@ mapnik::box2d<double> box_for_tile(int z, int x, int y) {
 
 int main(int argc, char *argv[]) {
   unsigned int path_multiplier;
+  int tile_size;
   int buffer_size;
   double scale_factor;
   unsigned int offset_x;
@@ -61,6 +62,8 @@ int main(int argc, char *argv[]) {
     ("path-multiplier,p", bpo::value<unsigned int>(&path_multiplier)->default_value(16),
      "Create a tile with coordinates multiplied by this constant to get sub-pixel "
      "accuracy.")
+    ("tile-size,t", bpo::value<int>(&tile_size)->default_value(256),
+      "Width/height of the tile.")
     ("buffer-size,b", bpo::value<int>(&buffer_size)->default_value(0),
      "Number of pixels around the tile to buffer in order to allow for features "
      "whose rendering effects extend beyond the geometric extent.")
@@ -167,7 +170,7 @@ int main(int argc, char *argv[]) {
 
   try {
     mapnik::Map map;
-    avecado::tile tile;
+    avecado::tile tile(z, x, y, tile_size);
 
     // try to register fonts and input plugins
     mapnik::freetype_engine::register_fonts(fonts_dir);
@@ -177,7 +180,7 @@ int main(int argc, char *argv[]) {
     mapnik::load_map(map, map_file);
 
     // setup map parameters
-    map.resize(256, 256);
+    map.resize(tile_size, tile_size);
     map.zoom_to_box(box_for_tile(z, x, y));
 
     // actually make the vector tile
@@ -187,7 +190,7 @@ int main(int argc, char *argv[]) {
 
     // run post processing if configured
     if (post_processor) {
-      post_processor->process_vector_tile(tile, z);
+      post_processor->process_vector_tile(tile);
     }
 
     // serialise to file

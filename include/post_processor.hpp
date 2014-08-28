@@ -38,13 +38,10 @@ public:
    *   tile
    *     The vector tile to process.
    *
-   *   zoom_level
-   *     Zoom level of the tile.
-   *
    * Throws an exception if an unrecoverable error was encountered
    * while processing a vector layer.
    */
-  void process_vector_tile(tile & tile, int zoom_level) const;
+  void process_vector_tile(tile & tile) const;
 
 private:
   class pimpl;

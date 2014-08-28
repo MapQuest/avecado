@@ -5,6 +5,7 @@
 
 struct server_options {
   unsigned int path_multiplier;
+  int tile_size;
   int buffer_size;
   double scale_factor;
   unsigned int offset_x;

@@ -6,7 +6,9 @@ using namespace boost::python;
 
 namespace {
 
-str mk_tile(object py_map, 
+str mk_tile(object py_map,
+            int z, int x, int y,
+            int tile_size,
             unsigned int path_multiplier,
             int buffer_size,
             double scale_factor,
@@ -18,7 +20,7 @@ str mk_tile(object py_map,
             double scale_denominator) {
 
   mapnik::Map const &map = extract<mapnik::Map const &>(py_map);
-  avecado::tile tile;
+  avecado::tile tile(x, y, z, tile_size);
 
   mapnik::scaling_method_e scaling_method = mapnik::SCALING_NEAR;
   boost::optional<mapnik::scaling_method_e> method =
@@ -43,7 +45,11 @@ str mk_tile(object py_map,
 
 BOOST_PYTHON_MODULE(avecado) {
   def("make_vector_tile", mk_tile,
-      (arg("path_multiplier") = 16,
+      (arg("z") = 0,
+       arg("x") = 0,
+       arg("y") = 0,
+       arg("tile_size") = 256,
+       arg("path_multiplier") = 16,
        arg("buffer_size") = 0,
        arg("scale_factor") = 1.0,
        arg("offset_x") = 0,
@@ -64,6 +70,6 @@ BOOST_PYTHON_MODULE(avecado) {
       ">>> m = mapnik.Map(256, 256)\n"
       ">>> mapnik.load_map(m, 'style.xml')\n"
       ">>> m.zoom_to_box(mapnik.Box2d(-100, -100, 100, 100))\n"
-      ">>> t = avecado.make_vector_tile(m, path_multiplier = 16, scale_factor = 1.0)\n"
+      ">>> t = avecado.make_vector_tile(m, 18, 75501, 99191, 256, path_multiplier = 16, scale_factor = 1.0)\n"
     );
 }

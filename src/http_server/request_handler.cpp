@@ -83,10 +83,10 @@ void request_handler::handle_request(const request& req, reply& rep)
 
   try {
     // setup map parameters
-    map_ptr_->resize(256, 256);
+    map_ptr_->resize(options_.tile_size, options_.tile_size);
     map_ptr_->zoom_to_box(box_for_tile(z, x, y));
 
-    avecado::tile tile;
+    avecado::tile tile(z, x, y, options_.tile_size);
 
     // actually making the vector tile
     bool ok = avecado::make_vector_tile(

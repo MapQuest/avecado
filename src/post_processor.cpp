@@ -86,9 +86,9 @@ void post_processor::load(pt::ptree const& config) {
   m_impl.swap(impl);
 }
 
-void post_processor::process_vector_tile(tile & tile, int zoom_level) const {
+void post_processor::process_vector_tile(tile & tile) const {
   for (auto layer : tile.m_mapnik_tile->layers()) {
-    m_impl->process_layer(layer, zoom_level);
+    m_impl->process_layer(layer, tile.m_z);
   }
 }
 

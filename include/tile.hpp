@@ -21,7 +21,7 @@ namespace avecado {
 class tile {
 public:
   // Construct an empty vector tile
-  tile();
+  tile(int z, int x, int y, int size);
 
   ~tile();
 
@@ -30,6 +30,11 @@ public:
 
 private:
   std::unique_ptr<mapnik::vector::tile> m_mapnik_tile;
+
+  int m_z;
+  int m_x;
+  int m_y;
+  int m_size;
 
   friend bool make_vector_tile(tile &, unsigned int, mapnik::Map const&,
                                int, double, unsigned int, unsigned int,
