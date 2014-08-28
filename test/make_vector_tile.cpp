@@ -56,9 +56,9 @@ void setup_mapnik() {
 /* See bindings/python/mapnik_feature.cpp from Mapnik */
 std::string feature_to_geojson(mapnik::feature_impl const& feature)
 {
-    std::string json;
-    test::assert_equal(mapnik::json::to_geojson(json,feature), true, "Failed to convert to GeoJSON");
-    return json;
+  std::string json;
+  test::assert_equal(mapnik::json::to_geojson(json,feature), true, "Failed to convert to GeoJSON");
+  return json;
 }
 
 void test_single_point() {
