@@ -8,6 +8,8 @@ LIBTOOL_DEPS = @LIBTOOL_DEPS@
 libtool: $(LIBTOOL_DEPS)
 	$(SHELL) ./config.status libtool
 
+noinst_LTLIBRARIES = liblogging.la
+
 BUILT_SOURCES = \
 	include/vector_tile.pb.h \
 	src/vector_tile.pb.cc
@@ -70,3 +72,21 @@ avecado_la_SOURCES = src/python_module.cpp
 avecado_la_LDFLAGS = -avoid-version -module @PYTHON_LDFLAGS@
 avecado_la_LIBADD = libavecado.la @BOOST_LDFLAGS@ -l@BOOST_PYTHON_LIB@
 endif
+
+check_PROGRAMS = \
+	test/make_vector_tile
+
+liblogging_la_SOURCES = \
+	logging/logger.cpp \
+	logging/stdout_logger.cpp \
+	logging/file_logger.cpp \
+	logging/null_logger.cpp
+
+test_make_vector_tile_SOURCES = test/make_vector_tile.cpp test/common.cpp
+test_make_vector_tile_LDADD = libavecado.la liblogging.la @BOOST_LDFLAGS@ @BOOST_ASIO_LIB@ @BOOST_THREAD_LIB@ @PTHREAD_LIBS@
+
+TESTS = $(check_PROGRAMS)
+TEST_EXTENSIONS = .sh
+SH_LOG_COMPILER = sh
+
+test: check

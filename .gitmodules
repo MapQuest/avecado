@@ -1,3 +1,6 @@
 [submodule "mapnik-vector-tile"]
 	path = mapnik-vector-tile
 	url = https://github.com/mapbox/mapnik-vector-tile.git
+[submodule "logging"]
+	path = logging
+	url = https://github.com/MapQuest/logging.git
