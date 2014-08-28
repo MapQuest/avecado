@@ -62,9 +62,8 @@ std::string feature_to_geojson(mapnik::feature_impl const& feature)
 }
 
 void test_single_point() {
-/* This test creates a CSV source with a single point at 0,0,
- * a map file which renders that point, and checks the resulting
- * vector tile for 0/0/0
+/* This test uses a map file with a CSV source single point at 0,0
+ * and checks the resulting vector tile for 0/0/0
  */
   mapnik::Map map;
   avecado::tile tile;
