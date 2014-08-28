@@ -7,6 +7,9 @@
 #include <mapnik/load_map.hpp>
 #include <mapnik/font_engine_freetype.hpp>
 #include <mapnik/datasource_cache.hpp>
+#include <mapnik/json/feature_generator.hpp>
+#include <mapnik/json/feature_generator_grammar_impl.hpp>
+#include <mapnik/json/geometry_generator_grammar_impl.hpp>
 
 #include "vector_tile.pb.h"
 #include "vector_tile_datasource.hpp"
@@ -50,6 +53,14 @@ void setup_mapnik() {
   mapnik::datasource_cache::instance().register_datasources(MAPNIK_DEFAULT_INPUT_PLUGIN_DIR);
 }
 
+/* See bindings/python/mapnik_feature.cpp from Mapnik */
+std::string feature_to_geojson(mapnik::feature_impl const& feature)
+{
+    std::string json;
+    test::assert_equal(mapnik::json::to_geojson(json,feature), true, "Failed to convert to GeoJSON");
+    return json;
+}
+
 void test_single_point() {
 /* This test creates a CSV source with a single point at 0,0,
  * a map file which renders that point, and checks the resulting
@@ -66,19 +77,21 @@ void test_single_point() {
                             scaling_method, scale_denominator);
   mapnik::vector::tile result;
   result.ParseFromString(tile.get_data());
+  test::assert_equal(result.layers_size(), 1, "Wrong number of layers");
   mapnik::vector::tile_layer layer = result.layers(0);
-  test::assert_equal(layer.version(), (unsigned int)(1), "Unknown layer version number");
-  
-  // Query the layer with mapnik
+
+  // Query the layer with mapnik. See https://github.com/mapbox/mapnik-vector-tile/blob/2e3e2c28/test/vector_tile.cpp#L236
   mapnik::vector::tile_datasource ds(layer, 0, 0, 0, tile_size);
 
+  mapnik::query qq = mapnik::query(bbox);
+  qq.add_property_name("name");
   mapnik::featureset_ptr fs;
-  fs = ds.features(mapnik::query(bbox));
-/*  mapnik::vector::tile_feature feature = result.layers(0).features(0);
-  test::assert_equal(feature.type(), mapnik::vector::tile_GeomType_Point, "Feature should be a point");
-*/
-  
-  
+  fs = ds.features(qq);
+  mapnik::feature_ptr feat = fs->next();
+  std::string json = feature_to_geojson(*feat);
+  test::assert_equal(json,
+                     std::string(R"({"type":"Feature","id":1,"geometry":{"type":"Point","coordinates":[0,0]},"properties":{"name":"null island"}})"),
+                     "Wrong JSON");
 }
 
 int main() {
