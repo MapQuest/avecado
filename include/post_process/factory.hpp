@@ -27,11 +27,8 @@ public:
 
   ptr_t create(std::string const& type, pt::ptree const& config) const {
     typename func_map_t::const_iterator f_itr = m_factory_functions.find(type);
-    if (f_itr == m_factory_functions.end())
-    {
-      // Not found.
-      // TODO: Throw exception here?
-      return ptr_t();
+    if (f_itr == m_factory_functions.end()) {
+      throw std::runtime_error("Unrecognized type: " + type);
     }
     factory_func_t func = f_itr->second;
     ptr_t ptr = func(config);
