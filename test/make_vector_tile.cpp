@@ -76,7 +76,6 @@ void test_single_point() {
  */
   mapnik::Map map;
   avecado::tile tile;
-  // to-do: can we do this completely inline?
   mapnik::load_map(map, "test/single_point.xml");
   map.resize(tile_size, tile_size);
   map.zoom_to_box(bbox);
@@ -106,7 +105,6 @@ void test_single_line() {
  */
   mapnik::Map map;
   avecado::tile tile;
-  // to-do: can we do this completely inline?
   mapnik::load_map(map, "test/single_line.xml");
   map.resize(tile_size, tile_size);
   map.zoom_to_box(bbox);
@@ -136,7 +134,6 @@ void test_single_polygon() {
  */
   mapnik::Map map;
   avecado::tile tile;
-  // to-do: can we do this completely inline?
   mapnik::load_map(map, "test/single_poly.xml");
   map.resize(tile_size, tile_size);
   map.zoom_to_box(bbox);
@@ -166,7 +163,6 @@ void test_intersected_line() {
  */
   mapnik::Map map;
   avecado::tile tile;
-  // to-do: can we do this completely inline?
   mapnik::load_map(map, "test/single_line.xml");
   map.resize(tile_size, tile_size);
   map.zoom_to_box(box_for_tile(1, 0, 0));
