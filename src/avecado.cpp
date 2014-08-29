@@ -2,12 +2,13 @@
 #include "vector_tile.pb.h"
 
 #include <mapnik/map.hpp>
+#include <mapnik/feature.hpp>
 
 #include <google/protobuf/io/zero_copy_stream_impl.h>
 
 #include "mapnik3x_compatibility.hpp"
 #include "vector_tile_processor.hpp"
-#include "vector_tile_backend_pbf.hpp"
+#include "avecado_backend.hpp"
 
 namespace avecado {
 
@@ -34,7 +35,7 @@ bool make_vector_tile(tile &tile,
                       mapnik::scaling_method_e scaling_method,
                       double scale_denominator) {
   
-  typedef mapnik::vector::backend_pbf backend_type;
+  typedef avecado_backend backend_type;
   typedef mapnik::vector::processor<backend_type> renderer_type;
   
   backend_type backend(*tile.m_mapnik_tile, path_multiplier);
