@@ -33,12 +33,13 @@ bool make_vector_tile(tile &tile,
                       unsigned int tolerance,
                       const std::string &image_format,
                       mapnik::scaling_method_e scaling_method,
-                      double scale_denominator) {
+                      double scale_denominator,
+                      boost::optional<const post_processor &> pp) {
   
   typedef backend backend_type;
   typedef mapnik::vector::processor<backend_type> renderer_type;
   
-  backend_type backend(*tile.m_mapnik_tile, path_multiplier);
+  backend_type backend(*tile.m_mapnik_tile, path_multiplier, pp);
   
   mapnik::request request(map.width(),
                           map.height(),

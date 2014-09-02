@@ -13,7 +13,7 @@ namespace post_process {
 class izer {
 public:
   virtual ~izer() {};
-  virtual void process(mapnik::vector::tile_layer & layer) const = 0;
+  virtual void process(std::vector<mapnik::feature_ptr> &layer) const = 0;
 };
 
 typedef std::shared_ptr<izer> izer_ptr;

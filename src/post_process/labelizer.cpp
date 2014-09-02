@@ -12,10 +12,10 @@ public:
   labelizer() {}
   virtual ~labelizer() {}
 
-  virtual void process(mapnik::vector::tile_layer & layer) const;
+  virtual void process(std::vector<mapnik::feature_ptr> &layer) const;
 };
 
-void labelizer::process(mapnik::vector::tile_layer & layer) const {
+void labelizer::process(std::vector<mapnik::feature_ptr> &layer) const {
   // TODO: labelize!
 }
 

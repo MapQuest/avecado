@@ -5,6 +5,7 @@
 #include "post_processor.hpp"
 
 #include <memory>
+#include <boost/optional.hpp>
 #include <mapnik/map.hpp>
 #include <mapnik/image_scaling.hpp>
 
@@ -68,6 +69,10 @@ std::ostream &operator<<(std::ostream &, const tile &);
  *     mapnik will choose an appropriate scale based on the request
  *     size.
  *
+ *   post_processor
+ *     An optional `post_processor` object to handle geometry
+ *     operations ("izers") before the tile is serialised.
+ *
  * Returns true if the renderer painted, which means that it added
  * some geometry to the vector tile. Returns false if no geometry
  * was added. This can be used to detect empty tiles, which can be
@@ -87,7 +92,8 @@ bool make_vector_tile(tile &tile,
                       unsigned int tolerance,
                       const std::string &image_format,
                       mapnik::scaling_method_e scaling_method,
-                      double scale_denominator);
+                      double scale_denominator,
+                      boost::optional<const post_processor &> post_processor);
 
 } // namespace avecado
 

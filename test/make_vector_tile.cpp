@@ -74,7 +74,7 @@ void test_single_point() {
   map.zoom_to_box(bbox);
   avecado::make_vector_tile(tile, path_multiplier, map, buffer_size, scale_factor,
                             offset_x, offset_y, tolerance, image_format,
-                            scaling_method, scale_denominator);
+                            scaling_method, scale_denominator, boost::none);
   mapnik::vector::tile result;
   result.ParseFromString(tile.get_data());
   test::assert_equal(result.layers_size(), 1, "Wrong number of layers");

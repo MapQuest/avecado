@@ -12,10 +12,10 @@ public:
   generalizer() {};
   virtual ~generalizer() {}
 
-  virtual void process(mapnik::vector::tile_layer & layer) const;
+  virtual void process(std::vector<mapnik::feature_ptr> &layer) const;
 };
 
-void generalizer::process(mapnik::vector::tile_layer & layer) const {
+void generalizer::process(std::vector<mapnik::feature_ptr> &layer) const {
   // TODO: generalize!
 }
 

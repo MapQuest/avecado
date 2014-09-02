@@ -12,10 +12,10 @@ public:
   unionizer() {}
   virtual ~unionizer() {}
 
-  virtual void process(mapnik::vector::tile_layer & layer) const;
+  virtual void process(std::vector<mapnik::feature_ptr> &layer) const;
 };
 
-void unionizer::process(mapnik::vector::tile_layer & layer) const {
+void unionizer::process(std::vector<mapnik::feature_ptr> &layer) const {
   // TODO: unionize!
 }
 

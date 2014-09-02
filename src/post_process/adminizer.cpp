@@ -12,10 +12,10 @@ public:
   adminizer() {}
   virtual ~adminizer() {}
 
-  virtual void process(mapnik::vector::tile_layer & layer) const;
+  virtual void process(std::vector<mapnik::feature_ptr> &layer) const;
 };
 
-void adminizer::process(mapnik::vector::tile_layer & layer) const {
+void adminizer::process(std::vector<mapnik::feature_ptr> &layer) const {
   // TODO: adminize!
 }
 

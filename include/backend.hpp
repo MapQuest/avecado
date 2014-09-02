@@ -17,10 +17,13 @@
 
 namespace avecado {
 
+class post_processor;
+
 class backend {
 public:
   backend(mapnik::vector::tile & tile,
-          unsigned path_multiplier);
+          unsigned path_multiplier,
+          boost::optional<const post_processor &> pp);
 
   void start_tile_layer(std::string const& name);
 
@@ -54,11 +57,12 @@ public:
 
 private:
   mapnik::vector::backend_pbf m_pbf;
+  unsigned int m_tolerance;
+  boost::optional<const post_processor &> m_post_processor;
   std::string m_current_layer_name;
   std::vector<mapnik::feature_ptr> m_current_layer_features;
   mapnik::feature_ptr m_current_feature;
   boost::optional<std::string> m_current_image_buffer;
-  unsigned m_tolerance;
 };
 
 } // namespace avecado

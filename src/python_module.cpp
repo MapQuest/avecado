@@ -1,6 +1,7 @@
 #include <boost/python.hpp>
 
 #include "avecado.hpp"
+#include "post_processor.hpp"
 
 using namespace boost::python;
 
@@ -15,9 +16,14 @@ str mk_tile(object py_map,
             unsigned int tolerance,
             std::string image_format,
             std::string scaling_method_str,
-            double scale_denominator) {
+            double scale_denominator,
+            object post_processor) {
 
   mapnik::Map const &map = extract<mapnik::Map const &>(py_map);
+  boost::optional<const avecado::post_processor &> pp = boost::none;
+  if (!post_processor.is_none()) {
+    pp = extract<const avecado::post_processor &>(post_processor);
+  }
   avecado::tile tile;
 
   mapnik::scaling_method_e scaling_method = mapnik::SCALING_NEAR;
@@ -33,15 +39,24 @@ str mk_tile(object py_map,
   avecado::make_vector_tile(tile, path_multiplier, map, buffer_size,
                             scale_factor, offset_x, offset_y,
                             tolerance, image_format, scaling_method,
-                            scale_denominator);
+                            scale_denominator, pp);
 
   std::string buffer = tile.get_data();
   return str(buffer.data(), buffer.size());
 }
 
+void pp_load(avecado::post_processor &pp, dict config) {
+}
+
 } // anonymous namespace
 
 BOOST_PYTHON_MODULE(avecado) {
+  class_<avecado::post_processor, bases<>, 
+         boost::shared_ptr<avecado::post_processor>, 
+         boost::noncopyable>("PostProcessor")
+    .def("load", &pp_load)
+    ;
+
   def("make_vector_tile", mk_tile,
       (arg("path_multiplier") = 16,
        arg("buffer_size") = 0,
@@ -51,7 +66,8 @@ BOOST_PYTHON_MODULE(avecado) {
        arg("tolerance") = 1,
        arg("image_format") = "jpeg",
        arg("scaling_method") = "near",
-       arg("scale_denominator") = 0.0),
+       arg("scale_denominator") = 0.0,
+       arg("post_processor") = object()),
       "Make a vector tile from a Mapnik map\n"
       "object and return the serialised PBF.\n"
       "\n"

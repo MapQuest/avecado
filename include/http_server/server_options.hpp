@@ -2,6 +2,7 @@
 #define SERVER_OPTIONS_HPP
 
 #include <mapnik/image_scaling.hpp>
+#include "post_processor.hpp"
 
 struct server_options {
   unsigned int path_multiplier;
@@ -17,6 +18,7 @@ struct server_options {
   std::string map_file;
   std::string port;
   unsigned short thread_hint;
+  std::shared_ptr<avecado::post_processor> post_processor;
 };
 
 #endif /* SERVER_OPTIONS_HPP */
