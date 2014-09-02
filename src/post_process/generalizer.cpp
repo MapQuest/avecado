@@ -1,5 +1,10 @@
 #include "post_process/generalizer.hpp"
 
+#include <string>
+#include <mapnik/simplify_converter.hpp>
+
+using namespace std;
+
 namespace avecado {
 namespace post_process {
 
@@ -9,18 +14,30 @@ namespace post_process {
  */
 class generalizer : public izer {
 public:
-  generalizer() {};
+  generalizer(const string& algorithm, const double& tolerance);
   virtual ~generalizer() {}
 
-  virtual void process(std::vector<mapnik::feature_ptr> &layer) const;
+  virtual void process(vector<mapnik::feature_ptr> &layer) const;
+
+private:
+  //TODO: mapnik simplify_converter shared ptr
 };
 
-void generalizer::process(std::vector<mapnik::feature_ptr> &layer) const {
+generalizer::generalizer(const string& algorithm, const double& tolerance) {
+  //TODO: make a mapnik simplfy_converter shared ptr passing in the algorithm type
+  boost::optional<mapnik::simplify_algorithm_e> algo = mapnik::simplify_algorithm_from_string(algorithm);
+}
+
+
+void generalizer::process(vector<mapnik::feature_ptr> &layer) const {
   // TODO: generalize!
 }
 
 izer_ptr create_generalizer(pt::ptree const& config) {
-  return std::make_shared<generalizer>();
+  //NOTE: there is no peucker in mapnik yet..
+  string algorithm = config.get<string>("algorithm", "douglasl-peucker");
+  double tolerance = config.get<double>("tolerance");
+  return std::make_shared<generalizer>(algorithm, tolerance);
 }
 
 } // namespace post_process
