@@ -10,7 +10,7 @@
 #include <mapnik/vertex.hpp>
 
 // vector tile
-#include "vector_tile_backend_pbf.hpp";
+#include "vector_tile_backend_pbf.hpp"
 
 // boost
 #include <boost/optional.hpp>
@@ -39,7 +39,7 @@ public:
         m_pbf.add_tile_feature_raster(*m_current_image_buffer);
         m_current_image_buffer.reset();
       }
-      for (int i = 0; i < feature->num_geometries(); i++) {
+      for (size_t i = 0; i < feature->num_geometries(); i++) {
         mapnik::geometry_type const& path = feature->get_geometry(i);
         // See hack note about tolerance below in add_path(...)
         m_pbf.add_path(path, m_tolerance, path.type());
