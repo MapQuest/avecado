@@ -17,10 +17,10 @@
 
 namespace avecado {
 
-class avecado_backend {
+class backend {
 public:
-  avecado_backend(mapnik::vector::tile & tile,
-                  unsigned path_multiplier);
+  backend(mapnik::vector::tile & tile,
+          unsigned path_multiplier);
 
   void start_tile_layer(std::string const& name);
 

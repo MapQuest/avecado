@@ -29,7 +29,7 @@ include_HEADERS = include/avecado.hpp
 
 libavecado_la_SOURCES = \
 	src/avecado.cpp \
-	src/avecado_backend.cpp \
+	src/backend.cpp \
 	src/tile.cpp \
 	src/post_processor.cpp \
 	src/post_process/adminizer.cpp \

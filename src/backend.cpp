@@ -1,18 +1,18 @@
-#include "avecado_backend.hpp"
+#include "backend.hpp"
 
 namespace avecado {
 
-avecado_backend::avecado_backend(mapnik::vector::tile & tile,
-                                 unsigned path_multiplier)
+backend::backend(mapnik::vector::tile & tile,
+                 unsigned path_multiplier)
   : m_pbf(tile, path_multiplier),
     m_tolerance(1) {}
 
-void avecado_backend::start_tile_layer(std::string const& name) {
+void backend::start_tile_layer(std::string const& name) {
   m_current_layer_name = name;
   // TODO: Load izers for layer
 }
 
-void avecado_backend::stop_tile_layer() {
+void backend::stop_tile_layer() {
   // TODO: run geometries through izers before writing to pbf
   // write layer to pbf
   m_pbf.start_tile_layer(m_current_layer_name);
@@ -34,7 +34,7 @@ void avecado_backend::stop_tile_layer() {
   m_current_layer_features.clear();
 }
 
-void avecado_backend::start_tile_feature(mapnik::feature_impl const& feature) {
+void backend::start_tile_feature(mapnik::feature_impl const& feature) {
   // new current feature object
   m_current_feature.reset(new mapnik::feature_impl(feature.context(), feature.id()));
   m_current_feature->set_id(feature.id());
@@ -48,14 +48,14 @@ void avecado_backend::start_tile_feature(mapnik::feature_impl const& feature) {
   }
 }
 
-void avecado_backend::stop_tile_feature() {
+void backend::stop_tile_feature() {
   if (m_current_feature && m_current_feature->num_geometries() > 0) {
     m_current_layer_features.push_back(m_current_feature);
   }
   m_current_feature.reset();
 }
 
-void avecado_backend::add_tile_feature_raster(std::string const& image_buffer) {
+void backend::add_tile_feature_raster(std::string const& image_buffer) {
   m_current_image_buffer = image_buffer;
 }
 
