@@ -86,6 +86,11 @@ void request_handler::handle_request(const request& req, reply& rep)
     map_ptr_->resize(256, 256);
     map_ptr_->zoom_to_box(box_for_tile(z, x, y));
 
+    boost::optional<const avecado::post_processor &> pp = boost::none;
+    if (options_.post_processor) {
+      pp = *options_.post_processor;
+    }
+
     avecado::tile tile;
 
     // actually making the vector tile
@@ -93,7 +98,7 @@ void request_handler::handle_request(const request& req, reply& rep)
       tile, options_.path_multiplier, *map_ptr_, options_.buffer_size,
       options_.scale_factor, options_.offset_x, options_.offset_y,
       options_.tolerance, options_.image_format, options_.scaling_method,
-      options_.scale_denominator);
+      options_.scale_denominator, pp);
 
     if (!ok) {
       throw std::runtime_error("Unable to make vector tile.");

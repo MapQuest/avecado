@@ -1,10 +1,13 @@
 #include "avecado.hpp"
+#include "post_processor.hpp"
 #include "post_process/factory.hpp"
 #include "post_process/izer_base.hpp"
 #include "post_process/adminizer.hpp"
 #include "post_process/generalizer.hpp"
 #include "post_process/labelizer.hpp"
 #include "post_process/unionizer.hpp"
+
+namespace pt = boost::property_tree;
 
 namespace avecado {
 
@@ -21,7 +24,9 @@ class post_processor::pimpl {
 public:
   pimpl();
   void load(pt::ptree const& config);
-  void process_layer(mapnik::vector::tile_layer & layer, int zoom_level) const;
+  void process_layer(std::vector<mapnik::feature_ptr> & layer,
+                     const std::string &layer_name,
+                     int zoom_level) const;
 private:
   layer_map_t m_layer_processes;
 };
@@ -56,8 +61,10 @@ void post_processor::pimpl::load(pt::ptree const& config) {
 }
 
 // Find post-processes for given layer at zoom level and run them
-void post_processor::pimpl::process_layer(mapnik::vector::tile_layer & layer, int zoom_level) const {
-  layer_map_t::const_iterator layer_itr = m_layer_processes.find(layer.name());
+void post_processor::pimpl::process_layer(std::vector<mapnik::feature_ptr> & layer,
+                                          const std::string &layer_name,
+                                          int zoom_level) const {
+  layer_map_t::const_iterator layer_itr = m_layer_processes.find(layer_name);
   if (layer_itr != m_layer_processes.end()) {
     zoom_range_vec_t const& zoom_ranges = layer_itr->second;
     // TODO: Consider ways to optimize zoom range look up
@@ -86,10 +93,10 @@ void post_processor::load(pt::ptree const& config) {
   m_impl.swap(impl);
 }
 
-void post_processor::process_vector_tile(tile & tile, int zoom_level) const {
-  for (auto layer : tile.m_mapnik_tile->layers()) {
-    m_impl->process_layer(layer, zoom_level);
-  }
+void post_processor::process_layer(std::vector<mapnik::feature_ptr> &layer, 
+                                   const std::string &layer_name,
+                                   int zoom_level) const {
+  m_impl->process_layer(layer, layer_name, zoom_level);
 }
 
 } // namespace avecado

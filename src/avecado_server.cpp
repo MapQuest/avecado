@@ -1,6 +1,9 @@
 #include <boost/program_options.hpp>
 #include <boost/bind.hpp>
 #include <boost/asio.hpp>
+#include <boost/property_tree/ptree.hpp>
+#include <boost/property_tree/json_parser.hpp>
+#include <boost/property_tree/exceptions.hpp>
 
 #include <mapnik/utils.hpp>
 #include <mapnik/load_map.hpp>
@@ -12,11 +15,12 @@
 #include "config.h"
 
 namespace bpo = boost::program_options;
+namespace pt = boost::property_tree;
 using boost::asio::ip::tcp;
 
 int main(int argc, char *argv[]) {
   server_options srv_opts;
-  std::string fonts_dir, input_plugins_dir;
+  std::string fonts_dir, input_plugins_dir, config_file;
 
   bpo::options_description options(
     "Avecado " VERSION "\n"
@@ -55,6 +59,8 @@ int main(int argc, char *argv[]) {
     ("thread-hint", bpo::value<unsigned short>(&srv_opts.thread_hint)->default_value(1),
      "Hint at the number of asynchronous "
      "requests the server should be able to service.")
+    ("config-file,c", bpo::value<std::string>(&config_file),
+     "JSON config file to specify post-processing for data layers.")
     // positional arguments
     ("map-file", bpo::value<std::string>(&srv_opts.map_file), "Mapnik XML input file.")
     ("port", bpo::value<std::string>(&srv_opts.port), "Port upon which the server will listen.")
@@ -113,6 +119,28 @@ int main(int argc, char *argv[]) {
   } else {
     // default option
     srv_opts.scaling_method = mapnik::SCALING_NEAR;
+  }
+
+  if (vm.count("config-file")) {
+    try {
+      // parse json config
+      pt::ptree config;
+      pt::read_json(config_file, config);
+
+      // init processor
+      srv_opts.post_processor.reset(new avecado::post_processor);
+      srv_opts.post_processor->load(config);
+
+    } catch (pt::ptree_error const& e) {
+      std::cerr << "Error while parsing config: " << config_file << std::endl;
+      std::cerr << e.what() << std::endl;
+      return EXIT_FAILURE;
+
+    } catch (std::exception const& e) {
+      std::cerr << "Error while loading config: " << config_file << std::endl;
+      std::cerr << e.what() << std::endl;
+      return EXIT_FAILURE;
+    }
   }
 
   //start up the server

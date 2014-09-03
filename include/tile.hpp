@@ -3,9 +3,6 @@
 
 #include <mapnik/map.hpp>
 #include <mapnik/image_scaling.hpp>
-#include <boost/property_tree/ptree.hpp>
-
-namespace pt = boost::property_tree;
 
 /* Forward declaration of vector tile type. This type is opaque
  * to users of Avecado, but we expose some methods in the
@@ -13,6 +10,8 @@ namespace pt = boost::property_tree;
 namespace mapnik { namespace vector { struct tile; } }
 
 namespace avecado {
+
+class post_processor;
 
 /**
  * Wrapper around the vector tile type, exposing some useful
@@ -34,7 +33,8 @@ private:
   friend bool make_vector_tile(tile &, unsigned int, mapnik::Map const&,
                                int, double, unsigned int, unsigned int,
                                unsigned int, const std::string &,
-                               mapnik::scaling_method_e, double);
+                               mapnik::scaling_method_e, double,
+                               boost::optional<const post_processor &> );
 
   friend std::ostream &operator<<(std::ostream &, const tile &);
 

@@ -2,6 +2,12 @@
 #define AVECADO_POST_PROCESSOR_HPP
 
 #include "tile.hpp"
+#include <boost/property_tree/ptree.hpp>
+#include <boost/noncopyable.hpp>
+#include <mapnik/feature.hpp>
+#include <memory>
+#include <vector>
+#include <string>
 
 namespace avecado {
 
@@ -10,7 +16,7 @@ namespace avecado {
  * post-processes, dubbed "izers" (e.g. generalizer, unionizer, etc.)
  * The class has one method for running the "izers" on a vector tile.
  */
-class post_processor {
+class post_processor : public boost::noncopyable {
 public:
   post_processor();
   ~post_processor();
@@ -27,16 +33,19 @@ public:
    * Throws an exception if an unrecoverable error was encountered
    * while reading config options.
    */
-  void load(pt::ptree const& config);
+  void load(boost::property_tree::ptree const& config);
 
   /**
-   * Run post-processes on each layer in the given vector tile,
+   * Run post-processes on a layer of vector data,
    * according to the loaded configuration.
    *
    * Arguments:
    *
-   *   tile
-   *     The vector tile to process.
+   *   layer
+   *     The vector tile layer to process.
+   *
+   *   layer_name
+   *     The name of the layer.
    *
    *   zoom_level
    *     Zoom level of the tile.
@@ -44,7 +53,9 @@ public:
    * Throws an exception if an unrecoverable error was encountered
    * while processing a vector layer.
    */
-  void process_vector_tile(tile & tile, int zoom_level) const;
+  void process_layer(std::vector<mapnik::feature_ptr> &layer, 
+                     const std::string &layer_name,
+                     int zoom_level) const;
 
 private:
   class pimpl;

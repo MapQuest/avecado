@@ -145,15 +145,17 @@ int main(int argc, char *argv[]) {
   }
 
   // load post processor config if it is provided
-  boost::optional<avecado::post_processor> post_processor;
+  avecado::post_processor post_processor;
+  boost::optional<const avecado::post_processor &> pp;
   if (!config_file.empty()) {
     try {
       // parse json config
       pt::ptree config;
       pt::read_json(config_file, config);
       // init processor
-      post_processor = boost::in_place<avecado::post_processor>();
-      post_processor->load(config);
+      post_processor.load(config);
+      pp = post_processor;
+
     } catch (pt::ptree_error const& e) {
       std::cerr << "Error while parsing config: " << config_file << std::endl;
       std::cerr << e.what() << std::endl;
@@ -183,12 +185,7 @@ int main(int argc, char *argv[]) {
     // actually make the vector tile
     avecado::make_vector_tile(tile, path_multiplier, map, buffer_size, scale_factor,
                               offset_x, offset_y, tolerance, image_format,
-                              scaling_method, scale_denominator);
-
-    // run post processing if configured
-    if (post_processor) {
-      post_processor->process_vector_tile(tile, z);
-    }
+                              scaling_method, scale_denominator, pp);
 
     // serialise to file
     std::ofstream output(output_file);

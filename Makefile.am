@@ -29,6 +29,7 @@ include_HEADERS = include/avecado.hpp
 
 libavecado_la_SOURCES = \
 	src/avecado.cpp \
+	src/backend.cpp \
 	src/tile.cpp \
 	src/post_processor.cpp \
 	src/post_process/adminizer.cpp \
@@ -70,11 +71,12 @@ pyexec_LTLIBRARIES = avecado.la
 avecado_la_CXXFLAGS = @PYTHON_CPPFLAGS@
 avecado_la_SOURCES = src/python_module.cpp
 avecado_la_LDFLAGS = -avoid-version -module @PYTHON_LDFLAGS@
-avecado_la_LIBADD = libavecado.la @BOOST_LDFLAGS@ -l@BOOST_PYTHON_LIB@
+avecado_la_LIBADD = libavecado.la liblogging.la @BOOST_LDFLAGS@ -l@BOOST_PYTHON_LIB@
 endif
 
 check_PROGRAMS = \
-	test/make_vector_tile
+	test/make_vector_tile \
+	test/generalizer
 
 liblogging_la_SOURCES = \
 	logging/logger.cpp \
@@ -84,6 +86,8 @@ liblogging_la_SOURCES = \
 
 test_make_vector_tile_SOURCES = test/make_vector_tile.cpp test/common.cpp
 test_make_vector_tile_LDADD = libavecado.la liblogging.la @BOOST_LDFLAGS@ @BOOST_ASIO_LIB@ @BOOST_THREAD_LIB@ @PTHREAD_LIBS@
+test_generalizer_SOURCES = test/generalizer.cpp test/common.cpp
+test_generalizer_LDADD = libavecado.la liblogging.la @BOOST_LDFLAGS@ @BOOST_ASIO_LIB@ @BOOST_THREAD_LIB@ @PTHREAD_LIBS@
 
 TESTS = $(check_PROGRAMS)
 TEST_EXTENSIONS = .sh
