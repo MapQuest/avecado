@@ -4,7 +4,7 @@
 
 Avecado ("a*vec*ado") was created to both have functionality not in existing
 vector tile creation libraries and to align in language used with other
-components of the burritile map stack.
+components of the burritile map stack (pending release).
 
 ## Building ##
 
