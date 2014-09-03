@@ -46,7 +46,7 @@ void generalizer::process(vector<mapnik::feature_ptr> &layer) const {
         generalizer.set_simplify_algorithm(*m_algorithm);
       generalizer.set_simplify_tolerance(m_tolerance);
       //suck the vertices back out of it
-      mapnik::geometry_type* output = new mapnik::geometry_type();
+      mapnik::geometry_type* output = new mapnik::geometry_type(geom.type());
       mapnik::CommandType cmd;
       double x, y;
       while((cmd = (mapnik::CommandType)generalizer.vertex(&x, &y)) != mapnik::SEG_END)
