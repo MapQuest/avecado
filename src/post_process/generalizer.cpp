@@ -62,7 +62,7 @@ void generalizer::process(vector<mapnik::feature_ptr> &layer) const {
 
 izer_ptr create_generalizer(pt::ptree const& config) {
   //NOTE: there is no peucker in mapnik yet..
-  string algorithm = config.get<string>("algorithm", "douglasl-peucker");
+  string algorithm = config.get<string>("algorithm", "douglas-peucker");
   double tolerance = config.get<double>("tolerance");
   return std::make_shared<generalizer>(algorithm, tolerance);
 }
