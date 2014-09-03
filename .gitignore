@@ -44,5 +44,6 @@ liblogging.la
 # tests
 test-driver
 test/make_vector_tile
+test/generalizer
 test/*.log
 test/*.trs

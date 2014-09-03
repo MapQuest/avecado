@@ -75,7 +75,8 @@ avecado_la_LIBADD = libavecado.la liblogging.la @BOOST_LDFLAGS@ -l@BOOST_PYTHON_
 endif
 
 check_PROGRAMS = \
-	test/make_vector_tile
+	test/make_vector_tile \
+	test/generalizer
 
 liblogging_la_SOURCES = \
 	logging/logger.cpp \
@@ -85,6 +86,8 @@ liblogging_la_SOURCES = \
 
 test_make_vector_tile_SOURCES = test/make_vector_tile.cpp test/common.cpp
 test_make_vector_tile_LDADD = libavecado.la liblogging.la @BOOST_LDFLAGS@ @BOOST_ASIO_LIB@ @BOOST_THREAD_LIB@ @PTHREAD_LIBS@
+test_generalizer_SOURCES = test/generalizer.cpp test/common.cpp
+test_generalizer_LDADD = libavecado.la liblogging.la @BOOST_LDFLAGS@ @BOOST_ASIO_LIB@ @BOOST_THREAD_LIB@ @PTHREAD_LIBS@
 
 TESTS = $(check_PROGRAMS)
 TEST_EXTENSIONS = .sh
