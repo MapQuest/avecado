@@ -110,7 +110,7 @@ void test_single_line() {
   map.zoom_to_box(bbox);
   avecado::make_vector_tile(tile, path_multiplier, map, buffer_size, scale_factor,
                             offset_x, offset_y, tolerance, image_format,
-                            scaling_method, scale_denominator);
+                            scaling_method, scale_denominator, boost::none);
   mapnik::vector::tile result;
   result.ParseFromString(tile.get_data());
   test::assert_equal(result.layers_size(), 1, "Wrong number of layers");
@@ -139,7 +139,7 @@ void test_single_polygon() {
   map.zoom_to_box(bbox);
   avecado::make_vector_tile(tile, path_multiplier, map, buffer_size, scale_factor,
                             offset_x, offset_y, tolerance, image_format,
-                            scaling_method, scale_denominator);
+                            scaling_method, scale_denominator, boost::none);
   mapnik::vector::tile result;
   result.ParseFromString(tile.get_data());
   test::assert_equal(result.layers_size(), 1, "Wrong number of layers");
@@ -168,7 +168,7 @@ void test_intersected_line() {
   map.zoom_to_box(box_for_tile(1, 0, 0));
   avecado::make_vector_tile(tile, path_multiplier, map, buffer_size, scale_factor,
                             offset_x, offset_y, tolerance, image_format,
-                            scaling_method, scale_denominator);
+                            scaling_method, scale_denominator, boost::none);
   mapnik::vector::tile result;
   result.ParseFromString(tile.get_data());
   test::assert_equal(result.layers_size(), 1, "Wrong number of layers");
