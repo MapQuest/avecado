@@ -31,8 +31,8 @@ libtool
 avecado
 avecado_server
 *.o
-**/.deps/
-**/.dirstamp
+.deps/
+.dirstamp
 include/vector_tile.pb.h
 src/vector_tile.pb.cc
 libavecado.la
@@ -42,6 +42,7 @@ avecado.la
 liblogging.la
 
 # tests
+test-suite.log
 test-driver
 test/make_vector_tile
 test/generalizer
