@@ -19,7 +19,7 @@ AC_HEADER_STDC
 AC_LANG_CPLUSPLUS
 
 AX_CXX_COMPILE_STDCXX_11([noext],[mandatory])
-AX_BOOST_BASE([1.53], , [AC_MSG_ERROR([cannot find Boost libraries, which are are required for building avecado. Please install libboost-dev.])])
+AX_BOOST_BASE([1.49], , [AC_MSG_ERROR([cannot find Boost libraries, which are are required for building avecado. Please install libboost-dev.])])
 AX_BOOST_PROGRAM_OPTIONS
 AX_PTHREAD
 AX_BOOST_THREAD

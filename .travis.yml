@@ -1,0 +1,14 @@
+language: cpp
+compiler:
+  - gcc
+script: ./autogen.sh && ./configure && make
+before_install:
+  - sudo add-apt-repository -y ppa:pnorman/mapnik-master
+  - sudo apt-get update -qq -y
+  - sudo apt-get install -y libmapnik libmapnik-dev mapnik-utils 
+    libboost-thread-dev libboost-filesystem-dev libboost-regex-dev libboost-python-dev libboost-system-dev libboost-program-options-dev 
+    protobuf-compiler libprotobuf-dev
+install:
+  - if [ "$CXX" = "g++" ]; then sudo apt-get install -qq -y g++-4.8; fi
+  - if [ "$CXX" = "g++" ]; then export CXX="g++-4.8"; fi
+  - echo "Using Mapnik $(mapnik-config --version) ($(mapnik-config --version-number))"
