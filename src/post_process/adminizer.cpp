@@ -8,6 +8,8 @@
 #include <boost/geometry.hpp>
 #include <boost/geometry/geometries/point.hpp>
 #include <boost/geometry/geometries/box.hpp>
+#include <boost/geometry/geometries/polygon.hpp>
+#include <boost/geometry/multi/geometries/multi_linestring.hpp>
 #include <boost/geometry/index/rtree.hpp>
 
 // NOTE: this is included only because it's where mapnik::coord2d is
@@ -20,6 +22,8 @@ namespace bgi = boost::geometry::index;
 
 using point_2d = bg::model::point<double, 2, bg::cs::cartesian>;
 using box_2d = bg::model::box<point_2d>;
+using linestring_2d = bg::model::linestring<point_2d>;
+using multi_linestring_2d = bg::model::multi_linestring<linestring_2d>;
 using polygon_2d = bg::model::polygon<point_2d>;
 
 namespace {
@@ -27,17 +31,19 @@ namespace {
 typedef std::pair<box_2d, unsigned int> value;
 typedef std::pair<polygon_2d, mapnik::value> entry;
 
+template <typename GeomType>
 struct param_update_iterator {
   mapnik::feature_ptr m_feature;
-  polygon_2d &m_poly;
+  const GeomType &m_geom;
   const std::string &m_param_name;
   const std::vector<entry> &m_entries;
   bool m_keep_matching;
 
-  param_update_iterator(mapnik::feature_ptr f, polygon_2d &poly,
+  param_update_iterator(mapnik::feature_ptr f,
+                        const GeomType &geom,
                         const std::vector<entry> &entries,
                         const std::string &param_name)
-    : m_feature(f), m_poly(poly), m_param_name(param_name)
+    : m_feature(f), m_geom(geom), m_param_name(param_name)
     , m_entries(entries), m_keep_matching(true) {
   }
 
@@ -53,7 +59,7 @@ struct param_update_iterator {
     const entry &e = m_entries[v.second];
 
     // do detailed intersection test
-    if (bg::intersects(m_poly, e.first)) {
+    if (bg::intersects(e.first, m_geom)) {
       // at least one result -> some intersection
       m_feature->put_new(m_param_name, e.second);
       m_keep_matching = false;
@@ -63,6 +69,19 @@ struct param_update_iterator {
   }
 };
 
+template <typename RTreeType, typename GeomType>
+bool try_update(RTreeType &index,
+                const GeomType &geom,
+                mapnik::feature_ptr &f,
+                const std::vector<entry> &entries,
+                const std::string &param_name) {
+  param_update_iterator<GeomType> update(f, geom, entries, param_name);
+  
+  index.query(bgi::intersects(bg::return_envelope<box_2d>(geom)), update);
+  
+  return update.m_keep_matching;
+}
+  
 } // anonymous namespace
 
 namespace avecado {
@@ -81,6 +100,7 @@ public:
 
 private:
   mapnik::box2d<double> envelope(const std::vector<mapnik::feature_ptr> &layer) const;
+  multi_linestring_2d make_boost_linestring(const mapnik::geometry_type &geom) const;
   polygon_2d make_boost_polygon(const mapnik::geometry_type &geom) const;
 
   std::string m_param_name;
@@ -128,7 +148,10 @@ void adminizer::process(std::vector<mapnik::feature_ptr> &layer) const {
       mapnik::value param = f->get(m_param_name);
 
       for (auto const &geom : f->paths()) {
-        entries.emplace_back(make_boost_polygon(geom), param);
+        // ignore all non-polygon types
+        if (geom.type() == mapnik::geometry_type::types::Polygon) {
+          entries.emplace_back(make_boost_polygon(geom), param);
+        }
       }
     }
   }
@@ -151,13 +174,25 @@ void adminizer::process(std::vector<mapnik::feature_ptr> &layer) const {
   // they intersect with.
   for (mapnik::feature_ptr f : layer) {
     for (auto const &geom : f->paths()) {
-      polygon_2d poly = make_boost_polygon(geom);
-      param_update_iterator update(f, poly, entries, m_param_name);
+      bool keep_matching = true;
 
-      index.query(bgi::intersects(poly), update);
+      if (geom.type() == mapnik::geometry_type::types::LineString) {
+        // TODO: remove this hack when/if bg::intersects supports
+        // intersection on multi type.
+        multi_linestring_2d multi_line = make_boost_linestring(geom);
+        for (auto const &line : multi_line) {
+          keep_matching = try_update(index, line,
+                                     f, entries, m_param_name);
+          if (!keep_matching) { break; }
+        }
+
+      } else if (geom.type() == mapnik::geometry_type::types::Polygon) {
+        keep_matching = try_update(index, make_boost_polygon(geom),
+                                   f, entries, m_param_name);
+      }
 
       // quick exit the loop if there's nothing more to do.
-      if (!update.m_keep_matching) { break; }
+      if (!keep_matching) { break; }
     }
   }
 }
@@ -176,6 +211,34 @@ mapnik::box2d<double> adminizer::envelope(const std::vector<mapnik::feature_ptr>
   return result;
 }
 
+multi_linestring_2d adminizer::make_boost_linestring(const mapnik::geometry_type &geom) const {
+  multi_linestring_2d line;
+  double x = 0, y = 0, prev_x = 0, prev_y = 0;
+
+  geom.rewind(0);
+
+  unsigned int cmd = mapnik::SEG_END;
+  while ((cmd = geom.vertex(&x, &y)) != mapnik::SEG_END) {
+
+    if (cmd == mapnik::SEG_MOVETO) {
+      line.push_back(linestring_2d());
+      line.back().push_back(bg::make<point_2d>(x, y));
+
+    } else if (cmd == mapnik::SEG_LINETO) {
+      if (std::abs(x - prev_x) < 1e-12 && std::abs(y - prev_y) < 1e-12) {
+        continue;
+      }
+
+      line.back().push_back(bg::make<point_2d>(x, y));
+    }
+
+    prev_x = x;
+    prev_y = y;
+  }
+
+  return line;
+}
+
 polygon_2d adminizer::make_boost_polygon(const mapnik::geometry_type &geom) const {
   polygon_2d poly;
   double x = 0, y = 0, prev_x = 0, prev_y = 0;
@@ -187,15 +250,14 @@ polygon_2d adminizer::make_boost_polygon(const mapnik::geometry_type &geom) cons
   while ((cmd = geom.vertex(&x, &y)) != mapnik::SEG_END) {
 
     if (cmd == mapnik::SEG_MOVETO) {
-      prev_x = x;
-      prev_y = y;
-
       if (ring_count == 0) {
         bg::append(poly, bg::make<point_2d>(x, y));
+
       } else {
         poly.inners().push_back(polygon_2d::inner_container_type::value_type());
         bg::append(poly.inners().back(), bg::make<point_2d>(x, y));
       }
+
       ++ring_count;
 
     } else if (cmd == mapnik::SEG_LINETO) {
@@ -203,14 +265,16 @@ polygon_2d adminizer::make_boost_polygon(const mapnik::geometry_type &geom) cons
         continue;
       }
 
-      prev_x = x;
-      prev_y = y;
       if (ring_count == 1) {
         bg::append(poly, bg::make<point_2d>(x, y));
+
       } else {
         bg::append(poly.inners().back(), bg::make<point_2d>(x, y));
       }
     }
+
+    prev_x = x;
+    prev_y = y;
   }
 
   return poly;

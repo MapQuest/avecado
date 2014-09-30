@@ -87,6 +87,55 @@ void test_simple_inclusion_param() {
   test::assert_equal<double>(y, 0);
 }
 
+// test that an object outside of the polygon is not modified.
+void test_simple_exclusion_param() {
+  namespace pp = avecado::post_process;
+
+  pt::ptree conf;
+  conf.put("param_name", "foo");
+  conf.put("datasource.type", "csv");
+  conf.put("datasource.inline",
+           "wkt|foo\n"
+           "Polygon((-10.0 -10.0, -10.0 10.0, 10.0 10.0, 10.0 -10.0, -10.0 -10.0))|foo_value\n");
+  pp::izer_ptr izer = pp::create_adminizer(conf);
+
+  std::vector<mapnik::feature_ptr> features;
+  // the line curves around the RHS of the polygon feature, but is
+  // always outside of it.
+  features.push_back(mk_line({0, 11, 11, 11, 11, -11, 0, -11}));
+
+  izer->process(features);
+
+  test::assert_equal<size_t>(features.size(), 1);
+
+  // being adminized should not have affected the object at all.
+  test::assert_equal<bool>(features[0]->has_key("foo"), false,
+                           "feature should not have been affected by adminizer.");
+
+  // being adminized shouldn't have affected this geometry either.
+  test::assert_equal<size_t>(features[0]->num_geometries(), 1);
+  const mapnik::geometry_type &geom = features[0]->get_geometry(0);
+  test::assert_equal<mapnik::geometry_type::types>(geom.type(), mapnik::geometry_type::LineString);
+  test::assert_equal<size_t>(geom.size(), 4);
+  double x = -1, y = -1;
+
+  test::assert_equal<unsigned int>(geom.vertex(0, &x, &y), mapnik::SEG_MOVETO);
+  test::assert_equal<double>(x, 0);
+  test::assert_equal<double>(y, 11);
+
+  test::assert_equal<unsigned int>(geom.vertex(1, &x, &y), mapnik::SEG_LINETO);
+  test::assert_equal<double>(x, 11);
+  test::assert_equal<double>(y, 11);
+
+  test::assert_equal<unsigned int>(geom.vertex(2, &x, &y), mapnik::SEG_LINETO);
+  test::assert_equal<double>(x, 11);
+  test::assert_equal<double>(y, -11);
+
+  test::assert_equal<unsigned int>(geom.vertex(3, &x, &y), mapnik::SEG_LINETO);
+  test::assert_equal<double>(x, 0);
+  test::assert_equal<double>(y, -11);
+}
+
 } // anonymous namespace
 
 int main() {
@@ -100,6 +149,7 @@ int main() {
 
 #define RUN_TEST(x) { tests_failed += test::run(#x, &(x)); }
   RUN_TEST(test_simple_inclusion_param);
+  RUN_TEST(test_simple_exclusion_param);
   
   std::cout << " >> Tests failed: " << tests_failed << std::endl << std::endl;
 
