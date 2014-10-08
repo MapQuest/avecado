@@ -10,6 +10,17 @@
 
 namespace {
 
+mapnik::feature_ptr mk_point(const std::pair<double, double> &coord) {
+  mapnik::geometry_type *geom = new mapnik::geometry_type(mapnik::geometry_type::Point);
+
+  geom->push_vertex(coord.first, coord.second, mapnik::SEG_MOVETO);
+
+  mapnik::context_ptr ctx = std::make_shared<mapnik::context_type>();
+  mapnik::feature_ptr feat = std::make_shared<mapnik::feature_impl>(ctx, 0);
+  feat->add_geometry(geom);
+  return feat;
+}
+
 mapnik::feature_ptr mk_line(const std::initializer_list<double> &coords) {
   auto itr = coords.begin();
   auto end = coords.end();
@@ -33,12 +44,51 @@ mapnik::feature_ptr mk_line(const std::initializer_list<double> &coords) {
 
 // test simple assignment of an object's parameter by inclusion
 // in an area.
-void test_simple_inclusion_param() {
+void test_point_simple_inclusion_param() {
   namespace pp = avecado::post_process;
 
   pt::ptree conf;
   conf.put("param_name", "foo");
   conf.put("datasource.type", "csv");
+  // Square going to +/- 10
+  conf.put("datasource.inline",
+           "wkt|foo\n"
+           "Polygon((-10.0 -10.0, -10.0 10.0, 10.0 10.0, 10.0 -10.0, -10.0 -10.0))|foo_value\n");
+  pp::izer_ptr izer = pp::create_adminizer(conf);
+
+  std::vector<mapnik::feature_ptr> features;
+  features.push_back(mk_point(std::make_pair(0,0)));
+  izer->process(features);
+
+  test::assert_equal<size_t>(features.size(), 1, "should only be one feature");
+
+  // being adminized should have added (or overwritten) the 'foo'
+  // parameter from the admin polygon.
+  test::assert_equal<bool>(features[0]->has_key("foo"), true,
+                           "point should have parameter key \"foo\" after adminizing");
+  test::assert_equal<std::string>(features[0]->get("foo").to_string(), "foo_value",
+                                  "point should have parameter from adminizing polygon");
+
+  // being adminized shouldn't have affected this geometry because it's
+  // entirely within the admin polygon
+  test::assert_equal<size_t>(features[0]->num_geometries(), 1, "Feature should only have one geometry");
+  const mapnik::geometry_type &geom = features[0]->get_geometry(0);
+  test::assert_equal<mapnik::geometry_type::types>(geom.type(), mapnik::geometry_type::Point, "geometry should be Point");
+  test::assert_equal<size_t>(geom.size(), 1);
+  double x = -1, y = -1;
+
+  test::assert_equal<unsigned int>(geom.vertex(0, &x, &y), mapnik::SEG_MOVETO);
+  test::assert_equal<double>(x, 0);
+  test::assert_equal<double>(y, 0);
+}
+
+void test_line_simple_inclusion_param() {
+  namespace pp = avecado::post_process;
+
+  pt::ptree conf;
+  conf.put("param_name", "foo");
+  conf.put("datasource.type", "csv");
+  // Square going to +/- 10
   conf.put("datasource.inline",
            "wkt|foo\n"
            "Polygon((-10.0 -10.0, -10.0 10.0, 10.0 10.0, 10.0 -10.0, -10.0 -10.0))|foo_value\n");
@@ -49,20 +99,20 @@ void test_simple_inclusion_param() {
 
   izer->process(features);
 
-  test::assert_equal<size_t>(features.size(), 1);
+  test::assert_equal<size_t>(features.size(), 1, "should be only one feature");
 
   // being adminized should have added (or overwritten) the 'foo'
   // parameter from the admin polygon.
   test::assert_equal<bool>(features[0]->has_key("foo"), true,
-                           "feature should have parameter key \"foo\" after adminizing");
+                           "line should have parameter key \"foo\" after adminizing");
   test::assert_equal<std::string>(features[0]->get("foo").to_string(), "foo_value",
-                                  "feature should have parameter from adminizing polygon");
+                                  "line should have parameter from adminizing polygon");
 
   // being adminized shouldn't have affected this geometry because it's
   // entirely within the admin polygon
-  test::assert_equal<size_t>(features[0]->num_geometries(), 1);
+  test::assert_equal<size_t>(features[0]->num_geometries(), 1, "Feature should only have one geometry");
   const mapnik::geometry_type &geom = features[0]->get_geometry(0);
-  test::assert_equal<mapnik::geometry_type::types>(geom.type(), mapnik::geometry_type::LineString);
+  test::assert_equal<mapnik::geometry_type::types>(geom.type(), mapnik::geometry_type::LineString, "geometry should be LineString");
   test::assert_equal<size_t>(geom.size(), 5);
   double x = -1, y = -1;
 
@@ -88,7 +138,43 @@ void test_simple_inclusion_param() {
 }
 
 // test that an object outside of the polygon is not modified.
-void test_simple_exclusion_param() {
+void test_point_simple_exclusion_param() {
+  namespace pp = avecado::post_process;
+
+  pt::ptree conf;
+  conf.put("param_name", "foo");
+  conf.put("datasource.type", "csv");
+  // Square going to +/- 10
+  conf.put("datasource.inline",
+           "wkt|foo\n"
+           "Polygon((-10.0 -10.0, -10.0 10.0, 10.0 10.0, 10.0 -10.0, -10.0 -10.0))|foo_value\n");
+  pp::izer_ptr izer = pp::create_adminizer(conf);
+
+  std::vector<mapnik::feature_ptr> features;
+  features.push_back(mk_point(std::make_pair(11,11)));
+  izer->process(features);
+
+  test::assert_equal<size_t>(features.size(), 1, "should only be one feature");
+
+  // being adminized should have added (or overwritten) the 'foo'
+  // parameter from the admin polygon.
+  test::assert_equal<bool>(features[0]->has_key("foo"), false,
+                           "point should not have been affected by adminizer.");
+
+  // being adminized shouldn't have affected this geometry because it's
+  // entirely within the admin polygon
+  test::assert_equal<size_t>(features[0]->num_geometries(), 1, "Feature should only have one geometry");
+  const mapnik::geometry_type &geom = features[0]->get_geometry(0);
+  test::assert_equal<mapnik::geometry_type::types>(geom.type(), mapnik::geometry_type::Point, "geometry should be Point");
+  test::assert_equal<size_t>(geom.size(), 1);
+  double x = -1, y = -1;
+
+  test::assert_equal<unsigned int>(geom.vertex(0, &x, &y), mapnik::SEG_MOVETO);
+  test::assert_equal<double>(x, 11);
+  test::assert_equal<double>(y, 11);
+}
+
+void test_line_simple_exclusion_param() {
   namespace pp = avecado::post_process;
 
   pt::ptree conf;
@@ -110,7 +196,7 @@ void test_simple_exclusion_param() {
 
   // being adminized should not have affected the object at all.
   test::assert_equal<bool>(features[0]->has_key("foo"), false,
-                           "feature should not have been affected by adminizer.");
+                           "line should not have been affected by adminizer.");
 
   // being adminized shouldn't have affected this geometry either.
   test::assert_equal<size_t>(features[0]->num_geometries(), 1);
@@ -134,6 +220,24 @@ void test_simple_exclusion_param() {
   test::assert_equal<unsigned int>(geom.vertex(3, &x, &y), mapnik::SEG_LINETO);
   test::assert_equal<double>(x, 0);
   test::assert_equal<double>(y, -11);
+
+  // Clear the features and run again, with a point
+  features.clear();
+  features.push_back(mk_point(std::make_pair(11,11)));
+  izer->process(features);
+
+  test::assert_equal<size_t>(features.size(), 1);
+
+  // being adminized should have added (or overwritten) the 'foo'
+  // parameter from the admin polygon.
+  test::assert_equal<bool>(features[0]->has_key("foo"), false,
+                           "point should not have been affected by adminizer.");
+
+  x = -1;
+  y = -1;
+  test::assert_equal<unsigned int>(geom.vertex(0, &x, &y), mapnik::SEG_MOVETO);
+  test::assert_equal<double>(x, 11);
+  test::assert_equal<double>(y, 11);
 }
 
 } // anonymous namespace
@@ -148,8 +252,10 @@ int main() {
   mapnik::datasource_cache::instance().register_datasources(MAPNIK_DEFAULT_INPUT_PLUGIN_DIR);
 
 #define RUN_TEST(x) { tests_failed += test::run(#x, &(x)); }
-  RUN_TEST(test_simple_inclusion_param);
-  RUN_TEST(test_simple_exclusion_param);
+  RUN_TEST(test_point_simple_inclusion_param);
+  RUN_TEST(test_line_simple_inclusion_param);
+  RUN_TEST(test_point_simple_exclusion_param);
+  RUN_TEST(test_line_simple_exclusion_param);
   
   std::cout << " >> Tests failed: " << tests_failed << std::endl << std::endl;
 

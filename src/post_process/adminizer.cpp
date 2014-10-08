@@ -100,6 +100,7 @@ public:
 
 private:
   mapnik::box2d<double> envelope(const std::vector<mapnik::feature_ptr> &layer) const;
+  point_2d make_boost_point(const mapnik::geometry_type &geom) const;
   multi_linestring_2d make_boost_linestring(const mapnik::geometry_type &geom) const;
   polygon_2d make_boost_polygon(const mapnik::geometry_type &geom) const;
 
@@ -176,7 +177,11 @@ void adminizer::process(std::vector<mapnik::feature_ptr> &layer) const {
     for (auto const &geom : f->paths()) {
       bool keep_matching = true;
 
-      if (geom.type() == mapnik::geometry_type::types::LineString) {
+      if (geom.type() == mapnik::geometry_type::types::Point) {
+        keep_matching = try_update(index, make_boost_point(geom),
+                                   f, entries, m_param_name);
+
+      } else if (geom.type() == mapnik::geometry_type::types::LineString) {
         // TODO: remove this hack when/if bg::intersects supports
         // intersection on multi type.
         multi_linestring_2d multi_line = make_boost_linestring(geom);
@@ -209,6 +214,19 @@ mapnik::box2d<double> adminizer::envelope(const std::vector<mapnik::feature_ptr>
     }
   }
   return result;
+}
+
+point_2d adminizer::make_boost_point(const mapnik::geometry_type &geom) const {
+  point_2d point;
+  double x = 0, y = 0;
+
+  geom.rewind(0);
+
+  if (geom.vertex(&x, &y) == mapnik::SEG_MOVETO) {
+    bg::set<0>(point, x);
+    bg::set<0>(point, y);
+  }
+  return point;
 }
 
 multi_linestring_2d adminizer::make_boost_linestring(const mapnik::geometry_type &geom) const {
