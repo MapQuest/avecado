@@ -1,12 +1,41 @@
 ACLOCAL_AMFLAGS = -I m4
-AM_LDFLAGS = @BOOST_LDFLAGS@
+AM_LDFLAGS = @BOOST_LDFLAGS@ @COVERAGE_LDFLAGS@
 AM_CPPFLAGS = \
 	-Iinclude -Imapnik-vector-tile/src \
 	@BOOST_CPPFLAGS@ @MAPNIK_CPPFLAGS@ @PROTOC_CPPFLAGS@
+AM_CXXFLAGS = @COVERAGE_CXXFLAGS@
 
 LIBTOOL_DEPS = @LIBTOOL_DEPS@
 libtool: $(LIBTOOL_DEPS)
 	$(SHELL) ./config.status libtool
+
+if ENABLE_COVERAGE
+
+.PHONY: clean-coverage
+clean-coverage:
+	-find -name '*.gcda' -exec rm -rf {} \;
+	-$(LCOV) --directory $(top_builddir) -z
+	-rm -rf coverage.info coverage/
+
+.PHONY: coverage-report
+coverage-report: clean-coverage
+	-$(MAKE) $(AM_MAKEFLAGS) -k check
+	$(MAKE) $(AM_MAKEFLAGS) coverage/index.html
+
+coverage.info:
+	$(LCOV) --directory $(top_builddir) --base-directory $(top_builddir) --no-external --capture --output-file $@ --no-checksum --compat-libtool
+
+coverage/index.html: coverage.info
+	$(GENHTML) --prefix $(top_builddir) --output-directory $(@D) --title "Test Coverage" --legend --show-details $<
+
+
+.PHONY: clean-gcno
+clean-gcno:
+	-find -name '*.gcno' -exec rm -rf {} \;
+
+clean-local: clean-coverage clean-gcno
+
+endif # ENABLE_COVERAGE
 
 noinst_LTLIBRARIES = liblogging.la
 
