@@ -47,3 +47,6 @@ Contributing
 We welcome contributions to Avecado. If you would like to report an issue, please use the [Avecado issue tracker](https://github.com/MapQuest/avecado/issues) on GitHub.
 
 If you would like to make an improvement to the code, please be aware that Avecado is written mostly in C++11, in the K&R (1TBS variant) with two spaces as indentation. We welcome contributions as pull requests to the [repository](https://github.com/MapQuest/avecado).
+
+It is possible to build a test coverage report, please see [test coverage documentation](docs/test_coverage.md) for details.
+
