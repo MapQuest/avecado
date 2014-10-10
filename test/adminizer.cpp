@@ -27,58 +27,6 @@ pp::izer_ptr mk_10x10_poly_izer() {
   return pp::create_adminizer(conf);
 }
 
-mapnik::feature_ptr mk_point(const std::pair<double, double> &coord) {
-  mapnik::geometry_type *geom = new mapnik::geometry_type(mapnik::geometry_type::Point);
-
-  geom->push_vertex(coord.first, coord.second, mapnik::SEG_MOVETO);
-
-  mapnik::context_ptr ctx = std::make_shared<mapnik::context_type>();
-  mapnik::feature_ptr feat = std::make_shared<mapnik::feature_impl>(ctx, 0);
-  feat->add_geometry(geom);
-  return feat;
-}
-
-mapnik::feature_ptr mk_multipoint(const std::initializer_list<std::pair<double, double> > &coords) {
-/* Makes multiple points in one feature
- * See mapnik/tests/cpp_tests/label_algo_test.cpp
- */
-  auto itr = coords.begin();
-  auto end = coords.end();
-  // TODO: Some examples use mapnik::geometry_type::Point + 3
-  mapnik::geometry_type *geom = new mapnik::geometry_type(mapnik::geometry_type::Point);
-  double x, y;
-  while (itr != end) {
-    std::tie(x, y) = *itr++;
-    geom->push_vertex(x, y, mapnik::SEG_MOVETO);
-  }
-
-  mapnik::context_ptr ctx = std::make_shared<mapnik::context_type>();
-  mapnik::feature_ptr feat = std::make_shared<mapnik::feature_impl>(ctx, 0);
-  feat->add_geometry(geom);
-  return feat;
-}
-
-mapnik::feature_ptr mk_line(const std::initializer_list<double> &coords) {
-  auto itr = coords.begin();
-  auto end = coords.end();
-  auto cmd = mapnik::SEG_MOVETO;
-  mapnik::geometry_type *geom = new mapnik::geometry_type(mapnik::geometry_type::LineString);
-
-  while (itr != end) {
-    double x = *itr++;
-    if (itr == end) { break; }
-    double y = *itr++;
-
-    geom->push_vertex(x, y, cmd);
-    cmd = mapnik::SEG_LINETO;
-  }
-
-  mapnik::context_ptr ctx = std::make_shared<mapnik::context_type>();
-  mapnik::feature_ptr feat = std::make_shared<mapnik::feature_impl>(ctx, 0);
-  feat->add_geometry(geom);
-  return feat;
-}
-
 mapnik::feature_ptr mk_feat_wkt(const std::string &wkt) {
   mapnik::context_ptr ctx = std::make_shared<mapnik::context_type>();
   mapnik::feature_ptr feat = std::make_shared<mapnik::feature_impl>(ctx, 0);
@@ -247,137 +195,31 @@ void assert_izer_exclude(const std::string &wkt) {
 // test simple assignment of an object's parameter by inclusion
 // in an area.
 void test_point_simple_inclusion_param() {
-  pp::izer_ptr izer = mk_10x10_poly_izer();
-  std::vector<mapnik::feature_ptr> features;
-  features.push_back(mk_point(std::make_pair(0,0)));
-  izer->process(features);
-
-  test::assert_equal<size_t>(features.size(), 1, "should only be one feature");
-
-  // being adminized should have added (or overwritten) the 'foo'
-  // parameter from the admin polygon.
-  assert_has_new_param(features[0]);
-
-  // being adminized shouldn't have affected this geometry because it's
-  // entirely within the admin polygon
-  assert_points_geom_equal(features[0], {std::make_pair(0, 0)});
-}
-
-void test_multipoint_simple_inclusion_param() {
-  pp::izer_ptr izer = mk_10x10_poly_izer();
-  std::vector<mapnik::feature_ptr> features;
-  features.push_back(mk_point(std::make_pair(0,0)));
-  izer->process(features);
-
-  test::assert_equal<size_t>(features.size(), 1, "should only be one feature");
-
-  // being adminized should have added (or overwritten) the 'foo'
-  // parameter from the admin polygon.
-  assert_has_new_param(features[0]);
-
-  // being adminized shouldn't have affected this geometry because it's
-  // entirely within the admin polygon
-  assert_points_geom_equal(features[0], {std::make_pair(0, 0)});
-}
-
-void test_line_simple_inclusion_param() {
-  pp::izer_ptr izer = mk_10x10_poly_izer();
-  std::vector<mapnik::feature_ptr> features;
-  features.push_back(mk_line({0, 0, 1, 1, 2, 0, 3, 1, 4, 0}));
-
-  izer->process(features);
-
-  test::assert_equal<size_t>(features.size(), 1, "should be only one feature");
-
-  // being adminized should have added (or overwritten) the 'foo'
-  // parameter from the admin polygon.
-  assert_has_new_param(features[0]);
-
-  // being adminized shouldn't have affected this geometry because it's
-  // entirely within the admin polygon
-  assert_line_geom_equal(features[0], {0, 0, 1, 1, 2, 0, 3, 1, 4, 0});
+  assert_izer_include("POINT(0 0)");
 }
 
 // test that an object outside of the polygon is not modified.
 void test_point_simple_exclusion_param() {
-  pp::izer_ptr izer = mk_10x10_poly_izer();
-  std::vector<mapnik::feature_ptr> features;
-  features.push_back(mk_point(std::make_pair(11,11)));
-  izer->process(features);
+  assert_izer_exclude("POINT(11 11)");
+}
 
-  test::assert_equal<size_t>(features.size(), 1, "should only be one feature");
-
-  // being adminized should have added (or overwritten) the 'foo'
-  // parameter from the admin polygon.
-  test::assert_equal<bool>(features[0]->has_key("foo"), false,
-                           "point should not have been affected by adminizer.");
-
-  // being adminized shouldn't have affected this geometry because it's
-  // entirely outside the admin polygon
-  assert_points_geom_equal(features[0], {std::make_pair(11, 11)});
+void test_multipoint_simple_inclusion_param() {
+  assert_izer_include("MULTIPOINT((0 0))");
+  assert_izer_include("MULTIPOINT((0 0),(1 1))");
 }
 
 // test that an object outside of the polygon is not modified.
 void test_multipoint_simple_exclusion_param() {
-  pp::izer_ptr izer = mk_10x10_poly_izer();
-  std::vector<mapnik::feature_ptr> features;
-  features.push_back(mk_point(std::make_pair(11,11)));
-  features.push_back(mk_point(std::make_pair(-11,-11)));
-  izer->process(features);
+  assert_izer_exclude("MULTIPOINT((11 11))");
+  assert_izer_exclude("MULTIPOINT((11 11), (12 12))");
+}
 
-  test::assert_equal<size_t>(features.size(), 2, "should only be two feature");
-
-  // being adminized should have added (or overwritten) the 'foo'
-  // parameter from the admin polygon.
-  test::assert_equal<bool>(features[0]->has_key("foo"), false,
-                           "point should not have been affected by adminizer.");
-
-  // being adminized shouldn't have affected this geometry because it's
-  // entirely outside the admin polygon
-  assert_points_geom_equal(features[0], {std::make_pair(11, 11)});
-
-  // being adminized should have added (or overwritten) the 'foo'
-  // parameter from the admin polygon.
-  test::assert_equal<bool>(features[1]->has_key("foo"), false,
-                           "point should not have been affected by adminizer.");
-
-  // being adminized shouldn't have affected this geometry because it's
-  // entirely outside the admin polygon
-  assert_points_geom_equal(features[1], {std::make_pair(-11, -11)});
+void test_line_simple_inclusion_param() {
+  assert_izer_include("LINESTRING(0 0, 1 1, 2 0, 3 1, 4 0)");
 }
 
 void test_line_simple_exclusion_param() {
-  pp::izer_ptr izer = mk_10x10_poly_izer();
-
-  std::vector<mapnik::feature_ptr> features;
-  // the line curves around the RHS of the polygon feature, but is
-  // always outside of it.
-  features.push_back(mk_line({0, 11, 11, 11, 11, -11, 0, -11}));
-
-  izer->process(features);
-
-  test::assert_equal<size_t>(features.size(), 1);
-
-  // being adminized should not have affected the object at all.
-  test::assert_equal<bool>(features[0]->has_key("foo"), false,
-                           "line should not have been affected by adminizer.");
-
-  // being adminized shouldn't have affected this geometry either.
-  assert_line_geom_equal(features[0], {0, 11, 11, 11, 11, -11, 0, -11});
-
-  // Clear the features and run again, with a point
-  features.clear();
-  features.push_back(mk_point(std::make_pair(11,11)));
-  izer->process(features);
-
-  test::assert_equal<size_t>(features.size(), 1);
-
-  // since the geometry is outside the admin polygon, no parameter
-  // should have been written.
-  test::assert_equal<bool>(features[0]->has_key("foo"), false,
-                           "point should not have been affected by adminizer.");
-
-  assert_points_geom_equal(features[0], {std::make_pair(11, 11)});
+  assert_izer_exclude("LINESTRING(0 11, 11 11, 11 -11, 0 -11)");
 }
 
 void test_poly_simple_inclusion_param() {
@@ -386,6 +228,16 @@ void test_poly_simple_inclusion_param() {
 
 void test_poly_simple_exclusion_param() {
   assert_izer_exclude("POLYGON((20 0, 21 0, 21 1, 20 1, 20 0))");
+}
+
+void test_multipoly_simple_inclusion_param() {
+  assert_izer_include("MULTIPOLYGON(((0 0, 1 0, 1 1, 0 1, 0 0)))");
+  assert_izer_include("MULTIPOLYGON(((0 0, 1 0, 1 1, 0 1, 0 0)),((5 5, 6 5, 6 6, 5 6, 5 5)))");
+}
+
+void test_multipoly_simple_exclusion_param() {
+  assert_izer_exclude("MULTIPOLYGON(((20 0, 21 0, 21 1, 20 1, 20 0)))");
+  assert_izer_exclude("MULTIPOLYGON(((20 0, 21 0, 21 1, 20 1, 20 0)),((-20 0, -21 0, -21 1, -20 1, -20 0)))");
 }
 
 } // anonymous namespace
@@ -401,13 +253,20 @@ int main() {
 
 #define RUN_TEST(x) { tests_failed += test::run(#x, &(x)); }
   RUN_TEST(test_point_simple_inclusion_param);
-  RUN_TEST(test_multipoint_simple_inclusion_param);
-  RUN_TEST(test_line_simple_inclusion_param);
   RUN_TEST(test_point_simple_exclusion_param);
+
+  // mapbox/mapnik-vector-tile#62 prevents multipoints from working properly through the entire toolchain
+  RUN_TEST(test_multipoint_simple_inclusion_param);
   RUN_TEST(test_multipoint_simple_exclusion_param);
+
+  RUN_TEST(test_line_simple_inclusion_param);
   RUN_TEST(test_line_simple_exclusion_param);
+
   RUN_TEST(test_poly_simple_inclusion_param);
   RUN_TEST(test_poly_simple_exclusion_param);
+
+  RUN_TEST(test_multipoly_simple_inclusion_param);
+  RUN_TEST(test_multipoly_simple_exclusion_param);
   
   std::cout << " >> Tests failed: " << tests_failed << std::endl << std::endl;
 
