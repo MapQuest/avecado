@@ -207,6 +207,43 @@ void assert_has_new_param(const mapnik::feature_ptr &feat) {
                                   "feature should have parameter from adminizing polygon");
 }
 
+void assert_izer_include(const std::string &wkt) {
+  pp::izer_ptr izer = mk_10x10_poly_izer();
+  std::vector<mapnik::feature_ptr> features;
+  features.push_back(mk_feat_wkt(wkt));
+
+  izer->process(features);
+
+  test::assert_equal<size_t>(features.size(), 1, "should be only one feature");
+
+  // being adminized should have added (or overwritten) the 'foo'
+  // parameter from the admin polygon.
+  assert_has_new_param(features[0]);
+
+  // being adminized shouldn't have affected this geometry because it's
+  // entirely within the admin polygon
+  assert_wkt_geom_equal(features[0], wkt);
+}
+
+void assert_izer_exclude(const std::string &wkt) {
+  pp::izer_ptr izer = mk_10x10_poly_izer();
+  std::vector<mapnik::feature_ptr> features;
+  features.push_back(mk_feat_wkt(wkt));
+
+  izer->process(features);
+
+  test::assert_equal<size_t>(features.size(), 1, "should be only one feature");
+
+  // since the geometry is outside the admin polygon, no parameter
+  // should have been written.
+  test::assert_equal<bool>(features[0]->has_key("foo"), false,
+                           "feature should not have been affected by adminizer.");
+
+  // being adminized shouldn't have affected this geometry because it's
+  // entirely outside the admin polygon
+  assert_wkt_geom_equal(features[0], wkt);
+}
+
 // test simple assignment of an object's parameter by inclusion
 // in an area.
 void test_point_simple_inclusion_param() {
@@ -344,40 +381,11 @@ void test_line_simple_exclusion_param() {
 }
 
 void test_poly_simple_inclusion_param() {
-  pp::izer_ptr izer = mk_10x10_poly_izer();
-  std::vector<mapnik::feature_ptr> features;
-  features.push_back(mk_feat_wkt("POLYGON((0 0, 1 0, 1 1, 0 1, 0 0))"));
-
-  izer->process(features);
-
-  test::assert_equal<size_t>(features.size(), 1, "should be only one feature");
-
-  // being adminized should have added (or overwritten) the 'foo'
-  // parameter from the admin polygon.
-  assert_has_new_param(features[0]);
-
-  // being adminized shouldn't have affected this geometry because it's
-  // entirely within the admin polygon
-  assert_wkt_geom_equal(features[0], "POLYGON((0 0, 1 0, 1 1, 0 1, 0 0))");
+  assert_izer_include("POLYGON((0 0, 1 0, 1 1, 0 1, 0 0))");
 }
 
 void test_poly_simple_exclusion_param() {
-  pp::izer_ptr izer = mk_10x10_poly_izer();
-  std::vector<mapnik::feature_ptr> features;
-  features.push_back(mk_feat_wkt("POLYGON((20 0, 21 0, 21 1, 20 1, 20 0))"));
-
-  izer->process(features);
-
-  test::assert_equal<size_t>(features.size(), 1, "should be only one feature");
-
-  // since the geometry is outside the admin polygon, no parameter
-  // should have been written.
-  test::assert_equal<bool>(features[0]->has_key("foo"), false,
-                           "feature should not have been affected by adminizer.");
-
-  // being adminized shouldn't have affected this geometry because it's
-  // entirely outside the admin polygon
-  assert_wkt_geom_equal(features[0], "POLYGON((20 0, 21 0, 21 1, 20 1, 20 0))");
+  assert_izer_exclude("POLYGON((20 0, 21 0, 21 1, 20 1, 20 0))");
 }
 
 } // anonymous namespace
