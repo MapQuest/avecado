@@ -5,6 +5,9 @@
 #include <boost/property_tree/ptree.hpp>
 
 #include <mapnik/datasource_cache.hpp>
+#include <mapnik/wkt/wkt_factory.hpp>
+#include <mapnik/wkt/wkt_grammar.hpp>
+#include <mapnik/wkt/wkt_grammar_impl.hpp>
 
 #include <iostream>
 
@@ -76,6 +79,16 @@ mapnik::feature_ptr mk_line(const std::initializer_list<double> &coords) {
   return feat;
 }
 
+mapnik::feature_ptr mk_feat_wkt(const std::string &wkt) {
+  mapnik::context_ptr ctx = std::make_shared<mapnik::context_type>();
+  mapnik::feature_ptr feat = std::make_shared<mapnik::feature_impl>(ctx, 0);
+  if (!mapnik::from_wkt(wkt, feat->paths())) {
+    throw std::runtime_error((boost::format("Unable to parse WKT geometry from "
+                                            "string \"%1%\"") % wkt).str());
+  }
+  return feat;
+}
+
 void assert_line_geom_equal(mapnik::feature_ptr &feat,
                             const std::initializer_list<double> &coords) {
   using mapnik::geometry_type;
@@ -136,6 +149,54 @@ void assert_points_geom_equal(mapnik::feature_ptr &feat,
     test::assert_equal<unsigned int>(actual_cmd, mapnik::SEG_MOVETO, "command");
     test::assert_equal<double>(actual_x, expect_x, "x");
     test::assert_equal<double>(actual_y, expect_y, "y");
+  }
+}
+
+void assert_wkt_geom_equal(mapnik::feature_ptr &feat, const std::string &wkt) {
+  using mapnik::geometry_type;
+  using mapnik::geometry_container;
+
+  geometry_container expected_paths;
+  test::assert_equal<bool>(mapnik::from_wkt(wkt, expected_paths), true, "valid WKT");
+
+  const geometry_container &actual_paths = feat->paths();
+
+  const size_t num_paths = expected_paths.size();
+  test::assert_equal<size_t>(actual_paths.size(), num_paths,
+                             "same number of paths in geometry");
+
+  // NOTE: this doesn't take account of potential re-ordering of the paths
+  // within the geometry container, which would be valid. it's not clear
+  // whether anything which processes the geometry would re-order them, so
+  // until the test has a spurious failure because of re-ordering, let's
+  // just assume the ordering remains the same.
+  for (size_t i = 0; i < num_paths; ++i) {
+    const geometry_type &actual = actual_paths[i];
+    const geometry_type &expected = expected_paths[i];
+
+    test::assert_equal<geometry_type::types>(actual.type(), expected.type(),
+                                             "geometry types");
+    test::assert_equal<size_t>(actual.size(), expected.size(),
+                               "number of coordinates");
+
+    // NOTE: this doesn't account for rotation of any polygon rings,
+    // which means the test might give a false negative. however, until
+    // we have an example of that, let's just assume it doesn't happen.
+    actual.rewind(0);
+    expected.rewind(0);
+    while (true) {
+      double actual_x = 0, actual_y = 0, expected_x = 0, expected_y = 0;
+      unsigned int actual_cmd = actual.vertex(&actual_x, &actual_y);
+      unsigned int expected_cmd = expected.vertex(&expected_x, &expected_y);
+
+      test::assert_equal<unsigned int>(actual_cmd, expected_cmd, "command");
+      if (actual_cmd == mapnik::SEG_END) {
+        break;
+      }
+
+      test::assert_equal<double>(actual_x, expected_x, "x");
+      test::assert_equal<double>(actual_y, expected_y, "y");
+    }
   }
 }
 
@@ -282,6 +343,43 @@ void test_line_simple_exclusion_param() {
   assert_points_geom_equal(features[0], {std::make_pair(11, 11)});
 }
 
+void test_poly_simple_inclusion_param() {
+  pp::izer_ptr izer = mk_10x10_poly_izer();
+  std::vector<mapnik::feature_ptr> features;
+  features.push_back(mk_feat_wkt("POLYGON((0 0, 1 0, 1 1, 0 1, 0 0))"));
+
+  izer->process(features);
+
+  test::assert_equal<size_t>(features.size(), 1, "should be only one feature");
+
+  // being adminized should have added (or overwritten) the 'foo'
+  // parameter from the admin polygon.
+  assert_has_new_param(features[0]);
+
+  // being adminized shouldn't have affected this geometry because it's
+  // entirely within the admin polygon
+  assert_wkt_geom_equal(features[0], "POLYGON((0 0, 1 0, 1 1, 0 1, 0 0))");
+}
+
+void test_poly_simple_exclusion_param() {
+  pp::izer_ptr izer = mk_10x10_poly_izer();
+  std::vector<mapnik::feature_ptr> features;
+  features.push_back(mk_feat_wkt("POLYGON((20 0, 21 0, 21 1, 20 1, 20 0))"));
+
+  izer->process(features);
+
+  test::assert_equal<size_t>(features.size(), 1, "should be only one feature");
+
+  // since the geometry is outside the admin polygon, no parameter
+  // should have been written.
+  test::assert_equal<bool>(features[0]->has_key("foo"), false,
+                           "feature should not have been affected by adminizer.");
+
+  // being adminized shouldn't have affected this geometry because it's
+  // entirely outside the admin polygon
+  assert_wkt_geom_equal(features[0], "POLYGON((20 0, 21 0, 21 1, 20 1, 20 0))");
+}
+
 } // anonymous namespace
 
 int main() {
@@ -300,6 +398,8 @@ int main() {
   RUN_TEST(test_point_simple_exclusion_param);
   RUN_TEST(test_multipoint_simple_exclusion_param);
   RUN_TEST(test_line_simple_exclusion_param);
+  RUN_TEST(test_poly_simple_inclusion_param);
+  RUN_TEST(test_poly_simple_exclusion_param);
   
   std::cout << " >> Tests failed: " << tests_failed << std::endl << std::endl;
 
