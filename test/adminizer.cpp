@@ -64,6 +64,69 @@ mapnik::feature_ptr mk_line(const std::initializer_list<double> &coords) {
   return feat;
 }
 
+void assert_line_geom_equal(mapnik::feature_ptr &feat,
+                            const std::initializer_list<double> &coords) {
+  using mapnik::geometry_type;
+
+  test::assert_equal<size_t>(feat->num_geometries(), 1,
+                             "Feature should only have one geometry");
+  const geometry_type &geom = feat->get_geometry(0);
+  test::assert_equal<geometry_type::types>(geom.type(), geometry_type::LineString,
+                                           "geometry should be LineString");
+  test::assert_equal<size_t>(geom.size(), coords.size() / 2,
+                             "should have the expected number of coordinates");
+
+  auto itr = coords.begin();
+  auto end = coords.end();
+  auto expect_cmd = mapnik::SEG_MOVETO;
+  geom.rewind(0);
+
+  double expect_x = -1, expect_y = -1, actual_x = -1, actual_y = -1;
+
+  while (itr != end) {
+    expect_x = *itr++;
+    if (itr == end) { break; }
+    expect_y = *itr++;
+
+    auto actual_cmd = geom.vertex(&actual_x, &actual_y);
+
+    test::assert_equal<unsigned int>(actual_cmd, expect_cmd, "command");
+    test::assert_equal<double>(actual_x, expect_x, "x");
+    test::assert_equal<double>(actual_y, expect_y, "y");
+
+    expect_cmd = mapnik::SEG_LINETO;
+  }
+}
+
+void assert_points_geom_equal(mapnik::feature_ptr &feat,
+                              const std::initializer_list<std::pair<double, double> > &coords) {
+  using mapnik::geometry_type;
+
+  test::assert_equal<size_t>(feat->num_geometries(), 1,
+                             "Feature should only have one geometry");
+  const geometry_type &geom = feat->get_geometry(0);
+  test::assert_equal<geometry_type::types>(geom.type(), geometry_type::Point,
+                                           "geometry should be Point");
+  test::assert_equal<size_t>(geom.size(), coords.size(),
+                             "should have the expected number of coordinates");
+
+  auto itr = coords.begin();
+  auto end = coords.end();
+  geom.rewind(0);
+
+  double expect_x = -1, expect_y = -1, actual_x = -1, actual_y = -1;
+
+  while (itr != end) {
+    boost::tie(expect_x, expect_y) = *itr++;
+
+    unsigned int actual_cmd = geom.vertex(&actual_x, &actual_y);
+
+    test::assert_equal<unsigned int>(actual_cmd, mapnik::SEG_MOVETO, "command");
+    test::assert_equal<double>(actual_x, expect_x, "x");
+    test::assert_equal<double>(actual_y, expect_y, "y");
+  }
+}
+
 // test simple assignment of an object's parameter by inclusion
 // in an area.
 void test_point_simple_inclusion_param() {
@@ -93,16 +156,9 @@ void test_point_simple_inclusion_param() {
 
   // being adminized shouldn't have affected this geometry because it's
   // entirely within the admin polygon
-  test::assert_equal<size_t>(features[0]->num_geometries(), 1, "Feature should only have one geometry");
-  const mapnik::geometry_type &geom = features[0]->get_geometry(0);
-  test::assert_equal<mapnik::geometry_type::types>(geom.type(), mapnik::geometry_type::Point, "geometry should be Point");
-  test::assert_equal<size_t>(geom.size(), 1);
-  double x = -1, y = -1;
-
-  test::assert_equal<unsigned int>(geom.vertex(0, &x, &y), mapnik::SEG_MOVETO);
-  test::assert_equal<double>(x, 0);
-  test::assert_equal<double>(y, 0);
+  assert_points_geom_equal(features[0], {std::make_pair(0, 0)});
 }
+
 void test_multipoint_simple_inclusion_param() {
   namespace pp = avecado::post_process;
 
@@ -130,16 +186,9 @@ void test_multipoint_simple_inclusion_param() {
 
   // being adminized shouldn't have affected this geometry because it's
   // entirely within the admin polygon
-  test::assert_equal<size_t>(features[0]->num_geometries(), 1, "Feature should only have one geometry");
-  const mapnik::geometry_type &geom = features[0]->get_geometry(0);
-  test::assert_equal<mapnik::geometry_type::types>(geom.type(), mapnik::geometry_type::Point, "geometry should be Point");
-  test::assert_equal<size_t>(geom.size(), 1);
-  double x = -1, y = -1;
-
-  test::assert_equal<unsigned int>(geom.vertex(0, &x, &y), mapnik::SEG_MOVETO);
-  test::assert_equal<double>(x, 0);
-  test::assert_equal<double>(y, 0);
+  assert_points_geom_equal(features[0], {std::make_pair(0, 0)});
 }
+
 void test_line_simple_inclusion_param() {
   namespace pp = avecado::post_process;
 
@@ -168,31 +217,7 @@ void test_line_simple_inclusion_param() {
 
   // being adminized shouldn't have affected this geometry because it's
   // entirely within the admin polygon
-  test::assert_equal<size_t>(features[0]->num_geometries(), 1, "Feature should only have one geometry");
-  const mapnik::geometry_type &geom = features[0]->get_geometry(0);
-  test::assert_equal<mapnik::geometry_type::types>(geom.type(), mapnik::geometry_type::LineString, "geometry should be LineString");
-  test::assert_equal<size_t>(geom.size(), 5);
-  double x = -1, y = -1;
-
-  test::assert_equal<unsigned int>(geom.vertex(0, &x, &y), mapnik::SEG_MOVETO);
-  test::assert_equal<double>(x, 0);
-  test::assert_equal<double>(y, 0);
-
-  test::assert_equal<unsigned int>(geom.vertex(1, &x, &y), mapnik::SEG_LINETO);
-  test::assert_equal<double>(x, 1);
-  test::assert_equal<double>(y, 1);
-
-  test::assert_equal<unsigned int>(geom.vertex(2, &x, &y), mapnik::SEG_LINETO);
-  test::assert_equal<double>(x, 2);
-  test::assert_equal<double>(y, 0);
-
-  test::assert_equal<unsigned int>(geom.vertex(3, &x, &y), mapnik::SEG_LINETO);
-  test::assert_equal<double>(x, 3);
-  test::assert_equal<double>(y, 1);
-
-  test::assert_equal<unsigned int>(geom.vertex(4, &x, &y), mapnik::SEG_LINETO);
-  test::assert_equal<double>(x, 4);
-  test::assert_equal<double>(y, 0);
+  assert_line_geom_equal(features[0], {0, 0, 1, 1, 2, 0, 3, 1, 4, 0});
 }
 
 // test that an object outside of the polygon is not modified.
@@ -220,16 +245,8 @@ void test_point_simple_exclusion_param() {
                            "point should not have been affected by adminizer.");
 
   // being adminized shouldn't have affected this geometry because it's
-  // entirely within the admin polygon
-  test::assert_equal<size_t>(features[0]->num_geometries(), 1, "Feature should only have one geometry");
-  const mapnik::geometry_type &geom = features[0]->get_geometry(0);
-  test::assert_equal<mapnik::geometry_type::types>(geom.type(), mapnik::geometry_type::Point, "geometry should be Point");
-  test::assert_equal<size_t>(geom.size(), 1);
-  double x = -1, y = -1;
-
-  test::assert_equal<unsigned int>(geom.vertex(0, &x, &y), mapnik::SEG_MOVETO);
-  test::assert_equal<double>(x, 11);
-  test::assert_equal<double>(y, 11);
+  // entirely outside the admin polygon
+  assert_points_geom_equal(features[0], {std::make_pair(11, 11)});
 }
 
 // test that an object outside of the polygon is not modified.
@@ -258,16 +275,8 @@ void test_multipoint_simple_exclusion_param() {
                            "point should not have been affected by adminizer.");
 
   // being adminized shouldn't have affected this geometry because it's
-  // entirely within the admin polygon
-  test::assert_equal<size_t>(features[0]->num_geometries(), 1, "Feature 0 should only have one geometry");
-  const mapnik::geometry_type &geom = features[0]->get_geometry(0);
-  test::assert_equal<mapnik::geometry_type::types>(geom.type(), mapnik::geometry_type::Point, "Feature 0 geometry should be Point");
-  test::assert_equal<size_t>(geom.size(), 1);
-  double x = -1, y = -1;
-
-  test::assert_equal<unsigned int>(geom.vertex(0, &x, &y), mapnik::SEG_MOVETO, "Wrong command type");
-  test::assert_equal<double>(x, 11);
-  test::assert_equal<double>(y, 11);
+  // entirely outside the admin polygon
+  assert_points_geom_equal(features[0], {std::make_pair(11, 11)});
 
   // being adminized should have added (or overwritten) the 'foo'
   // parameter from the admin polygon.
@@ -275,16 +284,8 @@ void test_multipoint_simple_exclusion_param() {
                            "point should not have been affected by adminizer.");
 
   // being adminized shouldn't have affected this geometry because it's
-  // entirely within the admin polygon
-  test::assert_equal<size_t>(features[1]->num_geometries(), 1, "Feature 1 should only have one geometry");
-  const mapnik::geometry_type &geom1 = features[1]->get_geometry(0);
-  test::assert_equal<mapnik::geometry_type::types>(geom1.type(), mapnik::geometry_type::Point, "Feature 1 geometry should be Point");
-  test::assert_equal<size_t>(geom1.size(), 1);
-  x = -1; y = -1;
-
-  test::assert_equal<unsigned int>(geom1.vertex(0, &x, &y), mapnik::SEG_MOVETO, "Wrong command type");
-  test::assert_equal<double>(x, -11);
-  test::assert_equal<double>(y, -11);
+  // entirely outside the admin polygon
+  assert_points_geom_equal(features[1], {std::make_pair(-11, -11)});
 }
 
 void test_line_simple_exclusion_param() {
@@ -312,27 +313,7 @@ void test_line_simple_exclusion_param() {
                            "line should not have been affected by adminizer.");
 
   // being adminized shouldn't have affected this geometry either.
-  test::assert_equal<size_t>(features[0]->num_geometries(), 1);
-  const mapnik::geometry_type &geom = features[0]->get_geometry(0);
-  test::assert_equal<mapnik::geometry_type::types>(geom.type(), mapnik::geometry_type::LineString);
-  test::assert_equal<size_t>(geom.size(), 4);
-  double x = -1, y = -1;
-
-  test::assert_equal<unsigned int>(geom.vertex(0, &x, &y), mapnik::SEG_MOVETO);
-  test::assert_equal<double>(x, 0);
-  test::assert_equal<double>(y, 11);
-
-  test::assert_equal<unsigned int>(geom.vertex(1, &x, &y), mapnik::SEG_LINETO);
-  test::assert_equal<double>(x, 11);
-  test::assert_equal<double>(y, 11);
-
-  test::assert_equal<unsigned int>(geom.vertex(2, &x, &y), mapnik::SEG_LINETO);
-  test::assert_equal<double>(x, 11);
-  test::assert_equal<double>(y, -11);
-
-  test::assert_equal<unsigned int>(geom.vertex(3, &x, &y), mapnik::SEG_LINETO);
-  test::assert_equal<double>(x, 0);
-  test::assert_equal<double>(y, -11);
+  assert_line_geom_equal(features[0], {0, 11, 11, 11, 11, -11, 0, -11});
 
   // Clear the features and run again, with a point
   features.clear();
@@ -346,11 +327,7 @@ void test_line_simple_exclusion_param() {
   test::assert_equal<bool>(features[0]->has_key("foo"), false,
                            "point should not have been affected by adminizer.");
 
-  x = -1;
-  y = -1;
-  test::assert_equal<unsigned int>(geom.vertex(0, &x, &y), mapnik::SEG_MOVETO);
-  test::assert_equal<double>(x, 11);
-  test::assert_equal<double>(y, 11);
+  assert_points_geom_equal(features[0], {std::make_pair(11, 11)});
 }
 
 } // anonymous namespace
