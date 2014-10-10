@@ -9,8 +9,20 @@
 #include <iostream>
 
 using std::make_pair;
+namespace pp = avecado::post_process;
 
 namespace {
+
+pp::izer_ptr mk_10x10_poly_izer() {
+  pt::ptree conf;
+  conf.put("param_name", "foo");
+  conf.put("datasource.type", "csv");
+  // Square going to +/- 10
+  conf.put("datasource.inline",
+           "wkt|foo\n"
+           "Polygon((-10.0 -10.0, -10.0 10.0, 10.0 10.0, 10.0 -10.0, -10.0 -10.0))|foo_value\n");
+  return pp::create_adminizer(conf);
+}
 
 mapnik::feature_ptr mk_point(const std::pair<double, double> &coord) {
   mapnik::geometry_type *geom = new mapnik::geometry_type(mapnik::geometry_type::Point);
@@ -127,20 +139,17 @@ void assert_points_geom_equal(mapnik::feature_ptr &feat,
   }
 }
 
+void assert_has_new_param(const mapnik::feature_ptr &feat) {
+  test::assert_equal<bool>(feat->has_key("foo"), true,
+                           "feature should have parameter key \"foo\" after adminizing");
+  test::assert_equal<std::string>(feat->get("foo").to_string(), "foo_value",
+                                  "feature should have parameter from adminizing polygon");
+}
+
 // test simple assignment of an object's parameter by inclusion
 // in an area.
 void test_point_simple_inclusion_param() {
-  namespace pp = avecado::post_process;
-
-  pt::ptree conf;
-  conf.put("param_name", "foo");
-  conf.put("datasource.type", "csv");
-  // Square going to +/- 10
-  conf.put("datasource.inline",
-           "wkt|foo\n"
-           "Polygon((-10.0 -10.0, -10.0 10.0, 10.0 10.0, 10.0 -10.0, -10.0 -10.0))|foo_value\n");
-  pp::izer_ptr izer = pp::create_adminizer(conf);
-
+  pp::izer_ptr izer = mk_10x10_poly_izer();
   std::vector<mapnik::feature_ptr> features;
   features.push_back(mk_point(std::make_pair(0,0)));
   izer->process(features);
@@ -149,10 +158,7 @@ void test_point_simple_inclusion_param() {
 
   // being adminized should have added (or overwritten) the 'foo'
   // parameter from the admin polygon.
-  test::assert_equal<bool>(features[0]->has_key("foo"), true,
-                           "point should have parameter key \"foo\" after adminizing");
-  test::assert_equal<std::string>(features[0]->get("foo").to_string(), "foo_value",
-                                  "point should have parameter from adminizing polygon");
+  assert_has_new_param(features[0]);
 
   // being adminized shouldn't have affected this geometry because it's
   // entirely within the admin polygon
@@ -160,17 +166,7 @@ void test_point_simple_inclusion_param() {
 }
 
 void test_multipoint_simple_inclusion_param() {
-  namespace pp = avecado::post_process;
-
-  pt::ptree conf;
-  conf.put("param_name", "foo");
-  conf.put("datasource.type", "csv");
-  // Square going to +/- 10
-  conf.put("datasource.inline",
-           "wkt|foo\n"
-           "Polygon((-10.0 -10.0, -10.0 10.0, 10.0 10.0, 10.0 -10.0, -10.0 -10.0))|foo_value\n");
-  pp::izer_ptr izer = pp::create_adminizer(conf);
-
+  pp::izer_ptr izer = mk_10x10_poly_izer();
   std::vector<mapnik::feature_ptr> features;
   features.push_back(mk_point(std::make_pair(0,0)));
   izer->process(features);
@@ -179,10 +175,7 @@ void test_multipoint_simple_inclusion_param() {
 
   // being adminized should have added (or overwritten) the 'foo'
   // parameter from the admin polygon.
-  test::assert_equal<bool>(features[0]->has_key("foo"), true,
-                           "point should have parameter key \"foo\" after adminizing");
-  test::assert_equal<std::string>(features[0]->get("foo").to_string(), "foo_value",
-                                  "point should have parameter from adminizing polygon");
+  assert_has_new_param(features[0]);
 
   // being adminized shouldn't have affected this geometry because it's
   // entirely within the admin polygon
@@ -190,17 +183,7 @@ void test_multipoint_simple_inclusion_param() {
 }
 
 void test_line_simple_inclusion_param() {
-  namespace pp = avecado::post_process;
-
-  pt::ptree conf;
-  conf.put("param_name", "foo");
-  conf.put("datasource.type", "csv");
-  // Square going to +/- 10
-  conf.put("datasource.inline",
-           "wkt|foo\n"
-           "Polygon((-10.0 -10.0, -10.0 10.0, 10.0 10.0, 10.0 -10.0, -10.0 -10.0))|foo_value\n");
-  pp::izer_ptr izer = pp::create_adminizer(conf);
-
+  pp::izer_ptr izer = mk_10x10_poly_izer();
   std::vector<mapnik::feature_ptr> features;
   features.push_back(mk_line({0, 0, 1, 1, 2, 0, 3, 1, 4, 0}));
 
@@ -210,10 +193,7 @@ void test_line_simple_inclusion_param() {
 
   // being adminized should have added (or overwritten) the 'foo'
   // parameter from the admin polygon.
-  test::assert_equal<bool>(features[0]->has_key("foo"), true,
-                           "line should have parameter key \"foo\" after adminizing");
-  test::assert_equal<std::string>(features[0]->get("foo").to_string(), "foo_value",
-                                  "line should have parameter from adminizing polygon");
+  assert_has_new_param(features[0]);
 
   // being adminized shouldn't have affected this geometry because it's
   // entirely within the admin polygon
@@ -222,17 +202,7 @@ void test_line_simple_inclusion_param() {
 
 // test that an object outside of the polygon is not modified.
 void test_point_simple_exclusion_param() {
-  namespace pp = avecado::post_process;
-
-  pt::ptree conf;
-  conf.put("param_name", "foo");
-  conf.put("datasource.type", "csv");
-  // Square going to +/- 10
-  conf.put("datasource.inline",
-           "wkt|foo\n"
-           "Polygon((-10.0 -10.0, -10.0 10.0, 10.0 10.0, 10.0 -10.0, -10.0 -10.0))|foo_value\n");
-  pp::izer_ptr izer = pp::create_adminizer(conf);
-
+  pp::izer_ptr izer = mk_10x10_poly_izer();
   std::vector<mapnik::feature_ptr> features;
   features.push_back(mk_point(std::make_pair(11,11)));
   izer->process(features);
@@ -251,17 +221,7 @@ void test_point_simple_exclusion_param() {
 
 // test that an object outside of the polygon is not modified.
 void test_multipoint_simple_exclusion_param() {
-  namespace pp = avecado::post_process;
-
-  pt::ptree conf;
-  conf.put("param_name", "foo");
-  conf.put("datasource.type", "csv");
-  // Square going to +/- 10
-  conf.put("datasource.inline",
-           "wkt|foo\n"
-           "Polygon((-10.0 -10.0, -10.0 10.0, 10.0 10.0, 10.0 -10.0, -10.0 -10.0))|foo_value\n");
-  pp::izer_ptr izer = pp::create_adminizer(conf);
-
+  pp::izer_ptr izer = mk_10x10_poly_izer();
   std::vector<mapnik::feature_ptr> features;
   features.push_back(mk_point(std::make_pair(11,11)));
   features.push_back(mk_point(std::make_pair(-11,-11)));
@@ -289,15 +249,7 @@ void test_multipoint_simple_exclusion_param() {
 }
 
 void test_line_simple_exclusion_param() {
-  namespace pp = avecado::post_process;
-
-  pt::ptree conf;
-  conf.put("param_name", "foo");
-  conf.put("datasource.type", "csv");
-  conf.put("datasource.inline",
-           "wkt|foo\n"
-           "Polygon((-10.0 -10.0, -10.0 10.0, 10.0 10.0, 10.0 -10.0, -10.0 -10.0))|foo_value\n");
-  pp::izer_ptr izer = pp::create_adminizer(conf);
+  pp::izer_ptr izer = mk_10x10_poly_izer();
 
   std::vector<mapnik::feature_ptr> features;
   // the line curves around the RHS of the polygon feature, but is
@@ -322,8 +274,8 @@ void test_line_simple_exclusion_param() {
 
   test::assert_equal<size_t>(features.size(), 1);
 
-  // being adminized should have added (or overwritten) the 'foo'
-  // parameter from the admin polygon.
+  // since the geometry is outside the admin polygon, no parameter
+  // should have been written.
   test::assert_equal<bool>(features[0]->has_key("foo"), false,
                            "point should not have been affected by adminizer.");
 
