@@ -272,6 +272,25 @@ void test_intersection_mode_first() {
                                   "first admin polygon's parameter");
 }
 
+void test_intersection_mode_collect() {
+  pt::ptree conf;
+  conf.put("param_name", "foo");
+  conf.put("collect", "true");
+  conf.put("delimiter", "|");
+  conf.put("datasource.type", "csv");
+  conf.put("datasource.inline",
+           "wkt|foo\n"
+           "POLYGON((0 0, 3 0, 3 3, 0 3, 0 0))|first_value\n"
+           "POLYGON((1 1, 4 1, 4 4, 1 4, 1 1))|second_value\n");
+  pp::izer_ptr izer = pp::create_adminizer(conf);
+
+  std::string adminized_param = intersection_param(izer, "POINT(2 2)");
+
+  test::assert_equal<std::string>(adminized_param, "first_value|second_value",
+                                  "when intersection mode is collect, should have "
+                                  "all the admin polygons' parameters");
+}
+
 } // anonymous namespace
 
 int main() {
@@ -301,6 +320,7 @@ int main() {
   RUN_TEST(test_multipoly_simple_exclusion_param);
 
   RUN_TEST(test_intersection_mode_first);
+  RUN_TEST(test_intersection_mode_collect);
   
   std::cout << " >> Tests failed: " << tests_failed << std::endl << std::endl;
 

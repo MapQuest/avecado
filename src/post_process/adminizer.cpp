@@ -43,20 +43,46 @@ struct entry {
 struct param_updater {
   mapnik::feature_ptr &m_feature;
   const std::string &m_param_name;
-  unsigned int m_index;
+  bool m_collect;
+  const mapnik::value_unicode_string &m_delimiter;
+  std::set<unsigned int> m_indices;
   bool m_finished;
 
-  param_updater(mapnik::feature_ptr &feat, const std::string &param_name)
+  param_updater(mapnik::feature_ptr &feat, const std::string &param_name, bool collect,
+                const mapnik::value_unicode_string &delimiter)
     : m_feature(feat), m_param_name(param_name)
-    , m_index(std::numeric_limits<unsigned int>::max())
+    , m_collect(collect)
+    , m_delimiter(delimiter)
+    , m_indices()
     , m_finished(false) {
   }
 
   void operator()(const entry &e) {
-    if (e.index < m_index) {
-      m_feature->put_new(m_param_name, e.value);
-      m_finished = e.index == 0;
-      m_index = e.index;
+    m_indices.insert(e.index);
+    // early termination only if we're looking for the first admin
+    // area and just found it.
+    m_finished = (!m_collect) && (e.index == 0);
+  }
+
+  void finish(const std::vector<entry> &entries) {
+    if (!m_indices.empty()) {
+      if (m_collect) {
+        mapnik::value_unicode_string buffer;
+        bool first = true;
+        for (unsigned int i : m_indices) {
+          if (first) {
+            first = false;
+          } else {
+            buffer.append(m_delimiter);
+          }
+          buffer.append(entries[i].value.to_unicode());
+        }
+        m_feature->put_new(m_param_name, buffer);
+
+      } else {
+        const entry &e = entries[*m_indices.begin()];
+        m_feature->put_new(m_param_name, e.value);
+      }
     }
   }
 };
@@ -168,11 +194,27 @@ private:
   // the name of the parameter to take from the admin polygon and set
   // on the feature being adminized.
   std::string m_param_name;
+
+  // if true, split geometries at admin polygon boundaries. if false,
+  // do not modify the geometries.
+  bool m_split;
+
+  // if true, collect all matching admin parameters. if false, use the
+  // first admin parameter only.
+  bool m_collect;
+
+  // string to use to separate parameter values when m_collect == true.
+  mapnik::value_unicode_string m_delimiter;
+
+  // data source to fetch matching admin boundaries from.
   std::shared_ptr<mapnik::datasource> m_datasource;
 };
 
 adminizer::adminizer(pt::ptree const& config)
-  : m_param_name(config.get<std::string>("param_name")) {
+  : m_param_name(config.get<std::string>("param_name"))
+  , m_split(false)
+  , m_collect(false)
+  , m_delimiter(icu::UnicodeString::fromUTF8(",")) {
   mapnik::parameters params;
 
   boost::optional<pt::ptree const &> datasource_config =
@@ -185,6 +227,21 @@ adminizer::adminizer(pt::ptree const& config)
   }
 
   m_datasource = mapnik::datasource_cache::instance().create(params);
+
+  boost::optional<std::string> split = config.get_optional<std::string>("split");
+  if (split) {
+    m_split = *split == "true";
+  }
+
+  boost::optional<std::string> collect = config.get_optional<std::string>("collect");
+  if (collect) {
+    m_collect = *collect == "true";
+  }
+
+  boost::optional<std::string> delimiter = config.get_optional<std::string>("delimiter");
+  if (delimiter) {
+    m_delimiter = mapnik::value_unicode_string(icu::UnicodeString::fromUTF8(*delimiter));
+  }
 }
 
 adminizer::~adminizer() {
@@ -232,7 +289,7 @@ rtree adminizer::make_index(const std::vector<entry> &entries) const {
 void adminizer::adminize_feature(mapnik::feature_ptr &f,
                                  const rtree &index,
                                  const std::vector<entry> &entries) const {
-  param_updater updater(f, m_param_name);
+  param_updater updater(f, m_param_name, m_collect, m_delimiter);
 
   for (auto const &geom : f->paths()) {
     if (geom.type() == mapnik::geometry_type::types::Point) {
@@ -251,6 +308,8 @@ void adminizer::adminize_feature(mapnik::feature_ptr &f,
     // quick exit the loop if there's nothing more to do.
     if (updater.m_finished) { break; }
   }
+
+  updater.finish(entries);
 }
 
 void adminizer::process(std::vector<mapnik::feature_ptr> &layer) const {
