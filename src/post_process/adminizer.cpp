@@ -9,6 +9,7 @@
 #include <boost/geometry/geometries/point.hpp>
 #include <boost/geometry/geometries/box.hpp>
 #include <boost/geometry/geometries/polygon.hpp>
+#include <boost/geometry/geometries/multi_point.hpp>
 #include <boost/geometry/multi/geometries/multi_linestring.hpp>
 #include <boost/geometry/index/rtree.hpp>
 
@@ -23,6 +24,7 @@ namespace bgi = boost::geometry::index;
 using point_2d = bg::model::point<double, 2, bg::cs::cartesian>;
 using box_2d = bg::model::box<point_2d>;
 using linestring_2d = bg::model::linestring<point_2d>;
+using multi_point_2d = bg::model::multi_point<point_2d>;
 using multi_linestring_2d = bg::model::multi_linestring<linestring_2d>;
 using polygon_2d = bg::model::polygon<point_2d>;
 
@@ -100,7 +102,7 @@ public:
 
 private:
   mapnik::box2d<double> envelope(const std::vector<mapnik::feature_ptr> &layer) const;
-  point_2d make_boost_point(const mapnik::geometry_type &geom) const;
+  multi_point_2d make_boost_point(const mapnik::geometry_type &geom) const;
   multi_linestring_2d make_boost_linestring(const mapnik::geometry_type &geom) const;
   polygon_2d make_boost_polygon(const mapnik::geometry_type &geom) const;
 
@@ -178,8 +180,12 @@ void adminizer::process(std::vector<mapnik::feature_ptr> &layer) const {
       bool keep_matching = true;
 
       if (geom.type() == mapnik::geometry_type::types::Point) {
-        keep_matching = try_update(index, make_boost_point(geom),
-                                   f, entries, m_param_name);
+        multi_point_2d multi_point = make_boost_point(geom);
+        for (auto const &point : multi_point) {
+          keep_matching = try_update(index, point,
+                                     f, entries, m_param_name);
+          if (!keep_matching) { break; }
+        }
 
       } else if (geom.type() == mapnik::geometry_type::types::LineString) {
         // TODO: remove this hack when/if bg::intersects supports
@@ -216,17 +222,21 @@ mapnik::box2d<double> adminizer::envelope(const std::vector<mapnik::feature_ptr>
   return result;
 }
 
-point_2d adminizer::make_boost_point(const mapnik::geometry_type &geom) const {
-  point_2d point;
+multi_point_2d adminizer::make_boost_point(const mapnik::geometry_type &geom) const {
+/* Takes a mapnik geometry and makes a multi_point_2d from it. It has to be a
+ * multipoint, since we don't know from geom.type() if it's a point or multipoint?
+ */
+  multi_point_2d points;
   double x = 0, y = 0;
 
   geom.rewind(0);
 
-  if (geom.vertex(&x, &y) == mapnik::SEG_MOVETO) {
-    bg::set<0>(point, x);
-    bg::set<0>(point, y);
+  unsigned int cmd = mapnik::SEG_END;
+
+  while ((cmd = geom.vertex(&x, &y)) != mapnik::SEG_END) {
+    points.push_back(bg::make<point_2d>(x, y));
   }
-  return point;
+  return points;
 }
 
 multi_linestring_2d adminizer::make_boost_linestring(const mapnik::geometry_type &geom) const {
