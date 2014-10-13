@@ -32,6 +32,9 @@ AM_CONDITIONAL([HAVE_BOOST_PYTHON], [test -n "$BOOST_PYTHON_LIB"])
 REQUIRE_MAPNIK([3.0.0])
 REQUIRE_PROTOC
 
+# optionally enable coverage information
+CHECK_COVERAGE
+
 AC_CONFIG_FILES([Makefile])
 
 # Debian resets this to no, but this break both Spot and the libtool

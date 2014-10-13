@@ -50,3 +50,9 @@ test/adminizer
 test/multi_verification
 test/*.log
 test/*.trs
+
+# test coverage stuff
+*.gcno
+*.gcda
+coverage.info
+coverage/
