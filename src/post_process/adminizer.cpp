@@ -31,57 +31,108 @@ using polygon_2d = bg::model::polygon<point_2d>;
 namespace {
 
 typedef std::pair<box_2d, unsigned int> value;
-typedef std::pair<polygon_2d, mapnik::value> entry;
+struct entry {
+  entry(polygon_2d &&p, mapnik::value &&v, unsigned int i)
+    : polygon(p), value(v), index(i) {
+  }
+  polygon_2d polygon;
+  mapnik::value value;
+  unsigned int index;
+};
+
+struct param_updater {
+  mapnik::feature_ptr &m_feature;
+  const std::string &m_param_name;
+  unsigned int m_index;
+  bool m_finished;
+
+  param_updater(mapnik::feature_ptr &feat, const std::string &param_name)
+    : m_feature(feat), m_param_name(param_name)
+    , m_index(std::numeric_limits<unsigned int>::max())
+    , m_finished(false) {
+  }
+
+  void operator()(const entry &e) {
+    if (e.index < m_index) {
+      m_feature->put_new(m_param_name, e.value);
+      m_finished = e.index == 0;
+      m_index = e.index;
+    }
+  }
+};
 
 template <typename GeomType>
-struct param_update_iterator {
-  mapnik::feature_ptr m_feature;
+struct intersects_iterator {
   const GeomType &m_geom;
-  const std::string &m_param_name;
   const std::vector<entry> &m_entries;
-  bool m_keep_matching;
+  param_updater &m_updater;
 
-  param_update_iterator(mapnik::feature_ptr f,
-                        const GeomType &geom,
-                        const std::vector<entry> &entries,
-                        const std::string &param_name)
-    : m_feature(f), m_geom(geom), m_param_name(param_name)
-    , m_entries(entries), m_keep_matching(true) {
+  intersects_iterator(const GeomType &geom,
+                      const std::vector<entry> &entries,
+                      param_updater &updater)
+    : m_geom(geom), m_entries(entries), m_updater(updater) {
   }
 
-  param_update_iterator &operator++() { // prefix
+  intersects_iterator &operator++() { // prefix
     return *this;
   }
 
-  param_update_iterator &operator*() {
+  intersects_iterator &operator*() {
     return *this;
   }
 
-  param_update_iterator &operator=(const value &v) {
+  intersects_iterator &operator=(const value &v) {
     const entry &e = m_entries[v.second];
 
-    // do detailed intersection test
-    if (bg::intersects(e.first, m_geom)) {
-      // at least one result -> some intersection
-      m_feature->put_new(m_param_name, e.second);
-      m_keep_matching = false;
+    // do detailed intersection test, as the index only does bounding
+    // box intersection tests.
+    if (intersects(e.polygon)) {
+      m_updater(e);
     }
 
     return *this;
   }
+
+  bool intersects(const polygon_2d &) const;
 };
 
+template <>
+bool intersects_iterator<multi_point_2d>::intersects(const polygon_2d &poly) const {
+  // TODO: remove this hack when/if bg::intersects supports
+  // intersection on multi type.
+  for (auto point : m_geom) {
+    if (bg::intersects(point, poly)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+template <>
+bool intersects_iterator<multi_linestring_2d>::intersects(const polygon_2d &poly) const {
+  // TODO: remove this hack when/if bg::intersects supports
+  // intersection on multi type.
+  for (auto line : m_geom) {
+    if (bg::intersects(line, poly)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+template <>
+bool intersects_iterator<polygon_2d>::intersects(const polygon_2d &poly) const {
+  return bg::intersects(m_geom, poly);
+}
+
 template <typename RTreeType, typename GeomType>
-bool try_update(RTreeType &index,
+void try_update(RTreeType &index,
                 const GeomType &geom,
-                mapnik::feature_ptr &f,
                 const std::vector<entry> &entries,
-                const std::string &param_name) {
-  param_update_iterator<GeomType> update(f, geom, entries, param_name);
-  
-  index.query(bgi::intersects(bg::return_envelope<box_2d>(geom)), update);
-  
-  return update.m_keep_matching;
+                param_updater &updater) {
+
+  intersects_iterator<GeomType> itr(geom, entries, updater);
+  index.query(bgi::intersects(bg::return_envelope<box_2d>(geom)), itr);
 }
   
 } // anonymous namespace
@@ -146,6 +197,7 @@ void adminizer::process(std::vector<mapnik::feature_ptr> &layer) const {
   std::vector<entry> entries;
 
   {
+    unsigned int index = 0;
     mapnik::feature_ptr f;
     while (f = fset->next()) {
       mapnik::value param = f->get(m_param_name);
@@ -153,7 +205,7 @@ void adminizer::process(std::vector<mapnik::feature_ptr> &layer) const {
       for (auto const &geom : f->paths()) {
         // ignore all non-polygon types
         if (geom.type() == mapnik::geometry_type::types::Polygon) {
-          entries.emplace_back(make_boost_polygon(geom), param);
+          entries.emplace_back(make_boost_polygon(geom), std::move(param), index++);
         }
       }
     }
@@ -165,7 +217,7 @@ void adminizer::process(std::vector<mapnik::feature_ptr> &layer) const {
   values.reserve(entries.size());
   const size_t num_entries = entries.size();
   for (size_t i = 0; i < num_entries; ++i) {
-    values.emplace_back(bg::return_envelope<box_2d>(entries[i].first), i);
+    values.emplace_back(bg::return_envelope<box_2d>(entries[i].polygon), i);
   }
 
   // construct index using packing algorithm, which leads to
@@ -176,34 +228,24 @@ void adminizer::process(std::vector<mapnik::feature_ptr> &layer) const {
   // loop over features, finding which items from the datasource
   // they intersect with.
   for (mapnik::feature_ptr f : layer) {
-    for (auto const &geom : f->paths()) {
-      bool keep_matching = true;
+    param_updater updater(f, m_param_name);
 
+    for (auto const &geom : f->paths()) {
       if (geom.type() == mapnik::geometry_type::types::Point) {
         multi_point_2d multi_point = make_boost_point(geom);
-        for (auto const &point : multi_point) {
-          keep_matching = try_update(index, point,
-                                     f, entries, m_param_name);
-          if (!keep_matching) { break; }
-        }
+        try_update(index, multi_point, entries, updater);
 
       } else if (geom.type() == mapnik::geometry_type::types::LineString) {
-        // TODO: remove this hack when/if bg::intersects supports
-        // intersection on multi type.
         multi_linestring_2d multi_line = make_boost_linestring(geom);
-        for (auto const &line : multi_line) {
-          keep_matching = try_update(index, line,
-                                     f, entries, m_param_name);
-          if (!keep_matching) { break; }
-        }
+        try_update(index, multi_line, entries, updater);
 
       } else if (geom.type() == mapnik::geometry_type::types::Polygon) {
-        keep_matching = try_update(index, make_boost_polygon(geom),
-                                   f, entries, m_param_name);
+        polygon_2d poly = make_boost_polygon(geom);
+        try_update(index, poly, entries, updater);
       }
 
       // quick exit the loop if there's nothing more to do.
-      if (!keep_matching) { break; }
+      if (updater.m_finished) { break; }
     }
   }
 }

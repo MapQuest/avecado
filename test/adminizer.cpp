@@ -240,6 +240,38 @@ void test_multipoly_simple_exclusion_param() {
   assert_izer_exclude("MULTIPOLYGON(((20 0, 21 0, 21 1, 20 1, 20 0)),((-20 0, -21 0, -21 1, -20 1, -20 0)))");
 }
 
+std::string intersection_param(pp::izer_ptr &izer, const std::string &wkt) {
+  std::vector<mapnik::feature_ptr> features;
+  features.push_back(mk_feat_wkt(wkt));
+
+  izer->process(features);
+
+  test::assert_equal<size_t>(features.size(), 1, "should be only one feature");
+  mapnik::feature_ptr feat = features[0];
+
+  test::assert_equal<bool>(feat->has_key("foo"), true,
+                           "feature should have parameter key \"foo\" after adminizing");
+
+  return feat->get("foo").to_string();
+}
+
+void test_intersection_mode_first() {
+  pt::ptree conf;
+  conf.put("param_name", "foo");
+  conf.put("datasource.type", "csv");
+  conf.put("datasource.inline",
+           "wkt|foo\n"
+           "POLYGON((0 0, 3 0, 3 3, 0 3, 0 0))|first_value\n"
+           "POLYGON((1 1, 4 1, 4 4, 1 4, 1 1))|second_value\n");
+  pp::izer_ptr izer = pp::create_adminizer(conf);
+
+  std::string adminized_param = intersection_param(izer, "POINT(2 2)");
+
+  test::assert_equal<std::string>(adminized_param, "first_value",
+                                  "when intersection mode is first, should have the "
+                                  "first admin polygon's parameter");
+}
+
 } // anonymous namespace
 
 int main() {
@@ -267,6 +299,8 @@ int main() {
 
   RUN_TEST(test_multipoly_simple_inclusion_param);
   RUN_TEST(test_multipoly_simple_exclusion_param);
+
+  RUN_TEST(test_intersection_mode_first);
   
   std::cout << " >> Tests failed: " << tests_failed << std::endl << std::endl;
 
