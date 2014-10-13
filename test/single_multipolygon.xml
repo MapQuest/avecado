@@ -1,0 +1,14 @@
+<Map
+    srs="+proj=merc +a=6378137 +b=6378137 +lat_ts=0.0 +lon_0=0.0 +x_0=0.0 +y_0=0.0 +k=1.0 +units=m +nadgrids=@null +wktext +no_defs +over"
+    maximum-extent="-20037508.34,-20037508.34,20037508.34,20037508.34">
+  <Layer name="point" srs="+proj=merc +a=6378137 +b=6378137 +lat_ts=0.0 +lon_0=0.0 +x_0=0.0 +y_0=0.0 +k=1.0 +units=m +nadgrids=@null +wktext +no_defs +over">
+    <Datasource>
+      <Parameter name="type">csv</Parameter>
+      <!-- The polygon is the example from https://en.wikipedia.org/wiki/Well-known_text with two disjoin polygons, one having a hole-->
+      <Parameter name="inline">
+id|name|wkt
+1|null island|MULTIPOLYGON (((400000 400000, 200000 450000, 450000 300000, 400000 400000)),((200000 350000, 100000 300000, 100000 100000, 300000 50000, 450000 200000, 200000 350000),(300000 200000, 200000 150000, 200000 250000, 300000 200000)))
+      </Parameter>
+    </Datasource>
+  </Layer>
+</Map>
