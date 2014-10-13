@@ -140,6 +140,8 @@ void try_update(RTreeType &index,
 namespace avecado {
 namespace post_process {
 
+using rtree = bgi::rtree<value, bgi::quadratic<16> >;
+
 /**
  * Post-process that applies administrative region attribution
  * to features, based on geographic location of the geometry.
@@ -157,6 +159,14 @@ private:
   multi_linestring_2d make_boost_linestring(const mapnik::geometry_type &geom) const;
   polygon_2d make_boost_polygon(const mapnik::geometry_type &geom) const;
 
+  std::vector<entry> make_entries(const mapnik::box2d<double> &env) const;
+  rtree make_index(const std::vector<entry> &entries) const;
+  void adminize_feature(mapnik::feature_ptr &f,
+                        const rtree &index,
+                        const std::vector<entry> &entries) const;
+
+  // the name of the parameter to take from the admin polygon and set
+  // on the feature being adminized.
   std::string m_param_name;
   std::shared_ptr<mapnik::datasource> m_datasource;
 };
@@ -180,37 +190,31 @@ adminizer::adminizer(pt::ptree const& config)
 adminizer::~adminizer() {
 }
 
-void adminizer::process(std::vector<mapnik::feature_ptr> &layer) const {
-  typedef bgi::rtree<value, bgi::quadratic<16> > rtree;
-
-  // build extent of all features in layer
-  mapnik::box2d<double> env = envelope(layer);
-
+std::vector<entry> adminizer::make_entries(const mapnik::box2d<double> &env) const {
   // query the datasource
   // TODO: do we want to pass more things like scale denominator
   // and resolution type?
   mapnik::featureset_ptr fset = m_datasource->features(mapnik::query(env));
 
-  // construct an index over the bounding boxes of the geometry,
-  // first extracting the geometries from mapnik's representation
-  // and transforming them too boost::geometry's representation.
   std::vector<entry> entries;
+  unsigned int index = 0;
 
-  {
-    unsigned int index = 0;
-    mapnik::feature_ptr f;
-    while (f = fset->next()) {
-      mapnik::value param = f->get(m_param_name);
+  mapnik::feature_ptr f;
+  while (f = fset->next()) {
+    mapnik::value param = f->get(m_param_name);
 
-      for (auto const &geom : f->paths()) {
-        // ignore all non-polygon types
-        if (geom.type() == mapnik::geometry_type::types::Polygon) {
-          entries.emplace_back(make_boost_polygon(geom), std::move(param), index++);
-        }
+    for (auto const &geom : f->paths()) {
+      // ignore all non-polygon types
+      if (geom.type() == mapnik::geometry_type::types::Polygon) {
+        entries.emplace_back(make_boost_polygon(geom), std::move(param), index++);
       }
     }
   }
 
+  return entries;
+}
+
+rtree adminizer::make_index(const std::vector<entry> &entries) const {
   // create envelope boxes for entries, as these are needed
   // up-front for the packing algorithm.
   std::vector<value> values;
@@ -222,31 +226,48 @@ void adminizer::process(std::vector<mapnik::feature_ptr> &layer) const {
 
   // construct index using packing algorithm, which leads to
   // better distribution for querying.
-  rtree index(values.begin(), values.end());
-  values.clear(); // don't need these any more.
+  return rtree(values.begin(), values.end());
+}
+
+void adminizer::adminize_feature(mapnik::feature_ptr &f,
+                                 const rtree &index,
+                                 const std::vector<entry> &entries) const {
+  param_updater updater(f, m_param_name);
+
+  for (auto const &geom : f->paths()) {
+    if (geom.type() == mapnik::geometry_type::types::Point) {
+      multi_point_2d multi_point = make_boost_point(geom);
+      try_update(index, multi_point, entries, updater);
+
+    } else if (geom.type() == mapnik::geometry_type::types::LineString) {
+      multi_linestring_2d multi_line = make_boost_linestring(geom);
+      try_update(index, multi_line, entries, updater);
+
+    } else if (geom.type() == mapnik::geometry_type::types::Polygon) {
+      polygon_2d poly = make_boost_polygon(geom);
+      try_update(index, poly, entries, updater);
+    }
+
+    // quick exit the loop if there's nothing more to do.
+    if (updater.m_finished) { break; }
+  }
+}
+
+void adminizer::process(std::vector<mapnik::feature_ptr> &layer) const {
+  // build extent of all features in layer
+  mapnik::box2d<double> env = envelope(layer);
+
+  // construct an index over the bounding boxes of the geometry,
+  // first extracting the geometries from mapnik's representation
+  // and transforming them too boost::geometry's representation.
+  std::vector<entry> entries = make_entries(env);
+
+  rtree index = make_index(entries);
 
   // loop over features, finding which items from the datasource
   // they intersect with.
   for (mapnik::feature_ptr f : layer) {
-    param_updater updater(f, m_param_name);
-
-    for (auto const &geom : f->paths()) {
-      if (geom.type() == mapnik::geometry_type::types::Point) {
-        multi_point_2d multi_point = make_boost_point(geom);
-        try_update(index, multi_point, entries, updater);
-
-      } else if (geom.type() == mapnik::geometry_type::types::LineString) {
-        multi_linestring_2d multi_line = make_boost_linestring(geom);
-        try_update(index, multi_line, entries, updater);
-
-      } else if (geom.type() == mapnik::geometry_type::types::Polygon) {
-        polygon_2d poly = make_boost_polygon(geom);
-        try_update(index, poly, entries, updater);
-      }
-
-      // quick exit the loop if there's nothing more to do.
-      if (updater.m_finished) { break; }
-    }
+    adminize_feature(f, index, entries);
   }
 }
 
