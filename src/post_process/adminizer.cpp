@@ -41,18 +41,12 @@ struct entry {
 };
 
 struct param_updater {
-  mapnik::feature_ptr &m_feature;
-  const std::string &m_param_name;
   bool m_collect;
-  const mapnik::value_unicode_string &m_delimiter;
   std::set<unsigned int> m_indices;
   bool m_finished;
 
-  param_updater(mapnik::feature_ptr &feat, const std::string &param_name, bool collect,
-                const mapnik::value_unicode_string &delimiter)
-    : m_feature(feat), m_param_name(param_name)
-    , m_collect(collect)
-    , m_delimiter(delimiter)
+  explicit param_updater(bool collect)
+    : m_collect(collect)
     , m_indices()
     , m_finished(false) {
   }
@@ -63,29 +57,37 @@ struct param_updater {
     // area and just found it.
     m_finished = (!m_collect) && (e.index == 0);
   }
+};
 
-  void finish(const std::vector<entry> &entries) {
-    if (!m_indices.empty()) {
-      if (m_collect) {
-        mapnik::value_unicode_string buffer;
-        bool first = true;
-        for (unsigned int i : m_indices) {
-          if (first) {
-            first = false;
-          } else {
-            buffer.append(m_delimiter);
-          }
-          buffer.append(entries[i].value.to_unicode());
+void update_feature_params(const param_updater &updater,
+                           const std::vector<entry> &entries,
+                           mapnik::feature_ptr &&feat,
+                           const std::string &param_name,
+                           const mapnik::value_unicode_string &delimiter,
+                           std::vector<mapnik::feature_ptr> &append_to) {
+  append_to.emplace_back(feat);
+  mapnik::feature_ptr &feature = append_to.back();
+
+  if (!updater.m_indices.empty()) {
+    if (updater.m_collect) {
+      mapnik::value_unicode_string buffer;
+      bool first = true;
+      for (unsigned int i : updater.m_indices) {
+        if (first) {
+          first = false;
+        } else {
+          buffer.append(delimiter);
         }
-        m_feature->put_new(m_param_name, buffer);
-
-      } else {
-        const entry &e = entries[*m_indices.begin()];
-        m_feature->put_new(m_param_name, e.value);
+        buffer.append(entries[i].value.to_unicode());
       }
+      feature->put_new(param_name, buffer);
+
+    } else {
+      const entry &e = entries[*updater.m_indices.begin()];
+      feature->put_new(param_name, e.value);
     }
   }
-};
+}
 
 template <typename GeomType>
 struct intersects_iterator {
@@ -187,9 +189,10 @@ private:
 
   std::vector<entry> make_entries(const mapnik::box2d<double> &env) const;
   rtree make_index(const std::vector<entry> &entries) const;
-  void adminize_feature(mapnik::feature_ptr &f,
+  void adminize_feature(mapnik::feature_ptr &&f,
                         const rtree &index,
-                        const std::vector<entry> &entries) const;
+                        const std::vector<entry> &entries,
+                        std::vector<mapnik::feature_ptr> &append_to) const;
 
   // the name of the parameter to take from the admin polygon and set
   // on the feature being adminized.
@@ -286,10 +289,11 @@ rtree adminizer::make_index(const std::vector<entry> &entries) const {
   return rtree(values.begin(), values.end());
 }
 
-void adminizer::adminize_feature(mapnik::feature_ptr &f,
+void adminizer::adminize_feature(mapnik::feature_ptr &&f,
                                  const rtree &index,
-                                 const std::vector<entry> &entries) const {
-  param_updater updater(f, m_param_name, m_collect, m_delimiter);
+                                 const std::vector<entry> &entries,
+                                 std::vector<mapnik::feature_ptr> &append_to) const {
+  param_updater updater(m_collect);
 
   for (auto const &geom : f->paths()) {
     if (geom.type() == mapnik::geometry_type::types::Point) {
@@ -309,7 +313,8 @@ void adminizer::adminize_feature(mapnik::feature_ptr &f,
     if (updater.m_finished) { break; }
   }
 
-  updater.finish(entries);
+  update_feature_params(updater, entries, std::move(f), m_param_name,
+                        m_delimiter, append_to);
 }
 
 void adminizer::process(std::vector<mapnik::feature_ptr> &layer) const {
@@ -325,9 +330,15 @@ void adminizer::process(std::vector<mapnik::feature_ptr> &layer) const {
 
   // loop over features, finding which items from the datasource
   // they intersect with.
-  for (mapnik::feature_ptr f : layer) {
-    adminize_feature(f, index, entries);
+  std::vector<mapnik::feature_ptr> new_features;
+  for (mapnik::feature_ptr &f : layer) {
+    adminize_feature(std::move(f), index, entries, new_features);
   }
+
+  // move new features into the same array that we were passed.
+  // this is so that we can add new features (e.g: when split).
+  layer.clear();
+  layer.swap(new_features);
 }
 
 mapnik::box2d<double> adminizer::envelope(const std::vector<mapnik::feature_ptr> &layer) const {
