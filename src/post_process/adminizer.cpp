@@ -12,6 +12,9 @@
 #include <boost/geometry/geometries/multi_point.hpp>
 #include <boost/geometry/multi/geometries/multi_linestring.hpp>
 #include <boost/geometry/index/rtree.hpp>
+#include <boost/geometry/io/wkt/write.hpp>
+
+#include <queue> // for std::priority_queue<>
 
 // NOTE: this is included only because it's where mapnik::coord2d is
 // adapted to work with the boost::geometry stuff. we don't actually
@@ -26,7 +29,10 @@ using box_2d = bg::model::box<point_2d>;
 using linestring_2d = bg::model::linestring<point_2d>;
 using multi_point_2d = bg::model::multi_point<point_2d>;
 using multi_linestring_2d = bg::model::multi_linestring<linestring_2d>;
-using polygon_2d = bg::model::polygon<point_2d>;
+// see PR #22
+using polygon_2d = bg::model::polygon<point_2d, false, true>;
+using priority_queue = std::priority_queue<unsigned int, std::vector<unsigned int>,
+                                           std::greater<unsigned int> >;
 
 namespace {
 
@@ -59,7 +65,8 @@ struct param_updater {
   }
 };
 
-void update_feature_params(const param_updater &updater,
+void update_feature_params(const std::set<unsigned int> &indices,
+                           bool collect,
                            const std::vector<entry> &entries,
                            mapnik::feature_ptr &&feat,
                            const std::string &param_name,
@@ -68,11 +75,11 @@ void update_feature_params(const param_updater &updater,
   append_to.emplace_back(feat);
   mapnik::feature_ptr &feature = append_to.back();
 
-  if (!updater.m_indices.empty()) {
-    if (updater.m_collect) {
+  if (!indices.empty()) {
+    if (collect) {
       mapnik::value_unicode_string buffer;
       bool first = true;
-      for (unsigned int i : updater.m_indices) {
+      for (unsigned int i : indices) {
         if (first) {
           first = false;
         } else {
@@ -83,8 +90,351 @@ void update_feature_params(const param_updater &updater,
       feature->put_new(param_name, buffer);
 
     } else {
-      const entry &e = entries[*updater.m_indices.begin()];
+      const entry &e = entries[*indices.begin()];
       feature->put_new(param_name, e.value);
+    }
+  }
+}
+
+inline void update_feature_params(const param_updater &updater,
+                                  const std::vector<entry> &entries,
+                                  mapnik::feature_ptr &&feat,
+                                  const std::string &param_name,
+                                  const mapnik::value_unicode_string &delimiter,
+                                  std::vector<mapnik::feature_ptr> &append_to) {
+  update_feature_params(updater.m_indices, updater.m_collect,
+                        entries, std::move(feat), param_name,
+                        delimiter, append_to);
+}
+
+template <typename GeomType>
+mapnik::geometry_type *to_mapnik_geom(const GeomType &g) {
+  throw std::runtime_error("Unimplemented geometry type.");
+}
+
+template <>
+mapnik::geometry_type *to_mapnik_geom<multi_point_2d>(const multi_point_2d &g) {
+  mapnik::geometry_type *mg = new mapnik::geometry_type(mapnik::geometry_type::Point);
+  for (auto const &point : g) {
+    mg->move_to(point.get<0>(), point.get<1>());
+  }
+  return mg;
+}
+
+template <>
+mapnik::geometry_type *to_mapnik_geom<multi_linestring_2d>(const multi_linestring_2d &g) {
+  mapnik::geometry_type *mg = new mapnik::geometry_type(mapnik::geometry_type::LineString);
+  for (auto const &line : g) {
+    const size_t n_points = line.size();
+    if (n_points > 0) {
+      mg->move_to(line[0].get<0>(), line[0].get<1>());
+      for (size_t i = 1; i < n_points; ++i) {
+        mg->line_to(line[i].get<0>(), line[i].get<1>());
+      }
+    }
+  }
+  return mg;
+}
+
+mapnik::box2d<double> envelope(const std::vector<mapnik::feature_ptr> &layer) {
+  mapnik::box2d<double> result;
+  bool first = true;
+  for (auto const &feature : layer) {
+    if (first) {
+      result = feature->envelope();
+
+    } else {
+      result.expand_to_include(feature->envelope());
+    }
+  }
+  return result;
+}
+
+multi_point_2d make_boost_point(const mapnik::geometry_type &geom) {
+/* Takes a mapnik geometry and makes a multi_point_2d from it. It has to be a
+ * multipoint, since we don't know from geom.type() if it's a point or multipoint?
+ */
+  multi_point_2d points;
+  double x = 0, y = 0;
+
+  geom.rewind(0);
+
+  unsigned int cmd = mapnik::SEG_END;
+
+  while ((cmd = geom.vertex(&x, &y)) != mapnik::SEG_END) {
+    points.push_back(bg::make<point_2d>(x, y));
+  }
+  return points;
+}
+
+multi_linestring_2d make_boost_linestring(const mapnik::geometry_type &geom) {
+  multi_linestring_2d line;
+  double x = 0, y = 0, prev_x = 0, prev_y = 0;
+
+  geom.rewind(0);
+
+  unsigned int cmd = mapnik::SEG_END;
+  while ((cmd = geom.vertex(&x, &y)) != mapnik::SEG_END) {
+
+    if (cmd == mapnik::SEG_MOVETO) {
+      line.push_back(linestring_2d());
+      line.back().push_back(bg::make<point_2d>(x, y));
+
+    } else if (cmd == mapnik::SEG_LINETO) {
+      if (std::abs(x - prev_x) < 1e-12 && std::abs(y - prev_y) < 1e-12) {
+        continue;
+      }
+
+      line.back().push_back(bg::make<point_2d>(x, y));
+    }
+
+    prev_x = x;
+    prev_y = y;
+  }
+
+  return line;
+}
+
+polygon_2d make_boost_polygon(const mapnik::geometry_type &geom) {
+  polygon_2d poly;
+  double x = 0, y = 0, prev_x = 0, prev_y = 0;
+  unsigned int ring_count = 0;
+
+  geom.rewind(0);
+
+  unsigned int cmd = mapnik::SEG_END;
+  while ((cmd = geom.vertex(&x, &y)) != mapnik::SEG_END) {
+
+    if (cmd == mapnik::SEG_MOVETO) {
+      if (ring_count == 0) {
+        bg::append(poly, bg::make<point_2d>(x, y));
+
+      } else {
+        poly.inners().push_back(polygon_2d::inner_container_type::value_type());
+        bg::append(poly.inners().back(), bg::make<point_2d>(x, y));
+      }
+
+      ++ring_count;
+
+    } else if (cmd == mapnik::SEG_LINETO) {
+      if (std::abs(x - prev_x) < 1e-12 && std::abs(y - prev_y) < 1e-12) {
+        continue;
+      }
+
+      if (ring_count == 1) {
+        bg::append(poly, bg::make<point_2d>(x, y));
+
+      } else {
+        bg::append(poly.inners().back(), bg::make<point_2d>(x, y));
+      }
+    }
+
+    prev_x = x;
+    prev_y = y;
+  }
+
+  return poly;
+}
+
+template <typename GeomType>
+inline void split_hack(const GeomType &geom, const polygon_2d &poly,
+                       std::list<GeomType> &inside_out,
+                       std::list<GeomType> &outside_out) {
+  bg::intersection(geom, poly, inside_out);
+  bg::difference(geom, poly, outside_out);
+}
+
+template <>
+inline void split_hack<multi_point_2d>(
+  const multi_point_2d &multipoint,
+  const polygon_2d &poly,
+  std::list<multi_point_2d> &inside_out,
+  std::list<multi_point_2d> &outside_out) {
+
+  multi_point_2d inside_multi, outside_multi;
+  for (auto const &point : multipoint) {
+    if (bg::intersects(point, poly)) {
+      inside_multi.push_back(point);
+    } else {
+      outside_multi.push_back(point);
+    }
+  }
+  inside_out.emplace_back(std::move(inside_multi));
+  outside_out.emplace_back(std::move(outside_multi));
+}
+
+template <>
+inline void split_hack<multi_linestring_2d>(
+  const multi_linestring_2d &multilinestring,
+  const polygon_2d &poly,
+  std::list<multi_linestring_2d> &inside_out,
+  std::list<multi_linestring_2d> &outside_out) {
+
+  multi_linestring_2d inside_multi, outside_multi;
+  for (auto const &line : multilinestring) {
+    bg::intersection(line, poly, inside_multi);
+    bg::difference(line, poly, outside_multi);
+  }
+
+  inside_out.emplace_back(std::move(inside_multi));
+  outside_out.emplace_back(std::move(outside_multi));
+}
+
+template <typename GeomType>
+inline bool within(const GeomType &geom, const polygon_2d &poly) {
+  return bg::within(geom, poly);
+}
+
+template <>
+inline bool within<multi_point_2d>(const multi_point_2d &geom, const polygon_2d &poly) {
+  for (auto const &point : geom) {
+    if (!bg::within(point, poly)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+template <>
+inline bool within<multi_linestring_2d>(const multi_linestring_2d &geom, const polygon_2d &poly) {
+  for (auto const &line : geom) {
+    if (!bg::within(line, poly)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+template <typename GeomType>
+inline bool disjoint(const GeomType &geom, const polygon_2d &poly) {
+  return bg::disjoint(geom, poly);
+}
+
+template <>
+inline bool disjoint<multi_point_2d>(const multi_point_2d &geom, const polygon_2d &poly) {
+  for (auto const &point : geom) {
+    if (!bg::disjoint(point, poly)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+template <>
+inline bool disjoint<multi_linestring_2d>(const multi_linestring_2d &geom, const polygon_2d &poly) {
+  for (auto const &line : geom) {
+    if (!bg::disjoint(line, poly)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+template <typename GeomType>
+void split_impl(const GeomType &geom, const polygon_2d &poly,
+                mapnik::feature_ptr &inside, mapnik::feature_ptr &outside) {
+  if (within(geom, poly)) {
+    inside->add_geometry(to_mapnik_geom(geom));
+
+  } else if (disjoint(geom, poly)) {
+    outside->add_geometry(to_mapnik_geom(geom));
+
+  } else {
+    // must be some part of the geometry which is inside and some
+    // which is outside, so we'll need to split it.
+    std::list<GeomType> inside_out, outside_out;
+
+    split_hack<GeomType>(geom, poly, inside_out, outside_out);
+
+    for (const GeomType &g : inside_out) {
+      inside->add_geometry(to_mapnik_geom(g));
+    }
+    for (const GeomType &g : outside_out) {
+      outside->add_geometry(to_mapnik_geom(g));
+    }
+  }
+}
+
+void split(const mapnik::geometry_type &geom, const polygon_2d &poly,
+           mapnik::feature_ptr &inside, mapnik::feature_ptr &outside) {
+  if (geom.type() == mapnik::geometry_type::types::Point) {
+    multi_point_2d multi_point = make_boost_point(geom);
+    split_impl(multi_point, poly, inside, outside);
+
+  } else if (geom.type() == mapnik::geometry_type::types::LineString) {
+    multi_linestring_2d multi_line = make_boost_linestring(geom);
+    split_impl(multi_line, poly, inside, outside);
+
+  } else if (geom.type() == mapnik::geometry_type::types::Polygon) {
+    polygon_2d poly2 = make_boost_polygon(geom);
+    split_impl(poly2, poly, inside, outside);
+  }
+}
+
+void split_and_update(const std::set<unsigned int> &indices,
+                      priority_queue remaining_indices,
+                      bool collect,
+                      const std::vector<entry> &entries,
+                      mapnik::feature_ptr &&feat,
+                      const std::string &param_name,
+                      const mapnik::value_unicode_string &delimiter,
+                      std::vector<mapnik::feature_ptr> &append_to) {
+  if (remaining_indices.empty()) {
+    update_feature_params(indices, collect, entries, std::move(feat),
+                          param_name, delimiter, append_to);
+
+  } else {
+    unsigned int index = remaining_indices.top();
+    remaining_indices.pop();
+    const entry &e = entries[index];
+
+    // TODO: copying the mapnik feature like this is very wasteful.
+    // could either try instantiating lazily only when either is
+    // non-empty, or do the whole thing with geometries and only
+    // handle the features later?
+    mapnik::feature_ptr inside =
+      std::make_shared<mapnik::feature_impl>(
+        std::make_shared<mapnik::context_type>(), feat->id());
+    mapnik::feature_ptr outside =
+      std::make_shared<mapnik::feature_impl>(
+        std::make_shared<mapnik::context_type>(), feat->id());
+    for (auto const &kv : *(feat->context())) {
+      inside->put_new(kv.first, kv.second);
+      outside->put_new(kv.first, kv.second);
+    }
+
+    for (auto const &geom : feat->paths()) {
+      split(geom, e.polygon, inside, outside);
+    }
+
+    if (!inside->paths().empty()) {
+      std::set<unsigned int> inside_indices(indices);
+      inside_indices.insert(index);
+
+      if (collect) {
+        // if collecting, then we need to recurse, as later
+        // polygons could add further parameter values.
+        split_and_update(inside_indices, remaining_indices, collect,
+                         entries, std::move(inside), param_name,
+                         delimiter, append_to);
+
+      } else {
+        // if not collecting, then we have hit the first already
+        // since we went through the indices in order, so there
+        // is no need to recurse.
+        update_feature_params(inside_indices, collect, entries,
+                              std::move(inside), param_name,
+                              delimiter, append_to);
+      }
+    }
+
+    if (!outside->paths().empty()) {
+      // always recurse on the outside, as we don't yet know the
+      // relation between the geometries and the other admin
+      // polygons.
+      split_and_update(indices, remaining_indices, collect,
+                       entries, std::move(outside), param_name,
+                       delimiter, append_to);
     }
   }
 }
@@ -128,7 +478,7 @@ template <>
 bool intersects_iterator<multi_point_2d>::intersects(const polygon_2d &poly) const {
   // TODO: remove this hack when/if bg::intersects supports
   // intersection on multi type.
-  for (auto point : m_geom) {
+  for (auto const &point : m_geom) {
     if (bg::intersects(point, poly)) {
       return true;
     }
@@ -140,7 +490,7 @@ template <>
 bool intersects_iterator<multi_linestring_2d>::intersects(const polygon_2d &poly) const {
   // TODO: remove this hack when/if bg::intersects supports
   // intersection on multi type.
-  for (auto line : m_geom) {
+  for (auto const &line : m_geom) {
     if (bg::intersects(line, poly)) {
       return true;
     }
@@ -182,11 +532,6 @@ public:
   virtual void process(std::vector<mapnik::feature_ptr> &layer) const;
 
 private:
-  mapnik::box2d<double> envelope(const std::vector<mapnik::feature_ptr> &layer) const;
-  multi_point_2d make_boost_point(const mapnik::geometry_type &geom) const;
-  multi_linestring_2d make_boost_linestring(const mapnik::geometry_type &geom) const;
-  polygon_2d make_boost_polygon(const mapnik::geometry_type &geom) const;
-
   std::vector<entry> make_entries(const mapnik::box2d<double> &env) const;
   rtree make_index(const std::vector<entry> &entries) const;
   void adminize_feature(mapnik::feature_ptr &&f,
@@ -313,8 +658,18 @@ void adminizer::adminize_feature(mapnik::feature_ptr &&f,
     if (updater.m_finished) { break; }
   }
 
-  update_feature_params(updater, entries, std::move(f), m_param_name,
-                        m_delimiter, append_to);
+  if (m_split) {
+    priority_queue remaining_indices(
+      updater.m_indices.begin(), updater.m_indices.end());
+    std::set<unsigned int> empty;
+
+    split_and_update(empty, remaining_indices, m_collect, entries,
+                     std::move(f), m_param_name, m_delimiter, append_to);
+
+  } else {
+    update_feature_params(updater, entries, std::move(f), m_param_name,
+                          m_delimiter, append_to);
+  }
 }
 
 void adminizer::process(std::vector<mapnik::feature_ptr> &layer) const {
@@ -339,106 +694,6 @@ void adminizer::process(std::vector<mapnik::feature_ptr> &layer) const {
   // this is so that we can add new features (e.g: when split).
   layer.clear();
   layer.swap(new_features);
-}
-
-mapnik::box2d<double> adminizer::envelope(const std::vector<mapnik::feature_ptr> &layer) const {
-  mapnik::box2d<double> result;
-  bool first = true;
-  for (auto const &feature : layer) {
-    if (first) {
-      result = feature->envelope();
-
-    } else {
-      result.expand_to_include(feature->envelope());
-    }
-  }
-  return result;
-}
-
-multi_point_2d adminizer::make_boost_point(const mapnik::geometry_type &geom) const {
-/* Takes a mapnik geometry and makes a multi_point_2d from it. It has to be a
- * multipoint, since we don't know from geom.type() if it's a point or multipoint?
- */
-  multi_point_2d points;
-  double x = 0, y = 0;
-
-  geom.rewind(0);
-
-  unsigned int cmd = mapnik::SEG_END;
-
-  while ((cmd = geom.vertex(&x, &y)) != mapnik::SEG_END) {
-    points.push_back(bg::make<point_2d>(x, y));
-  }
-  return points;
-}
-
-multi_linestring_2d adminizer::make_boost_linestring(const mapnik::geometry_type &geom) const {
-  multi_linestring_2d line;
-  double x = 0, y = 0, prev_x = 0, prev_y = 0;
-
-  geom.rewind(0);
-
-  unsigned int cmd = mapnik::SEG_END;
-  while ((cmd = geom.vertex(&x, &y)) != mapnik::SEG_END) {
-
-    if (cmd == mapnik::SEG_MOVETO) {
-      line.push_back(linestring_2d());
-      line.back().push_back(bg::make<point_2d>(x, y));
-
-    } else if (cmd == mapnik::SEG_LINETO) {
-      if (std::abs(x - prev_x) < 1e-12 && std::abs(y - prev_y) < 1e-12) {
-        continue;
-      }
-
-      line.back().push_back(bg::make<point_2d>(x, y));
-    }
-
-    prev_x = x;
-    prev_y = y;
-  }
-
-  return line;
-}
-
-polygon_2d adminizer::make_boost_polygon(const mapnik::geometry_type &geom) const {
-  polygon_2d poly;
-  double x = 0, y = 0, prev_x = 0, prev_y = 0;
-  unsigned int ring_count = 0;
-
-  geom.rewind(0);
-
-  unsigned int cmd = mapnik::SEG_END;
-  while ((cmd = geom.vertex(&x, &y)) != mapnik::SEG_END) {
-
-    if (cmd == mapnik::SEG_MOVETO) {
-      if (ring_count == 0) {
-        bg::append(poly, bg::make<point_2d>(x, y));
-
-      } else {
-        poly.inners().push_back(polygon_2d::inner_container_type::value_type());
-        bg::append(poly.inners().back(), bg::make<point_2d>(x, y));
-      }
-
-      ++ring_count;
-
-    } else if (cmd == mapnik::SEG_LINETO) {
-      if (std::abs(x - prev_x) < 1e-12 && std::abs(y - prev_y) < 1e-12) {
-        continue;
-      }
-
-      if (ring_count == 1) {
-        bg::append(poly, bg::make<point_2d>(x, y));
-
-      } else {
-        bg::append(poly.inners().back(), bg::make<point_2d>(x, y));
-      }
-    }
-
-    prev_x = x;
-    prev_y = y;
-  }
-
-  return poly;
 }
 
 izer_ptr create_adminizer(pt::ptree const& config) {

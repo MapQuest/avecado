@@ -1,6 +1,7 @@
 #include "config.h"
 #include "common.hpp"
 #include "post_process/adminizer.hpp"
+#include "logging/logger.hpp"
 
 #include <boost/property_tree/ptree.hpp>
 
@@ -291,6 +292,268 @@ void test_intersection_mode_collect() {
                                   "all the admin polygons' parameters");
 }
 
+void test_intersection_mode_split() {
+  using mapnik::feature_ptr;
+  using mapnik::geometry_type;
+
+  pt::ptree conf;
+  conf.put("param_name", "foo");
+  conf.put("split", "true");
+  conf.put("datasource.type", "csv");
+  conf.put("datasource.inline",
+           "wkt|foo\n"
+           "POLYGON((0 0, 3 0, 3 3, 0 3, 0 0))|first_value\n");
+  pp::izer_ptr izer = pp::create_adminizer(conf);
+
+  std::vector<feature_ptr> features;
+  features.push_back(mk_feat_wkt("LINESTRING(-1 2, 5 2)"));
+
+  izer->process(features);
+
+  int segments[] = {-1, -1, -1};
+  int num_segments = 0;
+
+  for (size_t i = 0; i < features.size(); ++i) {
+    feature_ptr feat = features[i];
+
+    const size_t num_geoms = feat->num_geometries();
+    for (size_t j = 0; j < num_geoms; ++j) {
+      const geometry_type &geom = feat->get_geometry(j);
+      test::assert_equal<geometry_type::types>(geom.type(), geometry_type::LineString,
+                                               "geometry should be LineString");
+
+      geom.rewind(0);
+      double x = 0, y = 0;
+      unsigned int cmd = 0;
+
+      while ((cmd = geom.vertex(&x, &y)) != mapnik::SEG_END) {
+        // we're expecting segments running L->R starting at x = -1, 0 & 3
+        if (cmd == mapnik::SEG_MOVETO) {
+          if (std::abs(x + 1.0) < 1.0e-6) {
+            segments[0] = i;
+
+          } else if (std::abs(x) < 1.0e-6) {
+            segments[1] = i;
+
+          } else if (std::abs(x - 3.0) < 1.0e-6) {
+            segments[2] = i;
+
+          } else {
+            throw std::runtime_error((boost::format("Unexpected x=%1% coordinate") % x).str());
+          }
+
+          ++num_segments;
+        }
+      }
+    }
+  }
+
+  test::assert_equal<int>(num_segments, 3, "should be 3 segments");
+
+  for (int i = 0; i < 3; ++i) {
+    if (segments[i] == -1) {
+      throw std::runtime_error((boost::format("Segment %1% not found") % i).str());
+    }
+  }
+
+  // segments outside of the admin polygon should not be set
+  test::assert_equal<bool>(features[segments[0]]->has_key("foo"), false,
+                           "segment 0 outside of hit area should not have \"foo\" set");
+  test::assert_equal<bool>(features[segments[2]]->has_key("foo"), false,
+                           "segment 3 outside of hit area should not have \"foo\" set");
+
+  // the segments inside of the admin polygons should have been adminized
+  test::assert_equal<bool>(features[segments[1]]->has_key("foo"), true,
+                           "segment 1 inside of hit area should have \"foo\" set");
+  test::assert_equal<std::string>(features[segments[1]]->get("foo").to_string(),
+                                  "first_value", "segment 1 should be adminized");
+}
+
+void test_intersection_mode_split_first() {
+  using mapnik::feature_ptr;
+  using mapnik::geometry_type;
+
+  pt::ptree conf;
+  conf.put("param_name", "foo");
+  conf.put("split", "true");
+  conf.put("datasource.type", "csv");
+  conf.put("datasource.inline",
+           "wkt|foo\n"
+           "POLYGON((0 0, 3 0, 3 3, 0 3, 0 0))|first_value\n"
+           "POLYGON((1 1, 4 1, 4 4, 1 4, 1 1))|second_value\n");
+  pp::izer_ptr izer = pp::create_adminizer(conf);
+
+  std::vector<feature_ptr> features;
+  features.push_back(mk_feat_wkt("LINESTRING(-1 2, 5 2)"));
+
+  izer->process(features);
+
+  int segments[] = {-1, -1, -1, -1};
+  int num_segments = 0;
+
+  for (size_t i = 0; i < features.size(); ++i) {
+    feature_ptr feat = features[i];
+
+    const size_t num_geoms = feat->num_geometries();
+    for (size_t j = 0; j < num_geoms; ++j) {
+      const geometry_type &geom = feat->get_geometry(j);
+      test::assert_equal<geometry_type::types>(geom.type(), geometry_type::LineString,
+                                               "geometry should be LineString");
+
+      geom.rewind(0);
+      double x = 0, y = 0;
+      unsigned int cmd = 0;
+
+      while ((cmd = geom.vertex(&x, &y)) != mapnik::SEG_END) {
+        // we're expecting segments running L->R starting at x = -1, 0, 3 & 4
+        if (cmd == mapnik::SEG_MOVETO) {
+          if (std::abs(x + 1.0) < 1.0e-6) {
+            segments[0] = i;
+
+          } else if (std::abs(x) < 1.0e-6) {
+            segments[1] = i;
+
+          } else if (std::abs(x - 3.0) < 1.0e-6) {
+            segments[2] = i;
+
+          } else if (std::abs(x - 4.0) < 1.0e-6) {
+            segments[3] = i;
+
+          } else {
+            throw std::runtime_error((boost::format("Unexpected x=%1% coordinate") % x).str());
+          }
+
+          ++num_segments;
+        }
+      }
+    }
+  }
+
+  test::assert_equal<int>(num_segments, 4, "should be 4 segments");
+
+  for (int i = 0; i < 4; ++i) {
+    if (segments[i] == -1) {
+      throw std::runtime_error((boost::format("Segment %1% not found") % i).str());
+    }
+  }
+
+  // the segments outside of the admin polygons should not be affected
+  test::assert_equal<bool>(features[segments[0]]->has_key("foo"), false,
+                           "segment 0 outside of hit area should not have \"foo\" set");
+  test::assert_equal<bool>(features[segments[3]]->has_key("foo"), false,
+                           "segment 3 outside of hit area should not have \"foo\" set");
+
+  // the segments inside of the admin polygons should have been adminized
+  test::assert_equal<bool>(features[segments[1]]->has_key("foo"), true,
+                           "segment 1 inside of hit area should have \"foo\" set");
+  test::assert_equal<bool>(features[segments[2]]->has_key("foo"), true,
+                           "segment 2 inside of hit area should have \"foo\" set");
+
+  // and they should be set to the right values...
+  test::assert_equal<std::string>(features[segments[1]]->get("foo").to_string(),
+                                  "first_value", "segment 1 should have first value");
+  test::assert_equal<std::string>(features[segments[2]]->get("foo").to_string(),
+                                  "second_value", "segment 2 should have second value");
+}
+
+
+void test_intersection_mode_split_collect() {
+  using mapnik::feature_ptr;
+  using mapnik::geometry_type;
+
+  pt::ptree conf;
+  conf.put("param_name", "foo");
+  conf.put("split", "true");
+  conf.put("collect", "true");
+  conf.put("delimiter", "|");
+  conf.put("datasource.type", "csv");
+  conf.put("datasource.inline",
+           "wkt|foo\n"
+           "POLYGON((0 0, 3 0, 3 3, 0 3, 0 0))|first_value\n"
+           "POLYGON((1 1, 4 1, 4 4, 1 4, 1 1))|second_value\n");
+  pp::izer_ptr izer = pp::create_adminizer(conf);
+
+  std::vector<feature_ptr> features;
+  features.push_back(mk_feat_wkt("LINESTRING(-1 2, 5 2)"));
+
+  izer->process(features);
+
+  int segments[] = {-1, -1, -1, -1, -1};
+  int num_segments = 0;
+
+  for (size_t i = 0; i < features.size(); ++i) {
+    feature_ptr feat = features[i];
+
+    const size_t num_geoms = feat->num_geometries();
+    for (size_t j = 0; j < num_geoms; ++j) {
+      const geometry_type &geom = feat->get_geometry(j);
+      test::assert_equal<geometry_type::types>(geom.type(), geometry_type::LineString,
+                                               "geometry should be LineString");
+
+      geom.rewind(0);
+      double x = 0, y = 0;
+      unsigned int cmd = 0;
+
+      while ((cmd = geom.vertex(&x, &y)) != mapnik::SEG_END) {
+        // we're expecting segments running L->R starting at x = -1, 0, 1, 3 & 4
+        if (cmd == mapnik::SEG_MOVETO) {
+          if (std::abs(x + 1.0) < 1.0e-6) {
+            segments[0] = i;
+
+          } else if (std::abs(x) < 1.0e-6) {
+            segments[1] = i;
+
+          } else if (std::abs(x - 1.0) < 1.0e-6) {
+            segments[2] = i;
+
+          } else if (std::abs(x - 3.0) < 1.0e-6) {
+            segments[3] = i;
+
+          } else if (std::abs(x - 4.0) < 1.0e-6) {
+            segments[4] = i;
+
+          } else {
+            throw std::runtime_error((boost::format("Unexpected x=%1% coordinate") % x).str());
+          }
+
+          ++num_segments;
+        }
+      }
+    }
+  }
+
+  test::assert_equal<int>(num_segments, 5, "should be 5 segments");
+
+  for (int i = 0; i < 5; ++i) {
+    if (segments[i] == -1) {
+      throw std::runtime_error((boost::format("Segment %1% not found") % i).str());
+    }
+  }
+
+  // the segments outside of the admin polygons should not be affected
+  test::assert_equal<bool>(features[segments[0]]->has_key("foo"), false,
+                           "segment 0 outside of hit area should not have \"foo\" set");
+  test::assert_equal<bool>(features[segments[4]]->has_key("foo"), false,
+                           "segment 3 outside of hit area should not have \"foo\" set");
+
+  // the segments inside of the admin polygons should have been adminized
+  test::assert_equal<bool>(features[segments[1]]->has_key("foo"), true,
+                           "segment 1 inside of hit area should have \"foo\" set");
+  test::assert_equal<bool>(features[segments[2]]->has_key("foo"), true,
+                           "segment 2 inside of hit area should have \"foo\" set");
+  test::assert_equal<bool>(features[segments[3]]->has_key("foo"), true,
+                           "segment 3 inside of hit area should have \"foo\" set");
+
+  // and they should be set to the right values...
+  test::assert_equal<std::string>(features[segments[1]]->get("foo").to_string(),
+                                  "first_value", "segment 1 should have first value");
+  test::assert_equal<std::string>(features[segments[2]]->get("foo").to_string(),
+                                  "first_value|second_value",
+                                  "segment 2 should have both values");
+  test::assert_equal<std::string>(features[segments[3]]->get("foo").to_string(),
+                                  "second_value", "segment 3 should have second value");
+}
+
 } // anonymous namespace
 
 int main() {
@@ -321,6 +584,9 @@ int main() {
 
   RUN_TEST(test_intersection_mode_first);
   RUN_TEST(test_intersection_mode_collect);
+  RUN_TEST(test_intersection_mode_split);
+  RUN_TEST(test_intersection_mode_split_first);
+  RUN_TEST(test_intersection_mode_split_collect);
   
   std::cout << " >> Tests failed: " << tests_failed << std::endl << std::endl;
 
