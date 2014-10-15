@@ -61,6 +61,9 @@ private:
   /// The number of threads that will call io_service::run().
   std::size_t thread_pool_size_;
 
+  /// The port to run on
+  std::string port_;
+
   /// The io_service used to perform asynchronous operations.
   boost::asio::io_service io_service_;
 

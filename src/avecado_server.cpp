@@ -26,6 +26,12 @@ int main(int argc, char *argv[]) {
     "Avecado " VERSION "\n"
     "\n"
     "  Usage: avecado_server [options] <map-file> <port>\n"
+    "\n"
+    "The server will serve PBF vector tiles on the port which you specify, using "
+    "the common TMS scheme /$z/$x/$y.pbf. For example, the tile with coordinates "
+    "z=2, x=1, y=0 would be available at http://localhost:8080/2/1/0/pbf if the "
+    "port parameter is given as 8080."
+    "\n"
     "\n");
 
   options.add_options()
