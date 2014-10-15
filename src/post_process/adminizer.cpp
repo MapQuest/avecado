@@ -602,6 +602,17 @@ void try_update(RTreeType &index,
 namespace avecado {
 namespace post_process {
 
+/* rtree index data structure from boost::geometry. this allows us
+ * to query a set of polygons in logarithmic time rather than linear
+ * for a sequential scan.
+ *
+ * note that the rtree is over `struct value`, which does not store
+ * a polygon - it stores the polygon's bounding box and the index of
+ * that polygon into the `entries` array. this means the rtree is
+ * able to accelerate testing by culling intersections which are
+ * impossible, but means we'll need to re-check that the geometries
+ * actually intersect in a later pass.
+ */
 using rtree = bgi::rtree<value, bgi::quadratic<16> >;
 
 /**
@@ -703,6 +714,13 @@ std::vector<entry> adminizer::make_entries(const mapnik::box2d<double> &env) con
   return entries;
 }
 
+/* creates an rtree (from boost::geometry) index over a set of bounding
+ * boxes of admin polygons. the rtree cannot, itself, handle polygons
+ * directly and so we store a tuple of the polygon bbox and its index
+ * into the `entries` vector so that we can retrieve the polygon (and
+ * associated data in `struct entry`) and do more detailed intersection
+ * checking.
+ */
 rtree adminizer::make_index(const std::vector<entry> &entries) const {
   // create envelope boxes for entries, as these are needed
   // up-front for the packing algorithm.
@@ -714,7 +732,8 @@ rtree adminizer::make_index(const std::vector<entry> &entries) const {
   }
 
   // construct index using packing algorithm, which leads to
-  // better distribution for querying.
+  // better distribution for querying, but needs to be
+  // instantiated with an iterator range.
   return rtree(values.begin(), values.end());
 }
 
@@ -722,6 +741,9 @@ void adminizer::adminize_feature(mapnik::feature_ptr &&f,
                                  const rtree &index,
                                  const std::vector<entry> &entries,
                                  std::vector<mapnik::feature_ptr> &append_to) const {
+  // param updater collects the indices (into `entries`) of the
+  // polygons which intersect the features' geometries, which
+  // will be used to update the parameters in the feature.
   param_updater updater(m_collect);
 
   for (auto const &geom : f->paths()) {
@@ -743,6 +765,9 @@ void adminizer::adminize_feature(mapnik::feature_ptr &&f,
   }
 
   if (m_split) {
+    // if splitting, then start the recursive algorithm to cover all
+    // relevant combinations of geometry and admin polygons
+    // inside/outside regions.
     priority_queue remaining_indices(
       updater.m_indices.begin(), updater.m_indices.end());
     std::set<unsigned int> empty;
@@ -751,6 +776,8 @@ void adminizer::adminize_feature(mapnik::feature_ptr &&f,
                      std::move(f), m_param_name, m_delimiter, append_to);
 
   } else {
+    // if not splitting mode, then update the feature's parameters if it
+    // intersected and add it to append_to.
     update_feature_params(updater, entries, std::move(f), m_param_name,
                           m_delimiter, append_to);
   }
