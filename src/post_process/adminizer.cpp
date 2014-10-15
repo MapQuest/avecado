@@ -36,7 +36,15 @@ using priority_queue = std::priority_queue<unsigned int, std::vector<unsigned in
 
 namespace {
 
+/* type used in the rtree index to point to a polygon entry. the
+ * rtree itself only indexes bounding boxes. */
 typedef std::pair<box_2d, unsigned int> value;
+
+/* type pointed to by the unsigned int index in the `value` type.
+ * this stores the original admin polygon, the value of the
+ * parameter it sets, and the index so that we can tell which
+ * polygon comes 'first'.
+ */
 struct entry {
   entry(polygon_2d &&p, mapnik::value &&v, unsigned int i)
     : polygon(p), value(v), index(i) {
@@ -46,6 +54,9 @@ struct entry {
   unsigned int index;
 };
 
+/* functor to collect indices of visited entries. this is then
+ * used to figure out which admin areas were hit and in what
+ * order. */
 struct param_updater {
   bool m_collect;
   std::set<unsigned int> m_indices;
@@ -65,6 +76,8 @@ struct param_updater {
   }
 };
 
+/* update a feature based on a set of indices collected from hit
+ * testing against admin polygons. */
 void update_feature_params(const std::set<unsigned int> &indices,
                            bool collect,
                            const std::vector<entry> &entries,
@@ -107,6 +120,11 @@ inline void update_feature_params(const param_updater &updater,
                         delimiter, append_to);
 }
 
+/* we convert Mapnik's representation of geometry to boost::geometry
+ * models when we're doing the manipulation and hit testing. we really
+ * shouldn't: we should adapt them instead. however, until we've done
+ * this, we need conversion functions between Mapnik geometries and
+ * boost::geometry::models and vice-versa. */
 template <typename GeomType>
 mapnik::geometry_type *to_mapnik_geom(const GeomType &g) {
   throw std::runtime_error("Unimplemented geometry type.");
@@ -236,6 +254,14 @@ polygon_2d make_boost_polygon(const mapnik::geometry_type &geom) {
   return poly;
 }
 
+/* hack to perform actual splitting of a geometry into inside and
+ * outside parts. this is the generic part, which works for most
+ * geometry types.
+ *
+ * however, Mapnik can give us multi* geometry types, which are
+ * not handled in boost::geometry 1.56, and which we have to
+ * unpack manually in the template specialisations.
+ */
 template <typename GeomType>
 inline void split_hack(const GeomType &geom, const polygon_2d &poly,
                        std::list<GeomType> &inside_out,
@@ -244,6 +270,7 @@ inline void split_hack(const GeomType &geom, const polygon_2d &poly,
   bg::difference(geom, poly, outside_out);
 }
 
+// specialisation for multipoint, currently not implemented in BG
 template <>
 inline void split_hack<multi_point_2d>(
   const multi_point_2d &multipoint,
@@ -263,6 +290,7 @@ inline void split_hack<multi_point_2d>(
   outside_out.emplace_back(std::move(outside_multi));
 }
 
+// specialisation for multilinestring, currently not implemented in BG
 template <>
 inline void split_hack<multi_linestring_2d>(
   const multi_linestring_2d &multilinestring,
@@ -280,6 +308,9 @@ inline void split_hack<multi_linestring_2d>(
   outside_out.emplace_back(std::move(outside_multi));
 }
 
+/* similarly, within() is unimplementd for some multi* types, so
+ * we have to provide specialisations.
+ */
 template <typename GeomType>
 inline bool within(const GeomType &geom, const polygon_2d &poly) {
   return bg::within(geom, poly);
@@ -305,6 +336,9 @@ inline bool within<multi_linestring_2d>(const multi_linestring_2d &geom, const p
   return true;
 }
 
+/* similarly, disjoint() is unimplementd for some multi* types, so
+ * we have to provide specialisations.
+ */
 template <typename GeomType>
 inline bool disjoint(const GeomType &geom, const polygon_2d &poly) {
   return bg::disjoint(geom, poly);
@@ -330,6 +364,11 @@ inline bool disjoint<multi_linestring_2d>(const multi_linestring_2d &geom, const
   return true;
 }
 
+/* implementation of the split between inside and outside parts of
+ * the geometry with respect to a polygon. the logic here is the
+ * same regardless of geometry type, but templated so that we can
+ * deal with concrete boost geometry types.
+ */
 template <typename GeomType>
 void split_impl(const GeomType &geom, const polygon_2d &poly,
                 mapnik::feature_ptr &inside, mapnik::feature_ptr &outside) {
@@ -344,6 +383,8 @@ void split_impl(const GeomType &geom, const polygon_2d &poly,
     // which is outside, so we'll need to split it.
     std::list<GeomType> inside_out, outside_out;
 
+    // in an ideal world, here we would split the geometry. however,
+    // because of multi* geometries, we have to hack it a bit.
     split_hack<GeomType>(geom, poly, inside_out, outside_out);
 
     for (const GeomType &g : inside_out) {
@@ -355,6 +396,16 @@ void split_impl(const GeomType &geom, const polygon_2d &poly,
   }
 }
 
+/* split a geometry `geom` into the parts inside and outside of the
+ * polygon `poly` and add the inside parts to `inside` and the outside
+ * parts to `outside`.
+ *
+ * the implementation is extremely similar to `adminize_feature`, and
+ * it would be nice to be able to factor out the common pattern.
+ *
+ * this function handles the "geometry type discovery" and hands off
+ * the actual splitting to `split_impl`.
+ */
 void split(const mapnik::geometry_type &geom, const polygon_2d &poly,
            mapnik::feature_ptr &inside, mapnik::feature_ptr &outside) {
   if (geom.type() == mapnik::geometry_type::types::Point) {
@@ -371,6 +422,17 @@ void split(const mapnik::geometry_type &geom, const polygon_2d &poly,
   }
 }
 
+/* recursive function to visit a queue of remaining of hit admin polygon
+ * indices in order of 'firstness' and split the geometries of `feat`
+ * depending on what combination of admin polygons they are inside or
+ * outside.
+ *
+ * this basically proceeds by looking at the first remaining index,
+ * sorting the feature's geometries into the inside and outside parts
+ * for the polygon for the top index and recursing where necessary
+ * until all the geometries have been sorted as inside or outside each
+ * of the admin polygons.
+ */
 void split_and_update(const std::set<unsigned int> &indices,
                       priority_queue remaining_indices,
                       bool collect,
@@ -439,6 +501,12 @@ void split_and_update(const std::set<unsigned int> &indices,
   }
 }
 
+/* the boost::geometry rtree index needs to be passed an iterator
+ * which it will call with each value corresponding to an element
+ * matching the query. we use the type below as a kind of back
+ * inserter iterator, but only when the detailed geometry (rtree
+ * stores only bboxes) matches the query geometry.
+ */
 template <typename GeomType>
 struct intersects_iterator {
   const GeomType &m_geom;
