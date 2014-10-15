@@ -12,6 +12,9 @@
 #include <boost/geometry/geometries/multi_point.hpp>
 #include <boost/geometry/multi/geometries/multi_linestring.hpp>
 #include <boost/geometry/index/rtree.hpp>
+#include <boost/geometry/io/wkt/write.hpp>
+
+#include <queue> // for std::priority_queue<>
 
 // NOTE: this is included only because it's where mapnik::coord2d is
 // adapted to work with the boost::geometry stuff. we don't actually
@@ -31,188 +34,130 @@ using multi_linestring_2d = bg::model::multi_linestring<linestring_2d>;
 // the opposide of boost::geometry's default, and that rings should
 // be closed (i.e: first point == last point), which is the default.
 using polygon_2d = bg::model::polygon<point_2d, false, true>;
+using priority_queue = std::priority_queue<unsigned int, std::vector<unsigned int>,
+                                           std::greater<unsigned int> >;
 
 namespace {
 
+/* type used in the rtree index to point to a polygon entry. the
+ * rtree itself only indexes bounding boxes. */
 typedef std::pair<box_2d, unsigned int> value;
-typedef std::pair<polygon_2d, mapnik::value> entry;
 
-template <typename GeomType>
-struct param_update_iterator {
-  mapnik::feature_ptr m_feature;
-  const GeomType &m_geom;
-  const std::string &m_param_name;
-  const std::vector<entry> &m_entries;
-  bool m_keep_matching;
-
-  param_update_iterator(mapnik::feature_ptr f,
-                        const GeomType &geom,
-                        const std::vector<entry> &entries,
-                        const std::string &param_name)
-    : m_feature(f), m_geom(geom), m_param_name(param_name)
-    , m_entries(entries), m_keep_matching(true) {
-  }
-
-  param_update_iterator &operator++() { // prefix
-    return *this;
-  }
-
-  param_update_iterator &operator*() {
-    return *this;
-  }
-
-  param_update_iterator &operator=(const value &v) {
-    const entry &e = m_entries[v.second];
-
-    // do detailed intersection test
-    if (bg::intersects(e.first, m_geom)) {
-      // at least one result -> some intersection
-      m_feature->put_new(m_param_name, e.second);
-      m_keep_matching = false;
-    }
-
-    return *this;
-  }
-};
-
-template <typename RTreeType, typename GeomType>
-bool try_update(RTreeType &index,
-                const GeomType &geom,
-                mapnik::feature_ptr &f,
-                const std::vector<entry> &entries,
-                const std::string &param_name) {
-  param_update_iterator<GeomType> update(f, geom, entries, param_name);
-  
-  index.query(bgi::intersects(bg::return_envelope<box_2d>(geom)), update);
-  
-  return update.m_keep_matching;
-}
-  
-} // anonymous namespace
-
-namespace avecado {
-namespace post_process {
-
-/**
- * Post-process that applies administrative region attribution
- * to features, based on geographic location of the geometry.
+/* type pointed to by the unsigned int index in the `value` type.
+ * this stores the original admin polygon, the value of the
+ * parameter it sets, and the index so that we can tell which
+ * polygon comes 'first'.
  */
-class adminizer : public izer {
-public:
-  adminizer(pt::ptree const& config);
-  virtual ~adminizer();
-
-  virtual void process(std::vector<mapnik::feature_ptr> &layer) const;
-
-private:
-  mapnik::box2d<double> envelope(const std::vector<mapnik::feature_ptr> &layer) const;
-  multi_point_2d make_boost_point(const mapnik::geometry_type &geom) const;
-  multi_linestring_2d make_boost_linestring(const mapnik::geometry_type &geom) const;
-  polygon_2d make_boost_polygon(const mapnik::geometry_type &geom) const;
-
-  std::string m_param_name;
-  std::shared_ptr<mapnik::datasource> m_datasource;
+struct entry {
+  entry(polygon_2d &&p, mapnik::value &&v, unsigned int i)
+    : polygon(p), value(v), index(i) {
+  }
+  polygon_2d polygon;
+  mapnik::value value;
+  unsigned int index;
 };
 
-adminizer::adminizer(pt::ptree const& config)
-  : m_param_name(config.get<std::string>("param_name")) {
-  mapnik::parameters params;
+/* functor to collect indices of visited entries. this is then
+ * used to figure out which admin areas were hit and in what
+ * order. */
+struct param_updater {
+  bool m_collect;
+  std::set<unsigned int> m_indices;
+  bool m_finished;
 
-  boost::optional<pt::ptree const &> datasource_config =
-    config.get_child_optional("datasource");
-
-  if (datasource_config) {
-    for (auto &kv : *datasource_config) {
-      params[kv.first] = kv.second.data();
-    }
+  explicit param_updater(bool collect)
+    : m_collect(collect)
+    , m_indices()
+    , m_finished(false) {
   }
 
-  m_datasource = mapnik::datasource_cache::instance().create(params);
-}
+  void operator()(const entry &e) {
+    m_indices.insert(e.index);
+    // early termination only if we're looking for the first admin
+    // area and just found it.
+    m_finished = (!m_collect) && (e.index == 0);
+  }
+};
 
-adminizer::~adminizer() {
-}
+/* update a feature based on a set of indices collected from hit
+ * testing against admin polygons. */
+void update_feature_params(const std::set<unsigned int> &indices,
+                           bool collect,
+                           const std::vector<entry> &entries,
+                           mapnik::feature_ptr &&feat,
+                           const std::string &param_name,
+                           const mapnik::value_unicode_string &delimiter,
+                           std::vector<mapnik::feature_ptr> &append_to) {
+  append_to.emplace_back(feat);
+  mapnik::feature_ptr &feature = append_to.back();
 
-void adminizer::process(std::vector<mapnik::feature_ptr> &layer) const {
-  typedef bgi::rtree<value, bgi::quadratic<16> > rtree;
-
-  // build extent of all features in layer
-  mapnik::box2d<double> env = envelope(layer);
-
-  // query the datasource
-  // TODO: do we want to pass more things like scale denominator
-  // and resolution type?
-  mapnik::featureset_ptr fset = m_datasource->features(mapnik::query(env));
-
-  // construct an index over the bounding boxes of the geometry,
-  // first extracting the geometries from mapnik's representation
-  // and transforming them too boost::geometry's representation.
-  std::vector<entry> entries;
-
-  {
-    mapnik::feature_ptr f;
-    while (f = fset->next()) {
-      mapnik::value param = f->get(m_param_name);
-
-      for (auto const &geom : f->paths()) {
-        // ignore all non-polygon types
-        if (geom.type() == mapnik::geometry_type::types::Polygon) {
-          entries.emplace_back(make_boost_polygon(geom), param);
+  if (!indices.empty()) {
+    if (collect) {
+      mapnik::value_unicode_string buffer;
+      bool first = true;
+      for (unsigned int i : indices) {
+        if (first) {
+          first = false;
+        } else {
+          buffer.append(delimiter);
         }
+        buffer.append(entries[i].value.to_unicode());
+      }
+      feature->put_new(param_name, buffer);
+
+    } else {
+      const entry &e = entries[*indices.begin()];
+      feature->put_new(param_name, e.value);
+    }
+  }
+}
+
+inline void update_feature_params(const param_updater &updater,
+                                  const std::vector<entry> &entries,
+                                  mapnik::feature_ptr &&feat,
+                                  const std::string &param_name,
+                                  const mapnik::value_unicode_string &delimiter,
+                                  std::vector<mapnik::feature_ptr> &append_to) {
+  update_feature_params(updater.m_indices, updater.m_collect,
+                        entries, std::move(feat), param_name,
+                        delimiter, append_to);
+}
+
+/* we convert Mapnik's representation of geometry to boost::geometry
+ * models when we're doing the manipulation and hit testing. we really
+ * shouldn't: we should adapt them instead. however, until we've done
+ * this, we need conversion functions between Mapnik geometries and
+ * boost::geometry::models and vice-versa. */
+template <typename GeomType>
+mapnik::geometry_type *to_mapnik_geom(const GeomType &g) {
+  throw std::runtime_error("Unimplemented geometry type.");
+}
+
+template <>
+mapnik::geometry_type *to_mapnik_geom<multi_point_2d>(const multi_point_2d &g) {
+  mapnik::geometry_type *mg = new mapnik::geometry_type(mapnik::geometry_type::Point);
+  for (auto const &point : g) {
+    mg->move_to(point.get<0>(), point.get<1>());
+  }
+  return mg;
+}
+
+template <>
+mapnik::geometry_type *to_mapnik_geom<multi_linestring_2d>(const multi_linestring_2d &g) {
+  mapnik::geometry_type *mg = new mapnik::geometry_type(mapnik::geometry_type::LineString);
+  for (auto const &line : g) {
+    const size_t n_points = line.size();
+    if (n_points > 0) {
+      mg->move_to(line[0].get<0>(), line[0].get<1>());
+      for (size_t i = 1; i < n_points; ++i) {
+        mg->line_to(line[i].get<0>(), line[i].get<1>());
       }
     }
   }
-
-  // create envelope boxes for entries, as these are needed
-  // up-front for the packing algorithm.
-  std::vector<value> values;
-  values.reserve(entries.size());
-  const size_t num_entries = entries.size();
-  for (size_t i = 0; i < num_entries; ++i) {
-    values.emplace_back(bg::return_envelope<box_2d>(entries[i].first), i);
-  }
-
-  // construct index using packing algorithm, which leads to
-  // better distribution for querying.
-  rtree index(values.begin(), values.end());
-  values.clear(); // don't need these any more.
-
-  // loop over features, finding which items from the datasource
-  // they intersect with.
-  for (mapnik::feature_ptr f : layer) {
-    for (auto const &geom : f->paths()) {
-      bool keep_matching = true;
-
-      if (geom.type() == mapnik::geometry_type::types::Point) {
-        multi_point_2d multi_point = make_boost_point(geom);
-        for (auto const &point : multi_point) {
-          keep_matching = try_update(index, point,
-                                     f, entries, m_param_name);
-          if (!keep_matching) { break; }
-        }
-
-      } else if (geom.type() == mapnik::geometry_type::types::LineString) {
-        // TODO: remove this hack when/if bg::intersects supports
-        // intersection on multi type.
-        multi_linestring_2d multi_line = make_boost_linestring(geom);
-        for (auto const &line : multi_line) {
-          keep_matching = try_update(index, line,
-                                     f, entries, m_param_name);
-          if (!keep_matching) { break; }
-        }
-
-      } else if (geom.type() == mapnik::geometry_type::types::Polygon) {
-        keep_matching = try_update(index, make_boost_polygon(geom),
-                                   f, entries, m_param_name);
-      }
-
-      // quick exit the loop if there's nothing more to do.
-      if (!keep_matching) { break; }
-    }
-  }
+  return mg;
 }
 
-mapnik::box2d<double> adminizer::envelope(const std::vector<mapnik::feature_ptr> &layer) const {
+mapnik::box2d<double> envelope(const std::vector<mapnik::feature_ptr> &layer) {
   mapnik::box2d<double> result;
   bool first = true;
   for (auto const &feature : layer) {
@@ -226,7 +171,7 @@ mapnik::box2d<double> adminizer::envelope(const std::vector<mapnik::feature_ptr>
   return result;
 }
 
-multi_point_2d adminizer::make_boost_point(const mapnik::geometry_type &geom) const {
+multi_point_2d make_boost_point(const mapnik::geometry_type &geom) {
 /* Takes a mapnik geometry and makes a multi_point_2d from it. It has to be a
  * multipoint, since we don't know from geom.type() if it's a point or multipoint?
  */
@@ -243,7 +188,7 @@ multi_point_2d adminizer::make_boost_point(const mapnik::geometry_type &geom) co
   return points;
 }
 
-multi_linestring_2d adminizer::make_boost_linestring(const mapnik::geometry_type &geom) const {
+multi_linestring_2d make_boost_linestring(const mapnik::geometry_type &geom) {
   multi_linestring_2d line;
   double x = 0, y = 0, prev_x = 0, prev_y = 0;
 
@@ -271,7 +216,7 @@ multi_linestring_2d adminizer::make_boost_linestring(const mapnik::geometry_type
   return line;
 }
 
-polygon_2d adminizer::make_boost_polygon(const mapnik::geometry_type &geom) const {
+polygon_2d make_boost_polygon(const mapnik::geometry_type &geom) {
   polygon_2d poly;
   double x = 0, y = 0, prev_x = 0, prev_y = 0, first_x = 0, first_y = 0;
   unsigned int ring_count = 0;
@@ -323,6 +268,543 @@ polygon_2d adminizer::make_boost_polygon(const mapnik::geometry_type &geom) cons
   }
 
   return poly;
+}
+
+/* hack to perform actual splitting of a geometry into inside and
+ * outside parts. this is the generic part, which works for most
+ * geometry types.
+ *
+ * however, Mapnik can give us multi* geometry types, which are
+ * not handled in boost::geometry 1.56, and which we have to
+ * unpack manually in the template specialisations.
+ */
+template <typename GeomType>
+inline void split_hack(const GeomType &geom, const polygon_2d &poly,
+                       std::list<GeomType> &inside_out,
+                       std::list<GeomType> &outside_out) {
+  bg::intersection(geom, poly, inside_out);
+  bg::difference(geom, poly, outside_out);
+}
+
+// specialisation for multipoint, currently not implemented in BG
+template <>
+inline void split_hack<multi_point_2d>(
+  const multi_point_2d &multipoint,
+  const polygon_2d &poly,
+  std::list<multi_point_2d> &inside_out,
+  std::list<multi_point_2d> &outside_out) {
+
+  multi_point_2d inside_multi, outside_multi;
+  for (auto const &point : multipoint) {
+    if (bg::intersects(point, poly)) {
+      inside_multi.push_back(point);
+    } else {
+      outside_multi.push_back(point);
+    }
+  }
+  inside_out.emplace_back(std::move(inside_multi));
+  outside_out.emplace_back(std::move(outside_multi));
+}
+
+// specialisation for multilinestring, currently not implemented in BG
+template <>
+inline void split_hack<multi_linestring_2d>(
+  const multi_linestring_2d &multilinestring,
+  const polygon_2d &poly,
+  std::list<multi_linestring_2d> &inside_out,
+  std::list<multi_linestring_2d> &outside_out) {
+
+  multi_linestring_2d inside_multi, outside_multi;
+  for (auto const &line : multilinestring) {
+    bg::intersection(line, poly, inside_multi);
+    bg::difference(line, poly, outside_multi);
+  }
+
+  inside_out.emplace_back(std::move(inside_multi));
+  outside_out.emplace_back(std::move(outside_multi));
+}
+
+/* similarly, within() is unimplementd for some multi* types, so
+ * we have to provide specialisations.
+ */
+template <typename GeomType>
+inline bool within(const GeomType &geom, const polygon_2d &poly) {
+  return bg::within(geom, poly);
+}
+
+template <>
+inline bool within<multi_point_2d>(const multi_point_2d &geom, const polygon_2d &poly) {
+  for (auto const &point : geom) {
+    if (!bg::within(point, poly)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+template <>
+inline bool within<multi_linestring_2d>(const multi_linestring_2d &geom, const polygon_2d &poly) {
+  for (auto const &line : geom) {
+    if (!bg::within(line, poly)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+/* similarly, disjoint() is unimplementd for some multi* types, so
+ * we have to provide specialisations.
+ */
+template <typename GeomType>
+inline bool disjoint(const GeomType &geom, const polygon_2d &poly) {
+  return bg::disjoint(geom, poly);
+}
+
+template <>
+inline bool disjoint<multi_point_2d>(const multi_point_2d &geom, const polygon_2d &poly) {
+  for (auto const &point : geom) {
+    if (!bg::disjoint(point, poly)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+template <>
+inline bool disjoint<multi_linestring_2d>(const multi_linestring_2d &geom, const polygon_2d &poly) {
+  for (auto const &line : geom) {
+    if (!bg::disjoint(line, poly)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+/* implementation of the split between inside and outside parts of
+ * the geometry with respect to a polygon. the logic here is the
+ * same regardless of geometry type, but templated so that we can
+ * deal with concrete boost geometry types.
+ */
+template <typename GeomType>
+void split_impl(const GeomType &geom, const polygon_2d &poly,
+                mapnik::feature_ptr &inside, mapnik::feature_ptr &outside) {
+  if (within(geom, poly)) {
+    inside->add_geometry(to_mapnik_geom(geom));
+
+  } else if (disjoint(geom, poly)) {
+    outside->add_geometry(to_mapnik_geom(geom));
+
+  } else {
+    // must be some part of the geometry which is inside and some
+    // which is outside, so we'll need to split it.
+    std::list<GeomType> inside_out, outside_out;
+
+    // in an ideal world, here we would split the geometry. however,
+    // because of multi* geometries, we have to hack it a bit.
+    split_hack<GeomType>(geom, poly, inside_out, outside_out);
+
+    for (const GeomType &g : inside_out) {
+      inside->add_geometry(to_mapnik_geom(g));
+    }
+    for (const GeomType &g : outside_out) {
+      outside->add_geometry(to_mapnik_geom(g));
+    }
+  }
+}
+
+/* split a geometry `geom` into the parts inside and outside of the
+ * polygon `poly` and add the inside parts to `inside` and the outside
+ * parts to `outside`.
+ *
+ * the implementation is extremely similar to `adminize_feature`, and
+ * it would be nice to be able to factor out the common pattern.
+ *
+ * this function handles the "geometry type discovery" and hands off
+ * the actual splitting to `split_impl`.
+ */
+void split(const mapnik::geometry_type &geom, const polygon_2d &poly,
+           mapnik::feature_ptr &inside, mapnik::feature_ptr &outside) {
+  if (geom.type() == mapnik::geometry_type::types::Point) {
+    multi_point_2d multi_point = make_boost_point(geom);
+    split_impl(multi_point, poly, inside, outside);
+
+  } else if (geom.type() == mapnik::geometry_type::types::LineString) {
+    multi_linestring_2d multi_line = make_boost_linestring(geom);
+    split_impl(multi_line, poly, inside, outside);
+
+  } else if (geom.type() == mapnik::geometry_type::types::Polygon) {
+    polygon_2d poly2 = make_boost_polygon(geom);
+    split_impl(poly2, poly, inside, outside);
+  }
+}
+
+/* recursive function to visit a queue of remaining of hit admin polygon
+ * indices in order of 'firstness' and split the geometries of `feat`
+ * depending on what combination of admin polygons they are inside or
+ * outside.
+ *
+ * this basically proceeds by looking at the first remaining index,
+ * sorting the feature's geometries into the inside and outside parts
+ * for the polygon for the top index and recursing where necessary
+ * until all the geometries have been sorted as inside or outside each
+ * of the admin polygons.
+ */
+void split_and_update(const std::set<unsigned int> &indices,
+                      priority_queue remaining_indices,
+                      bool collect,
+                      const std::vector<entry> &entries,
+                      mapnik::feature_ptr &&feat,
+                      const std::string &param_name,
+                      const mapnik::value_unicode_string &delimiter,
+                      std::vector<mapnik::feature_ptr> &append_to) {
+  if (remaining_indices.empty()) {
+    update_feature_params(indices, collect, entries, std::move(feat),
+                          param_name, delimiter, append_to);
+
+  } else {
+    unsigned int index = remaining_indices.top();
+    remaining_indices.pop();
+    const entry &e = entries[index];
+
+    // TODO: copying the mapnik feature like this is very wasteful.
+    // could either try instantiating lazily only when either is
+    // non-empty, or do the whole thing with geometries and only
+    // handle the features later?
+    mapnik::feature_ptr inside =
+      std::make_shared<mapnik::feature_impl>(
+        std::make_shared<mapnik::context_type>(), feat->id());
+    mapnik::feature_ptr outside =
+      std::make_shared<mapnik::feature_impl>(
+        std::make_shared<mapnik::context_type>(), feat->id());
+    for (auto const &kv : *(feat->context())) {
+      inside->put_new(kv.first, kv.second);
+      outside->put_new(kv.first, kv.second);
+    }
+
+    for (auto const &geom : feat->paths()) {
+      split(geom, e.polygon, inside, outside);
+    }
+
+    if (!inside->paths().empty()) {
+      std::set<unsigned int> inside_indices(indices);
+      inside_indices.insert(index);
+
+      if (collect) {
+        // if collecting, then we need to recurse, as later
+        // polygons could add further parameter values.
+        split_and_update(inside_indices, remaining_indices, collect,
+                         entries, std::move(inside), param_name,
+                         delimiter, append_to);
+
+      } else {
+        // if not collecting, then we have hit the first already
+        // since we went through the indices in order, so there
+        // is no need to recurse.
+        update_feature_params(inside_indices, collect, entries,
+                              std::move(inside), param_name,
+                              delimiter, append_to);
+      }
+    }
+
+    if (!outside->paths().empty()) {
+      // always recurse on the outside, as we don't yet know the
+      // relation between the geometries and the other admin
+      // polygons.
+      split_and_update(indices, remaining_indices, collect,
+                       entries, std::move(outside), param_name,
+                       delimiter, append_to);
+    }
+  }
+}
+
+/* the boost::geometry rtree index needs to be passed an iterator
+ * which it will call with each value corresponding to an element
+ * matching the query. we use the type below as a kind of back
+ * inserter iterator, but only when the detailed geometry (rtree
+ * stores only bboxes) matches the query geometry.
+ */
+template <typename GeomType>
+struct intersects_iterator {
+  const GeomType &m_geom;
+  const std::vector<entry> &m_entries;
+  param_updater &m_updater;
+
+  intersects_iterator(const GeomType &geom,
+                      const std::vector<entry> &entries,
+                      param_updater &updater)
+    : m_geom(geom), m_entries(entries), m_updater(updater) {
+  }
+
+  intersects_iterator &operator++() { // prefix
+    return *this;
+  }
+
+  intersects_iterator &operator*() {
+    return *this;
+  }
+
+  intersects_iterator &operator=(const value &v) {
+    const entry &e = m_entries[v.second];
+
+    // do detailed intersection test, as the index only does bounding
+    // box intersection tests.
+    if (intersects(e.polygon)) {
+      m_updater(e);
+    }
+
+    return *this;
+  }
+
+  bool intersects(const polygon_2d &) const;
+};
+
+template <>
+bool intersects_iterator<multi_point_2d>::intersects(const polygon_2d &poly) const {
+  // TODO: remove this hack when/if bg::intersects supports
+  // intersection on multi type.
+  for (auto const &point : m_geom) {
+    if (bg::intersects(point, poly)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+template <>
+bool intersects_iterator<multi_linestring_2d>::intersects(const polygon_2d &poly) const {
+  // TODO: remove this hack when/if bg::intersects supports
+  // intersection on multi type.
+  for (auto const &line : m_geom) {
+    if (bg::intersects(line, poly)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+template <>
+bool intersects_iterator<polygon_2d>::intersects(const polygon_2d &poly) const {
+  return bg::intersects(m_geom, poly);
+}
+
+template <typename RTreeType, typename GeomType>
+void try_update(RTreeType &index,
+                const GeomType &geom,
+                const std::vector<entry> &entries,
+                param_updater &updater) {
+
+  intersects_iterator<GeomType> itr(geom, entries, updater);
+  index.query(bgi::intersects(bg::return_envelope<box_2d>(geom)), itr);
+}
+  
+} // anonymous namespace
+
+namespace avecado {
+namespace post_process {
+
+/* rtree index data structure from boost::geometry. this allows us
+ * to query a set of polygons in logarithmic time rather than linear
+ * for a sequential scan.
+ *
+ * note that the rtree is over `struct value`, which does not store
+ * a polygon - it stores the polygon's bounding box and the index of
+ * that polygon into the `entries` array. this means the rtree is
+ * able to accelerate testing by culling intersections which are
+ * impossible, but means we'll need to re-check that the geometries
+ * actually intersect in a later pass.
+ */
+using rtree = bgi::rtree<value, bgi::quadratic<16> >;
+
+/**
+ * Post-process that applies administrative region attribution
+ * to features, based on geographic location of the geometry.
+ */
+class adminizer : public izer {
+public:
+  adminizer(pt::ptree const& config);
+  virtual ~adminizer();
+
+  virtual void process(std::vector<mapnik::feature_ptr> &layer) const;
+
+private:
+  std::vector<entry> make_entries(const mapnik::box2d<double> &env) const;
+  rtree make_index(const std::vector<entry> &entries) const;
+  void adminize_feature(mapnik::feature_ptr &&f,
+                        const rtree &index,
+                        const std::vector<entry> &entries,
+                        std::vector<mapnik::feature_ptr> &append_to) const;
+
+  // the name of the parameter to take from the admin polygon and set
+  // on the feature being adminized.
+  std::string m_param_name;
+
+  // if true, split geometries at admin polygon boundaries. if false,
+  // do not modify the geometries.
+  bool m_split;
+
+  // if true, collect all matching admin parameters. if false, use the
+  // first admin parameter only.
+  bool m_collect;
+
+  // string to use to separate parameter values when m_collect == true.
+  mapnik::value_unicode_string m_delimiter;
+
+  // data source to fetch matching admin boundaries from.
+  std::shared_ptr<mapnik::datasource> m_datasource;
+};
+
+adminizer::adminizer(pt::ptree const& config)
+  : m_param_name(config.get<std::string>("param_name"))
+  , m_split(false)
+  , m_collect(false)
+  , m_delimiter(icu::UnicodeString::fromUTF8(",")) {
+  mapnik::parameters params;
+
+  boost::optional<pt::ptree const &> datasource_config =
+    config.get_child_optional("datasource");
+
+  if (datasource_config) {
+    for (auto &kv : *datasource_config) {
+      params[kv.first] = kv.second.data();
+    }
+  }
+
+  m_datasource = mapnik::datasource_cache::instance().create(params);
+
+  boost::optional<std::string> split = config.get_optional<std::string>("split");
+  if (split) {
+    m_split = *split == "true";
+  }
+
+  boost::optional<std::string> collect = config.get_optional<std::string>("collect");
+  if (collect) {
+    m_collect = *collect == "true";
+  }
+
+  boost::optional<std::string> delimiter = config.get_optional<std::string>("delimiter");
+  if (delimiter) {
+    m_delimiter = mapnik::value_unicode_string(icu::UnicodeString::fromUTF8(*delimiter));
+  }
+}
+
+adminizer::~adminizer() {
+}
+
+std::vector<entry> adminizer::make_entries(const mapnik::box2d<double> &env) const {
+  // query the datasource
+  // TODO: do we want to pass more things like scale denominator
+  // and resolution type?
+  mapnik::featureset_ptr fset = m_datasource->features(mapnik::query(env));
+
+  std::vector<entry> entries;
+  unsigned int index = 0;
+
+  mapnik::feature_ptr f;
+  while (f = fset->next()) {
+    mapnik::value param = f->get(m_param_name);
+
+    for (auto const &geom : f->paths()) {
+      // ignore all non-polygon types
+      if (geom.type() == mapnik::geometry_type::types::Polygon) {
+        entries.emplace_back(make_boost_polygon(geom), std::move(param), index++);
+      }
+    }
+  }
+
+  return entries;
+}
+
+/* creates an rtree (from boost::geometry) index over a set of bounding
+ * boxes of admin polygons. the rtree cannot, itself, handle polygons
+ * directly and so we store a tuple of the polygon bbox and its index
+ * into the `entries` vector so that we can retrieve the polygon (and
+ * associated data in `struct entry`) and do more detailed intersection
+ * checking.
+ */
+rtree adminizer::make_index(const std::vector<entry> &entries) const {
+  // create envelope boxes for entries, as these are needed
+  // up-front for the packing algorithm.
+  std::vector<value> values;
+  values.reserve(entries.size());
+  const size_t num_entries = entries.size();
+  for (size_t i = 0; i < num_entries; ++i) {
+    values.emplace_back(bg::return_envelope<box_2d>(entries[i].polygon), i);
+  }
+
+  // construct index using packing algorithm, which leads to
+  // better distribution for querying, but needs to be
+  // instantiated with an iterator range.
+  return rtree(values.begin(), values.end());
+}
+
+void adminizer::adminize_feature(mapnik::feature_ptr &&f,
+                                 const rtree &index,
+                                 const std::vector<entry> &entries,
+                                 std::vector<mapnik::feature_ptr> &append_to) const {
+  // param updater collects the indices (into `entries`) of the
+  // polygons which intersect the features' geometries, which
+  // will be used to update the parameters in the feature.
+  param_updater updater(m_collect);
+
+  for (auto const &geom : f->paths()) {
+    if (geom.type() == mapnik::geometry_type::types::Point) {
+      multi_point_2d multi_point = make_boost_point(geom);
+      try_update(index, multi_point, entries, updater);
+
+    } else if (geom.type() == mapnik::geometry_type::types::LineString) {
+      multi_linestring_2d multi_line = make_boost_linestring(geom);
+      try_update(index, multi_line, entries, updater);
+
+    } else if (geom.type() == mapnik::geometry_type::types::Polygon) {
+      polygon_2d poly = make_boost_polygon(geom);
+      try_update(index, poly, entries, updater);
+    }
+
+    // quick exit the loop if there's nothing more to do.
+    if (updater.m_finished) { break; }
+  }
+
+  if (m_split) {
+    // if splitting, then start the recursive algorithm to cover all
+    // relevant combinations of geometry and admin polygons
+    // inside/outside regions.
+    priority_queue remaining_indices(
+      updater.m_indices.begin(), updater.m_indices.end());
+    std::set<unsigned int> empty;
+
+    split_and_update(empty, remaining_indices, m_collect, entries,
+                     std::move(f), m_param_name, m_delimiter, append_to);
+
+  } else {
+    // if not splitting mode, then update the feature's parameters if it
+    // intersected and add it to append_to.
+    update_feature_params(updater, entries, std::move(f), m_param_name,
+                          m_delimiter, append_to);
+  }
+}
+
+void adminizer::process(std::vector<mapnik::feature_ptr> &layer) const {
+  // build extent of all features in layer
+  mapnik::box2d<double> env = envelope(layer);
+
+  // construct an index over the bounding boxes of the geometry,
+  // first extracting the geometries from mapnik's representation
+  // and transforming them too boost::geometry's representation.
+  std::vector<entry> entries = make_entries(env);
+
+  rtree index = make_index(entries);
+
+  // loop over features, finding which items from the datasource
+  // they intersect with.
+  std::vector<mapnik::feature_ptr> new_features;
+  for (mapnik::feature_ptr &f : layer) {
+    adminize_feature(std::move(f), index, entries, new_features);
+  }
+
+  // move new features into the same array that we were passed.
+  // this is so that we can add new features (e.g: when split).
+  layer.clear();
+  layer.swap(new_features);
 }
 
 izer_ptr create_adminizer(pt::ptree const& config) {
