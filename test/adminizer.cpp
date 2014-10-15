@@ -240,6 +240,31 @@ void test_multipoly_simple_exclusion_param() {
   assert_izer_exclude("MULTIPOLYGON(((20 0, 21 0, 21 1, 20 1, 20 0)),((-20 0, -21 0, -21 1, -20 1, -20 0)))");
 }
 
+// test that a polygon with a hole in it, but still intersecting the
+// adminizer box gets included.
+void test_poly_inner_inclusion_param() {
+  assert_izer_include(
+    "POLYGON("
+    "  (-10 -20, 30 -20, 30 20, -10 20, -10 -20),"
+    "  ( -1 -11, 21 -11, 21 11,  -1 11,  -1 -11)"
+    ")");
+}
+
+// test that a polygon with a hole in it, where the hole means the
+// adminizer polygon is completely outside the polygon, is not
+// included.
+void test_poly_inner_exclusion_param() {
+  /** NOTE: this currently does not work due to a bug upstream which
+   ** is being worked on: https://github.com/boostorg/geometry/pull/159
+   ** and, until we pull in a fixed version of boost::geometry, this
+   ** test will fail. **/
+  // assert_izer_exclude(
+  //   "POLYGON("
+  //   "  (-20 -20, 20 -20, 20 20, -20 20, -20 -20),"
+  //   "  (-11 -11, 11 -11, 11 11, -11 11, -11 -11)"
+  //   ")");
+}
+
 } // anonymous namespace
 
 int main() {
@@ -267,6 +292,9 @@ int main() {
 
   RUN_TEST(test_multipoly_simple_inclusion_param);
   RUN_TEST(test_multipoly_simple_exclusion_param);
+
+  RUN_TEST(test_poly_inner_inclusion_param);
+  RUN_TEST(test_poly_inner_exclusion_param);
   
   std::cout << " >> Tests failed: " << tests_failed << std::endl << std::endl;
 
