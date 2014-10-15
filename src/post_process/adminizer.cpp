@@ -29,7 +29,10 @@ using box_2d = bg::model::box<point_2d>;
 using linestring_2d = bg::model::linestring<point_2d>;
 using multi_point_2d = bg::model::multi_point<point_2d>;
 using multi_linestring_2d = bg::model::multi_linestring<linestring_2d>;
-// see PR #22
+// the OGC standard states that the outer ring of a polygon should
+// contain points ordered in a counter-clockwise direction, which is
+// the opposide of boost::geometry's default, and that rings should
+// be closed (i.e: first point == last point), which is the default.
 using polygon_2d = bg::model::polygon<point_2d, false, true>;
 using priority_queue = std::priority_queue<unsigned int, std::vector<unsigned int>,
                                            std::greater<unsigned int> >;
@@ -215,7 +218,7 @@ multi_linestring_2d make_boost_linestring(const mapnik::geometry_type &geom) {
 
 polygon_2d make_boost_polygon(const mapnik::geometry_type &geom) {
   polygon_2d poly;
-  double x = 0, y = 0, prev_x = 0, prev_y = 0;
+  double x = 0, y = 0, prev_x = 0, prev_y = 0, first_x = 0, first_y = 0;
   unsigned int ring_count = 0;
 
   geom.rewind(0);
@@ -232,9 +235,22 @@ polygon_2d make_boost_polygon(const mapnik::geometry_type &geom) {
         bg::append(poly.inners().back(), bg::make<point_2d>(x, y));
       }
 
+      // save first point of ring to use when the ring is closed.
+      first_x = x;
+      first_y = y;
+
       ++ring_count;
 
-    } else if (cmd == mapnik::SEG_LINETO) {
+    } else { // LINETO or CLOSE
+      if (cmd == mapnik::SEG_CLOSE) {
+        // x & y are 0 in SEG_CLOSE (at least, that seems to be the
+        // convention in mapnik::geometry_type::close_path(), so we
+        // ignore them and use the point we saved at the beginning
+        // of the ring.
+        x = first_x;
+        y = first_y;
+      }
+
       if (std::abs(x - prev_x) < 1e-12 && std::abs(y - prev_y) < 1e-12) {
         continue;
       }
