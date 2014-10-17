@@ -35,7 +35,7 @@ Avecado has three main executable programs:
 
 `avecado`, a simple command-line utility for producing vector tiles. Since each invocation loads a Mapnik map, this is not recommended for generating large volumes of vector tiles. However, it can be useful for one-off testing and debugging of datasource definitions.
 
-`avecado_server`, a very simple HTTP server which serves vector tiles according to the input Mapnik map. The HTTP server is extremely basic and, while it might be useful for ad-hoc testing purposes, is not suitable for production use. It serves tiles in the standard TMS scheme; for example z=2, x=1, y=0 would be available as http://localhost:8080/2/1/0.pbf if the server is run on port 8080.
+`avecado_server`, a very simple HTTP server which serves vector tiles according to the input Mapnik map. The HTTP server is extremely basic and, while it might be useful for ad-hoc testing purposes, is not suitable for production use. It serves tiles in the Google Maps numbering scheme; for example z=2, x=1, y=0 would be available as http://localhost:8080/2/1/0.pbf if the server is run on port 8080. This is explained in more detail on [the OpenStreetMap wiki](http://wiki.openstreetmap.org/wiki/Slippy_map_tilenames) and [Google's developer documentation](https://developers.google.com/maps/documentation/javascript/v2/overlays#Google_Maps_Coordinates).
 
 `scripts/override_xml.py`, a utility for altering settings in an XML datasource configuration. This is useful for correcting or overriding any settings which may be different between the output of Mapbox Studio, or your configuration files in version control, and your local or production setups.
 
