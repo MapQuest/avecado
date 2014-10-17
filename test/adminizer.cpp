@@ -579,6 +579,54 @@ void test_poly_inner_exclusion_param() {
   //   ")");
 }
 
+// test that when the admin areas are disjoint, but still cover the
+// input features, that they still get matched.
+void test_disjoint_admin_polygons() {
+  using mapnik::feature_ptr;
+  using mapnik::geometry_type;
+
+  pt::ptree conf;
+  conf.put("param_name", "foo");
+  conf.put("split", "true");
+  conf.put("collect", "true");
+  conf.put("delimiter", "|");
+  conf.put("datasource.type", "csv");
+  conf.put("datasource.inline",
+           "wkt|foo\n"
+           "POLYGON((0 0, 2 0, 2 2, 0 2, 0 0))|first_value\n"
+           "POLYGON((7 7, 9 7, 9 9, 7 9, 7 7))|second_value\n");
+  pp::izer_ptr izer = pp::create_adminizer(conf);
+
+  std::vector<feature_ptr> features;
+  features.push_back(mk_feat_wkt("POINT(1 1)"));
+  features.push_back(mk_feat_wkt("POINT(8 8)"));
+
+  izer->process(features);
+
+  test::assert_equal<size_t>(features.size(), 2, "should still be 2 features");
+  for (size_t i = 0; i < 2; ++i) {
+    test::assert_equal<size_t>(features[i]->num_geometries(), 1,
+                               "feature should just have one point");
+    const geometry_type &geom = features[i]->get_geometry(0);
+    test::assert_equal<geometry_type::types>(geom.type(), geometry_type::Point,
+                                             "geometry should still be a point");
+  }
+
+  // the points should now have the parameter set
+  test::assert_equal<bool>(features[0]->has_key("foo"), true,
+                           "features[0] should have \"foo\" set");
+  test::assert_equal<bool>(features[1]->has_key("foo"), true,
+                           "features[1] should have \"foo\" set");
+
+  // and they should be set to the right values...
+  test::assert_equal<std::string>(features[0]->get("foo").to_string(),
+                                  "first_value",
+                                  "first feature should have first value");
+  test::assert_equal<std::string>(features[1]->get("foo").to_string(),
+                                  "second_value",
+                                  "second feature should have second value");
+}
+
 } // anonymous namespace
 
 int main() {
@@ -615,6 +663,8 @@ int main() {
 
   RUN_TEST(test_poly_inner_inclusion_param);
   RUN_TEST(test_poly_inner_exclusion_param);
+
+  RUN_TEST(test_disjoint_admin_polygons);
   
   std::cout << " >> Tests failed: " << tests_failed << std::endl << std::endl;
 

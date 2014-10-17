@@ -163,6 +163,7 @@ mapnik::box2d<double> envelope(const std::vector<mapnik::feature_ptr> &layer) {
   for (auto const &feature : layer) {
     if (first) {
       result = feature->envelope();
+      first = false;
 
     } else {
       result.expand_to_include(feature->envelope());
