@@ -24,7 +24,14 @@ str mk_tile(object py_map,
   mapnik::Map const &map = extract<mapnik::Map const &>(py_map);
   boost::optional<const avecado::post_processor &> pp = boost::none;
   if (!post_processor.is_none()) {
-    pp = extract<const avecado::post_processor &>(post_processor);
+    // NOTE: extracting this to a pointer first, then initialising
+    // the optional reference is a work-around for a new restriction
+    // which prevents initialising an lvalue reference from an
+    // rvalue. i assume the restriction was added for a reason, so
+    // we should figure out why and fix this code properly.
+    const avecado::post_processor *pp_ptr =
+      extract<const avecado::post_processor *>(post_processor);
+    pp = *pp_ptr;
   }
   avecado::tile tile;
 

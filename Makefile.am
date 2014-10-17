@@ -1,12 +1,41 @@
 ACLOCAL_AMFLAGS = -I m4
-AM_LDFLAGS = @BOOST_LDFLAGS@
+AM_LDFLAGS = @BOOST_LDFLAGS@ @COVERAGE_LDFLAGS@
 AM_CPPFLAGS = \
 	-Iinclude -Imapnik-vector-tile/src \
 	@BOOST_CPPFLAGS@ @MAPNIK_CPPFLAGS@ @PROTOC_CPPFLAGS@
+AM_CXXFLAGS = @COVERAGE_CXXFLAGS@
 
 LIBTOOL_DEPS = @LIBTOOL_DEPS@
 libtool: $(LIBTOOL_DEPS)
 	$(SHELL) ./config.status libtool
+
+if ENABLE_COVERAGE
+
+.PHONY: clean-coverage
+clean-coverage:
+	-find -name '*.gcda' -exec rm -rf {} \;
+	-$(LCOV) --directory $(top_builddir) -z
+	-rm -rf coverage.info coverage/
+
+.PHONY: coverage-report
+coverage-report: clean-coverage
+	-$(MAKE) $(AM_MAKEFLAGS) -k check
+	$(MAKE) $(AM_MAKEFLAGS) coverage/index.html
+
+coverage.info:
+	$(LCOV) --directory $(top_builddir) --base-directory $(top_builddir) --no-external --capture --output-file $@ --no-checksum --compat-libtool
+
+coverage/index.html: coverage.info
+	$(GENHTML) --prefix $(top_builddir) --output-directory $(@D) --title "Test Coverage" --legend --show-details $<
+
+
+.PHONY: clean-gcno
+clean-gcno:
+	-find -name '*.gcno' -exec rm -rf {} \;
+
+clean-local: clean-coverage clean-gcno
+
+endif # ENABLE_COVERAGE
 
 noinst_LTLIBRARIES = liblogging.la
 
@@ -76,7 +105,9 @@ endif
 
 check_PROGRAMS = \
 	test/make_vector_tile \
-	test/generalizer
+	test/generalizer \
+	test/adminizer \
+	test/multi_verification
 
 liblogging_la_SOURCES = \
 	logging/logger.cpp \
@@ -88,6 +119,10 @@ test_make_vector_tile_SOURCES = test/make_vector_tile.cpp test/common.cpp
 test_make_vector_tile_LDADD = libavecado.la liblogging.la @BOOST_LDFLAGS@ @BOOST_ASIO_LIB@ @BOOST_THREAD_LIB@ @PTHREAD_LIBS@
 test_generalizer_SOURCES = test/generalizer.cpp test/common.cpp
 test_generalizer_LDADD = libavecado.la liblogging.la @BOOST_LDFLAGS@ @BOOST_ASIO_LIB@ @BOOST_THREAD_LIB@ @PTHREAD_LIBS@
+test_adminizer_SOURCES = test/adminizer.cpp test/common.cpp
+test_adminizer_LDADD = libavecado.la liblogging.la @BOOST_LDFLAGS@ @BOOST_ASIO_LIB@ @BOOST_THREAD_LIB@ @PTHREAD_LIBS@
+test_multi_verification_SOURCES = test/multi_verification.cpp test/common.cpp
+test_multi_verification_LDADD = libavecado.la liblogging.la @BOOST_LDFLAGS@ @BOOST_ASIO_LIB@ @BOOST_THREAD_LIB@ @PTHREAD_LIBS@
 
 TESTS = $(check_PROGRAMS)
 TEST_EXTENSIONS = .sh

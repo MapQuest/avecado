@@ -13,6 +13,17 @@ Avecado requires a recent version of [Mapnik](http://mapnik.org/) 3.x,
 The [other](https://github.com/MapQuest/avecado#building) dependencies will
 normally be met easily.
 
+## Testing ##
+
+Tests can be found in the `tests/` directory, and are run by autotools
+when you run `make check`. If you are preparing a pull request or
+patch, please make sure these pass before submitting it.
+
+There is a test coverage tool built into the build system, but it's
+fairly annoying to use. Please see
+[the coverage docs](test_coverage.md) for more information and details
+on running it.
+
 ## Mapnik Vector Tile ##
 
 Avecado embeds [mapnik-vector-tile](https://github.com/mapbox/mapnik-vector-tile)
