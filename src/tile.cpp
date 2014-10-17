@@ -21,4 +21,12 @@ std::string tile::get_data() const {
   }
 }
 
+mapnik::vector::tile const &tile::mapnik_tile() const {
+  return *m_mapnik_tile;
+}
+
+mapnik::vector::tile &tile::mapnik_tile() {
+  return *m_mapnik_tile;
+}
+
 } // namespace avecado

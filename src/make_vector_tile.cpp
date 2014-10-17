@@ -14,7 +14,7 @@ namespace avecado {
 
 std::ostream &operator<<(std::ostream &out, const tile &t) {
   google::protobuf::io::OstreamOutputStream stream(&out);
-  bool write_ok = t.m_mapnik_tile->SerializeToZeroCopyStream(&stream);
+  bool write_ok = t.mapnik_tile().SerializeToZeroCopyStream(&stream);
 
   if (!write_ok) {
     throw std::runtime_error("Unable to write tile to output stream.");
@@ -39,7 +39,7 @@ bool make_vector_tile(tile &tile,
   typedef backend backend_type;
   typedef mapnik::vector::processor<backend_type> renderer_type;
   
-  backend_type backend(*tile.m_mapnik_tile, path_multiplier, pp);
+  backend_type backend(tile.mapnik_tile(), path_multiplier, pp);
   
   mapnik::request request(map.width(),
                           map.height(),

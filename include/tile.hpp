@@ -27,18 +27,12 @@ public:
   // Return the tile contents as PBF
   std::string get_data() const;
 
+  // Return the in-memory structure of the tile.
+  mapnik::vector::tile const &mapnik_tile() const;
+  mapnik::vector::tile &mapnik_tile();
+
 private:
   std::unique_ptr<mapnik::vector::tile> m_mapnik_tile;
-
-  friend bool make_vector_tile(tile &, unsigned int, mapnik::Map const&,
-                               int, double, unsigned int, unsigned int,
-                               unsigned int, const std::string &,
-                               mapnik::scaling_method_e, double,
-                               boost::optional<const post_processor &> );
-
-  friend std::ostream &operator<<(std::ostream &, const tile &);
-
-  friend class post_processor;
 };
 
 } // namespace avecado

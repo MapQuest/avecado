@@ -105,7 +105,9 @@ bool render_vector_tile(mapnik::image_32 &image,
                         mapnik::Map const &map,
                         unsigned int z,
                         unsigned int x,
-                        unsigned int y);
+                        unsigned int y,
+                        double scale_factor,
+                        unsigned int buffer_size);
 
 } // namespace avecado
 
