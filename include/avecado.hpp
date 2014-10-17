@@ -9,6 +9,9 @@
 #include <mapnik/map.hpp>
 #include <mapnik/image_scaling.hpp>
 
+// forward declaration of mapnik's raster image type
+namespace mapnik { class image_32; }
+
 namespace avecado {
 
 // more efficient output function for zero-copy streams
@@ -94,6 +97,15 @@ bool make_vector_tile(tile &tile,
                       mapnik::scaling_method_e scaling_method,
                       double scale_denominator,
                       boost::optional<const post_processor &> post_processor);
+
+/* TODO: document me.
+ */
+bool render_vector_tile(mapnik::image_32 &image,
+                        tile &tile,
+                        mapnik::Map const &map,
+                        unsigned int z,
+                        unsigned int x,
+                        unsigned int y);
 
 } // namespace avecado
 

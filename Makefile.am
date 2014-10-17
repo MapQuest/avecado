@@ -57,7 +57,8 @@ lib_LTLIBRARIES = libavecado.la
 include_HEADERS = include/avecado.hpp
 
 libavecado_la_SOURCES = \
-	src/avecado.cpp \
+	src/make_vector_tile.cpp \
+	src/render_vector_tile.cpp \
 	src/backend.cpp \
 	src/tile.cpp \
 	src/post_processor.cpp \
