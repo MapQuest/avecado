@@ -48,6 +48,7 @@ test/make_vector_tile
 test/generalizer
 test/adminizer
 test/multi_verification
+test/render_vector_tile
 test/*.log
 test/*.trs
 
