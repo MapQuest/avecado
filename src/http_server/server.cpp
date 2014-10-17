@@ -23,12 +23,16 @@ namespace {
 // function to set up the mapnik::Map object on the thread
 // immediately after it has been created.
 void setup_thread(std::string map_xml,
+                  std::string port,
                   boost::thread_specific_ptr<mapnik::Map> &ptr,
                   boost::asio::io_service *service) {
   std::cout << "Loading mapnik map..." << std::endl;
   ptr.reset(new mapnik::Map);
   mapnik::load_map(*ptr, map_xml);
   std::cout << "Mapnik map loaded." << std::endl;
+  std::cout << "Server starting on port " << port
+            << ". Tiles should be available on URLs like "
+            << "http://localhost:" << port << "/0/0/0.pbf" << std::endl;
   service->run();
 }
 }
@@ -42,6 +46,7 @@ server::server(const std::string& address, const server_options &options)
     acceptor_(io_service_),
     new_connection_(),
     map_xml_(options.map_file),
+    port_(options.port),
     thread_specific_ptr_(),
     request_handler_(thread_specific_ptr_, options)
 {
@@ -57,7 +62,7 @@ server::server(const std::string& address, const server_options &options)
 
   // Open the acceptor with the option to reuse the address (i.e. SO_REUSEADDR).
   boost::asio::ip::tcp::resolver resolver(io_service_);
-  boost::asio::ip::tcp::resolver::query query(address, options.port);
+  boost::asio::ip::tcp::resolver::query query(address, port_);
   boost::asio::ip::tcp::endpoint endpoint = *resolver.resolve(query);
   acceptor_.open(endpoint.protocol());
   acceptor_.set_option(boost::asio::ip::tcp::acceptor::reuse_address(true));
@@ -82,13 +87,14 @@ void server::run(bool include_current_thread)
             boost::bind(
                 &setup_thread,
                 map_xml_,
+                port_,
                 boost::ref(thread_specific_ptr_),
                 &io_service_)));
     threads_.push_back(thread);
   }
 
   if (include_current_thread) {
-    setup_thread(map_xml_, thread_specific_ptr_, &io_service_);
+    setup_thread(map_xml_, port_, thread_specific_ptr_, &io_service_);
   }
 }
 
