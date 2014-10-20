@@ -18,6 +18,9 @@ namespace avecado {
 
 namespace {
 
+/* render the layers in order, taking the data from each from the vector tile
+ * rather than the datasource which was loaded as part of the "map" object.
+ */
 void process_layers(std::vector<mapnik::layer> const &layers,
                     mapnik::vector::tile const &tile,
                     mapnik::request &request,
@@ -33,6 +36,9 @@ void process_layers(std::vector<mapnik::layer> const &layers,
       for (auto const &layer_data : tile.layers()) {
 
         if (layer.name() == layer_data.name()) {
+          // we don't want to modify the layer, and it's const anyway, so
+          // we take a copy. thankfully, mapnik::layer is pretty lightweight
+          // and this is a relatively cheap operation.
           mapnik::layer layer_copy(layer);
 
           layer_copy.set_datasource(
@@ -64,6 +70,8 @@ bool render_vector_tile(mapnik::image_32 &image,
 
   typedef mapnik::agg_renderer<mapnik::image_32> renderer_type;
 
+  // TODO: find out what these are supposed to be, and where we're supposed to get
+  // them from.
   mapnik::attributes variables;
 
   mapnik::vector::tile const &tile = avecado_tile.mapnik_tile();
@@ -78,6 +86,9 @@ bool render_vector_tile(mapnik::image_32 &image,
 
   renderer_type renderer(map, request, variables, image, scale_factor);
 
+  // rather than using the usual mapnik rendering loop, we have our own so that we
+  // can replace the datasource with one based on the vector tile.
+  // TODO: can we avoid this with an up-front replacement of the datasources?
   renderer.start_map_processing(map);
   process_layers(map.layers(), tile, request, z, x, y, projection,
                  scale_denom, variables, renderer);
