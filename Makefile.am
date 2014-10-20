@@ -111,7 +111,8 @@ check_PROGRAMS = \
 	test/generalizer \
 	test/adminizer \
 	test/multi_verification \
-	test/render_vector_tile
+	test/render_vector_tile \
+	test/overzoom
 
 liblogging_la_SOURCES = \
 	logging/logger.cpp \
@@ -129,6 +130,8 @@ test_multi_verification_SOURCES = test/multi_verification.cpp test/common.cpp
 test_multi_verification_LDADD = libavecado.la liblogging.la @BOOST_LDFLAGS@ @BOOST_ASIO_LIB@ @BOOST_THREAD_LIB@ @PTHREAD_LIBS@
 test_render_vector_tile_SOURCES = test/render_vector_tile.cpp test/common.cpp
 test_render_vector_tile_LDADD = libavecado.la liblogging.la @BOOST_LDFLAGS@ @BOOST_ASIO_LIB@ @BOOST_THREAD_LIB@ @PTHREAD_LIBS@
+test_overzoom_SOURCES = test/overzoom.cpp test/common.cpp
+test_overzoom_LDADD = libavecado.la liblogging.la @BOOST_LDFLAGS@ @BOOST_ASIO_LIB@ @BOOST_THREAD_LIB@ @PTHREAD_LIBS@
 
 TESTS = $(check_PROGRAMS)
 TEST_EXTENSIONS = .sh

@@ -24,7 +24,10 @@ fetch_response overzoom::operator()(int z, int x, int y) {
 
   // if the tile isn't available, we try again, at the mask
   // zoom level (as long as it's zoomed 'out').
-  if (bool(m_mask_zoom) && resp.is_right() && (resp.right().status == 404)) {
+  if (bool(m_mask_zoom) &&
+      (z > *m_mask_zoom) &&
+      resp.is_right() &&
+      (resp.right().status == 404)) {
     x >>= (z - *m_mask_zoom);
     y >>= (z - *m_mask_zoom);
     z = *m_mask_zoom;

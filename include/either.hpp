@@ -24,7 +24,7 @@ struct either {
    inline either<L, R> &operator=(const either<L, R> &other) { m_impl = other.m_impl; return *this; }
    inline either<L, R> &operator=(either<L, R> &&other) { m_impl = std::move(other.m_impl); return *this; }
 
-   inline bool is_left() const { return boost::get<L>(&m_impl) == nullptr; }
+   inline bool is_left() const { const L *ptr = boost::get<L>(&m_impl); return ptr != nullptr; }
    inline bool is_right() const { return !is_left(); }
 
    inline const L &left() const { return *boost::get<L>(&m_impl); }

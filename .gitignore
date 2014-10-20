@@ -49,6 +49,7 @@ test/generalizer
 test/adminizer
 test/multi_verification
 test/render_vector_tile
+test/overzoom
 test/*.log
 test/*.trs
 
