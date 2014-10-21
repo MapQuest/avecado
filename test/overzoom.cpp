@@ -8,9 +8,10 @@
 namespace {
 
 struct test_fetcher : public avecado::fetcher {
-  int m_min_zoom, m_max_zoom, m_status;
+  int m_min_zoom, m_max_zoom;
+  avecado::fetch_status m_status;
 
-  test_fetcher(int min_zoom, int max_zoom, int status) : m_min_zoom(min_zoom), m_max_zoom(max_zoom), m_status(status) {}
+  test_fetcher(int min_zoom, int max_zoom, avecado::fetch_status status) : m_min_zoom(min_zoom), m_max_zoom(max_zoom), m_status(status) {}
   virtual ~test_fetcher() {}
 
   avecado::fetch_response operator()(int z, int, int) {
@@ -27,7 +28,7 @@ struct test_fetcher : public avecado::fetcher {
 };
 
 void test_fetch_missing() {
-  std::unique_ptr<avecado::fetcher> f(new test_fetcher(11, 16, 404));
+  std::unique_ptr<avecado::fetcher> f(new test_fetcher(11, 16, avecado::fetch_status::not_found));
   avecado::fetch::overzoom o(std::move(f), 18, 12);
 
   // zoom 19 > max, so will be treated as zoom 18
@@ -50,7 +51,7 @@ void test_fetch_missing() {
 // error. this should turn off the overzooming behaviour and
 // just return the error.
 void test_fetch_error() {
-  std::unique_ptr<avecado::fetcher> f(new test_fetcher(11, 16, 500));
+  std::unique_ptr<avecado::fetcher> f(new test_fetcher(11, 16, avecado::fetch_status::server_error));
   avecado::fetch::overzoom o(std::move(f), 18, 12);
 
   // zooms > 16 will all be errors - no matter whether they can be
@@ -70,7 +71,7 @@ void test_fetch_error() {
 }
 
 void test_fetch_no_mask() {
-  std::unique_ptr<avecado::fetcher> f(new test_fetcher(11, 16, 404));
+  std::unique_ptr<avecado::fetcher> f(new test_fetcher(11, 16, avecado::fetch_status::not_found));
   avecado::fetch::overzoom o(std::move(f), 18, boost::none);
 
   test::assert_equal<bool>(o(19, 0, 0).is_left(), false, "z19");
@@ -81,7 +82,7 @@ void test_fetch_no_mask() {
 }
 
 void test_fetch_no_mask2() {
-  std::unique_ptr<avecado::fetcher> f(new test_fetcher(11, 18, 404));
+  std::unique_ptr<avecado::fetcher> f(new test_fetcher(11, 18, avecado::fetch_status::not_found));
   avecado::fetch::overzoom o(std::move(f), 18, boost::none);
 
   test::assert_equal<bool>(o(19, 0, 0).is_left(), true, "z19");

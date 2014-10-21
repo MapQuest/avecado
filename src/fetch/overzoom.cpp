@@ -27,7 +27,7 @@ fetch_response overzoom::operator()(int z, int x, int y) {
   if (bool(m_mask_zoom) &&
       (z > *m_mask_zoom) &&
       resp.is_right() &&
-      (resp.right().status == 404)) {
+      (resp.right().status == fetch_status::not_found)) {
     x >>= (z - *m_mask_zoom);
     y >>= (z - *m_mask_zoom);
     z = *m_mask_zoom;
