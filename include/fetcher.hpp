@@ -23,6 +23,9 @@ enum class fetch_status : std::uint16_t {
   /* an unspecified and unexpected kind of error occurred. it may, or
    * may not, be temporary. */
   server_error = 500,
+  /* something along the way didn't implement something that was
+   * required to complete the request. */
+  not_implemented = 501,
 };
 
 /* Describes the error encountered while fetching a tile.
