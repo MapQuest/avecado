@@ -48,6 +48,9 @@ public:
   /// Stop the server's io_service loop.
   void stop();
 
+  /// Return what port the server is accepting connections on.
+  std::string port() const;
+
 private:
   /// Initiate an asynchronous accept operation.
   void start_accept();

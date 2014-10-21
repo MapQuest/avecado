@@ -52,7 +52,7 @@ src/vector_tile.pb.cc: include/vector_tile.pb.h
 include/vector_tile.pb.h: mapnik-vector-tile/proto/vector_tile.proto
 	@PROTOC_BIN@ -Imapnik-vector-tile/proto --cpp_out=src $< && mv src/vector_tile.pb.h include/
 
-lib_LTLIBRARIES = libavecado.la
+lib_LTLIBRARIES = libavecado.la libavecado_server.la
 
 include_HEADERS = include/avecado.hpp
 
@@ -67,12 +67,24 @@ libavecado_la_SOURCES = \
 	src/post_process/labelizer.cpp \
 	src/post_process/unionizer.cpp \
 	src/fetcher.cpp \
-	src/fetch/overzoom.cpp
+	src/fetch/overzoom.cpp \
+	src/fetch/http.cpp
 
 nodist_libavecado_la_SOURCES = \
 	src/vector_tile.pb.cc
 
 libavecado_la_LIBADD = @MAPNIK_LIBS@ @PROTOC_LIBS@ @BOOST_PROGRAM_OPTIONS_LIB@
+
+libavecado_server_la_SOURCES = \
+	src/http_server/connection.cpp \
+	src/http_server/mime_types.cpp \
+	src/http_server/parse_path.cpp \
+	src/http_server/reply.cpp \
+	src/http_server/request_handler.cpp \
+	src/http_server/request_parser.cpp \
+	src/http_server/server.cpp
+
+libavecado_server_la_LIBADD = @BOOST_LDFLAGS@ @BOOST_ASIO_LIB@ @BOOST_THREAD_LIB@ @PTHREAD_LIBS@
 
 bin_PROGRAMS = avecado avecado_server
 
@@ -83,20 +95,13 @@ avecado_LDADD = \
 	libavecado.la
 
 avecado_server_SOURCES = \
-	src/avecado_server.cpp \
-	src/http_server/connection.cpp \
-	src/http_server/mime_types.cpp \
-	src/http_server/parse_path.cpp \
-	src/http_server/reply.cpp \
-	src/http_server/request_handler.cpp \
-	src/http_server/request_parser.cpp \
-	src/http_server/server.cpp
+	src/avecado_server.cpp
 
 avecado_server_CXXFLAGS = @PTHREAD_CFLAGS@
 
 avecado_server_LDADD = \
 	libavecado.la \
-	@BOOST_LDFLAGS@ @BOOST_ASIO_LIB@ @BOOST_THREAD_LIB@ @PTHREAD_LIBS@
+	libavecado_server.la
 
 if HAVE_BOOST_PYTHON
 pyexec_LTLIBRARIES = avecado.la
