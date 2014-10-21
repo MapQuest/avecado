@@ -37,7 +37,7 @@ namespace post_process {
  */
 class unionizer : public izer {
 public:
-  unionizer(const union_heuristic heuristic, const tag_strategy strategy,
+  unionizer(const union_heuristic heuristic, const tag_strategy strategy, const boost::optional<string>& keep_ids_tag,
     const unordered_set<string> match_tags, const unordered_set<string> preserve_direction_tags);
   virtual ~unionizer() {}
 
@@ -47,13 +47,15 @@ private:
 
   const union_heuristic m_heuristic;
   const tag_strategy m_strategy;
+  const boost::optional<string> m_keep_ids_tag;
   const unordered_set<string> m_match_tags;
   const unordered_set<string> m_preserve_direction_tags;
 };
 
-unionizer::unionizer(const union_heuristic heuristic, const tag_strategy strategy,
+unionizer::unionizer(const union_heuristic heuristic, const tag_strategy strategy, const boost::optional<string>& keep_ids_tag,
   const unordered_set<string> match_tags, const unordered_set<string> preserve_direction_tags):
-  m_heuristic(heuristic), m_strategy(strategy), m_match_tags(match_tags), m_preserve_direction_tags(preserve_direction_tags) {
+  m_heuristic(heuristic), m_strategy(strategy), m_keep_ids_tag(keep_ids_tag),
+  m_match_tags(match_tags), m_preserve_direction_tags(preserve_direction_tags) {
 }
 
 void unionizer::process(std::vector<mapnik::feature_ptr> &layer) const {
@@ -82,6 +84,9 @@ izer_ptr create_unionizer(pt::ptree const& config) {
   //else
   //  LOG::WARNING(requested_strategy + " is not supported, falling back to `drop'")
 
+  //figure out if they want to keep the original ids or not
+  boost::optional<string> keep_ids_tag = config.get_optional<string>("keep_ids_tag");
+
   //some tags that must match before unioning
   boost::optional<const pt::ptree&> match_tags = config.get_child_optional("match_tags");
   unordered_set<string> match;
@@ -102,7 +107,7 @@ izer_ptr create_unionizer(pt::ptree const& config) {
     }
   }
 
-  return std::make_shared<unionizer>(heuristic, strategy, match, direction);
+  return std::make_shared<unionizer>(heuristic, strategy, keep_ids_tag, match, direction);
 }
 
 } // namespace post_process
