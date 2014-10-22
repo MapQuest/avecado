@@ -1,6 +1,10 @@
 #include "fetch/http.hpp"
 #include "vector_tile.pb.h"
+
 #include <boost/format.hpp>
+#include <boost/algorithm/string/find_format.hpp>
+#include <boost/xpressive/xpressive.hpp>
+
 #include <sstream>
 #include <google/protobuf/io/zero_copy_stream.h>
 #include <google/protobuf/io/zero_copy_stream_impl.h>
@@ -18,23 +22,52 @@ size_t write_callback(char *ptr, size_t size, size_t nmemb, void *userdata) {
   return stream->good() ? total_bytes : 0;
 }
 
+std::vector<std::string> singleton(const std::string &base_url, const std::string &ext) {
+  std::vector<std::string> vec;
+  vec.push_back((boost::format("%1%/{z}/{x}/{y}.%2%") % base_url % ext).str());
+  return vec;
 }
 
+struct formatter {
+  int z, x, y;
+
+  formatter(int z_, int x_, int y_) : z(z_), x(x_), y(y_) {}
+
+  template<typename Out>
+  Out operator()(boost::xpressive::smatch const &what, Out out) const {
+    int val = 0;
+
+    char c = what[1].str()[0];
+    if      (c == 'z') { val = z; }
+    else if (c == 'x') { val = x; }
+    else if (c == 'y') { val = y; }
+    else { throw std::runtime_error("match failed"); }
+
+    std::string sub = (boost::format("%1%") % val).str();
+    out = std::copy(sub.begin(), sub.end(), out);
+
+    return out;
+  }
+};
+
+} // anonymous namespace
+
 struct http::impl {
-  impl(const std::string &base_url, const std::string &ext);
+  impl(std::vector<std::string> &&patterns);
 
   fetch_response fetch(int z, int x, int y);
 
-  std::string m_base_url, m_ext;
+  std::string url_for(int z, int x, int y) const;
+
+  std::vector<std::string> m_url_patterns;
 };
 
-http::impl::impl(const std::string &base_url, const std::string &ext)
-  : m_base_url(base_url), m_ext(ext) {
+http::impl::impl(std::vector<std::string> &&patterns)
+  : m_url_patterns(patterns) {
 }
 
 fetch_response http::impl::fetch(int z, int x, int y) {
-  std::string url = (boost::format("%1%/%2%/%3%/%4%.%5%")
-                     % m_base_url % z % x % y % m_ext).str();
+  std::string url = url_for(z, x, y);
 
   fetch_error err;
   err.status = fetch_status::server_error;
@@ -90,8 +123,23 @@ fetch_response http::impl::fetch(int z, int x, int y) {
   return response;
 }
 
+std::string http::impl::url_for(int z, int x, int y) const {
+  using namespace boost::xpressive;
+
+  if (m_url_patterns.empty()) {
+    throw std::runtime_error("no URL patterns in fetcher");
+  }
+
+  sregex var = "{" >> (s1 = range('x','z')) >> "}";
+  return regex_replace(m_url_patterns[0], var, formatter(z, x, y));
+}
+
 http::http(const std::string &base_url, const std::string &ext)
-  : m_impl(new impl(base_url, ext)) {
+  : m_impl(new impl(singleton(base_url, ext))) {
+}
+
+http::http(std::vector<std::string> &&patterns)
+  : m_impl(new impl(std::move(patterns))) {
 }
 
 http::~http() {

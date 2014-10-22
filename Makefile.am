@@ -69,7 +69,8 @@ libavecado_la_SOURCES = \
 	src/fetcher.cpp \
 	src/fetcher_io.cpp \
 	src/fetch/overzoom.cpp \
-	src/fetch/http.cpp
+	src/fetch/http.cpp \
+	src/tilejson.cpp
 
 nodist_libavecado_la_SOURCES = \
 	src/vector_tile.pb.cc

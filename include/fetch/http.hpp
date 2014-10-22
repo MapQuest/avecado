@@ -8,11 +8,14 @@
 
 namespace avecado { namespace fetch {
 
-/* Fetcher which fetches tiles from URLs of the form:
- *   ${base_url}/${z}/${x}/${y}.${ext}
+/* Fetcher which fetches tiles from URLs.
  */
 struct http : public fetcher {
+  // patterns of the form ${base_url}/${z}/${x}/${y}.${ext}
   http(const std::string &base_url, const std::string &ext);
+  // patterns of a more general form
+  explicit http(std::vector<std::string> &&patterns);
+
   virtual ~http();
 
   fetch_response operator()(int z, int x, int y);
