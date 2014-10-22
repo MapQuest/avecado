@@ -85,7 +85,12 @@ void test_fetch_errors() {
 
   avecado::fetch::http fetch(guard.base_url(), "pbf");
 
+  assert_is_error(fetch, -1, 0, 0, fetch_status::bad_request);
+  assert_is_error(fetch, 31, 0, 0, fetch_status::bad_request);
   assert_is_error(fetch, 0, 0, 1, fetch_status::bad_request);
+  assert_is_error(fetch, 0, 1, 0, fetch_status::bad_request);
+  assert_is_error(fetch, 0, 0, -1, fetch_status::bad_request);
+  assert_is_error(fetch, 0, -1, 0, fetch_status::bad_request);
 }
 
 } // anonymous namespace
