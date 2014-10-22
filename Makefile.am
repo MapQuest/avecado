@@ -67,6 +67,7 @@ libavecado_la_SOURCES = \
 	src/post_process/labelizer.cpp \
 	src/post_process/unionizer.cpp \
 	src/fetcher.cpp \
+	src/fetcher_io.cpp \
 	src/fetch/overzoom.cpp \
 	src/fetch/http.cpp
 
