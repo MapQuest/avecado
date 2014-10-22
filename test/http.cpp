@@ -1,5 +1,6 @@
 #include "config.h"
 #include "common.hpp"
+#include "fetcher_io.hpp"
 #include "fetch/http.hpp"
 #include "logging/logger.hpp"
 #include "http_server/server.hpp"
@@ -28,36 +29,63 @@ server_options default_options(const std::string &map_file) {
   return options;
 }
 
+struct server_guard {
+  server_options options;
+  http::server3::server server;
+  std::string port;
+
+  server_guard(const std::string &map_xml)
+    : options(default_options(map_xml))
+    , server("localhost", options)
+    , port(server.port()) {
+
+    server.run(false);
+  }
+
+  ~server_guard() {
+    server.stop();
+  }
+
+  std::string base_url() {
+    return (boost::format("http://localhost:%1%") % port).str();
+  }
+};
+
 void test_fetch_empty() {
-  server_options options = default_options("test/empty_map_file.xml");
-  http::server3::server server("localhost", options);
-  std::string port = server.port();
+  server_guard guard("test/empty_map_file.xml");
 
-  server.run(false);
-
-  avecado::fetch::http fetch((boost::format("http://localhost:%1%") % port).str(), "pbf");
+  avecado::fetch::http fetch(guard.base_url(), "pbf");
   avecado::fetch_response response(fetch(0, 0, 0));
-
-  server.stop();
 
   test::assert_equal<bool>(response.is_left(), true, "should fetch tile OK");
   test::assert_equal<int>(response.left()->mapnik_tile().layers_size(), 0, "should have no layers");
 }
 
 void test_fetch_single_line() {
-  server_options options = default_options("test/single_line.xml");
-  http::server3::server server("localhost", options);
-  std::string port = server.port();
+  server_guard guard("test/single_line.xml");
 
-  server.run(false);
-
-  avecado::fetch::http fetch((boost::format("http://localhost:%1%") % port).str(), "pbf");
+  avecado::fetch::http fetch(guard.base_url(), "pbf");
   avecado::fetch_response response(fetch(0, 0, 0));
-
-  server.stop();
 
   test::assert_equal<bool>(response.is_left(), true, "should fetch tile OK");
   test::assert_equal<int>(response.left()->mapnik_tile().layers_size(), 1, "should have one layer");
+}
+
+void assert_is_error(avecado::fetch::http &fetch, int z, int x, int y, avecado::fetch_status status) {
+  avecado::fetch_response response(fetch(z, x, y));
+  test::assert_equal<bool>(response.is_right(), true, (boost::format("(%1%, %2%, %3%): response should be failure") % z % x % y).str());
+  test::assert_equal<avecado::fetch_status>(response.right().status, status,
+                                            (boost::format("(%1%, %2%, %3%): response status is not what was expected") % z % x % y).str());
+}
+
+void test_fetch_errors() {
+  using avecado::fetch_status;
+
+  server_guard guard("test/empty_map_file.xml");
+
+  avecado::fetch::http fetch(guard.base_url(), "pbf");
+
+  assert_is_error(fetch, 0, 0, 1, fetch_status::bad_request);
 }
 
 } // anonymous namespace
@@ -74,6 +102,7 @@ int main() {
 #define RUN_TEST(x) { tests_failed += test::run(#x, &(x)); }
   RUN_TEST(test_fetch_empty);
   RUN_TEST(test_fetch_single_line);
+  RUN_TEST(test_fetch_errors);
   
   std::cout << " >> Tests failed: " << tests_failed << std::endl << std::endl;
 
