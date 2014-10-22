@@ -1,8 +1,24 @@
 #include "fetch/http.hpp"
+#include "vector_tile.pb.h"
 #include <boost/format.hpp>
+#include <sstream>
+#include <google/protobuf/io/zero_copy_stream.h>
+#include <google/protobuf/io/zero_copy_stream_impl.h>
+
 #include <curl/curl.h>
 
 namespace avecado { namespace fetch {
+
+namespace {
+
+size_t write_callback(char *ptr, size_t size, size_t nmemb, void *userdata) {
+  std::stringstream *stream = static_cast<std::stringstream*>(userdata);
+  size_t total_bytes = size * nmemb;
+  stream->write(ptr, total_bytes);
+  return stream->good() ? total_bytes : 0;
+}
+
+}
 
 struct http::impl {
   impl(const std::string &base_url, const std::string &ext);
@@ -26,10 +42,18 @@ fetch_response http::impl::fetch(int z, int x, int y) {
 
   CURL *curl = curl_easy_init();
   if (curl != nullptr) {
-    curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
- 
-    CURLcode res = curl_easy_perform(curl);
+    std::stringstream stream;
 
+    CURLcode res = curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
+    if (res != CURLE_OK) { return response; }
+ 
+    res = curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_callback);
+    if (res != CURLE_OK) { return response; }
+
+    res = curl_easy_setopt(curl, CURLOPT_WRITEDATA, &stream);
+    if (res != CURLE_OK) { return response; }
+
+    res = curl_easy_perform(curl);
     if (res != CURLE_OK) {
       if (res == CURLE_REMOTE_FILE_NOT_FOUND) {
         err.status = fetch_status::not_found;
@@ -38,6 +62,10 @@ fetch_response http::impl::fetch(int z, int x, int y) {
 
     } else {
       std::unique_ptr<tile> ptr(new tile);
+      google::protobuf::io::IstreamInputStream gstream(&stream);
+      if (!ptr->mapnik_tile().ParseFromZeroCopyStream(&gstream)) {
+        return response;
+      }
       response = fetch_response(std::move(ptr));
     }
  
