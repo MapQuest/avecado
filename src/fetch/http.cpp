@@ -61,12 +61,27 @@ fetch_response http::impl::fetch(int z, int x, int y) {
       response = fetch_response(err);
 
     } else {
-      std::unique_ptr<tile> ptr(new tile);
-      google::protobuf::io::IstreamInputStream gstream(&stream);
-      if (!ptr->mapnik_tile().ParseFromZeroCopyStream(&gstream)) {
-        return response;
+      long status_code = 0;
+      curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &status_code);
+      
+      if (status_code == 200) {
+        std::unique_ptr<tile> ptr(new tile);
+        google::protobuf::io::IstreamInputStream gstream(&stream);
+        if (!ptr->mapnik_tile().ParseFromZeroCopyStream(&gstream)) {
+          return response;
+        }
+        response = fetch_response(std::move(ptr));
+
+      } else {
+        switch (status_code) {
+        case 400: err.status = fetch_status::bad_request; break;
+        case 404: err.status = fetch_status::not_found; break;
+        case 501: err.status = fetch_status::not_implemented; break;
+        default:
+          err.status = fetch_status::server_error;
+        }
+        response = fetch_response(err);
       }
-      response = fetch_response(std::move(ptr));
     }
  
     curl_easy_cleanup(curl);
