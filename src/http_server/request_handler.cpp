@@ -94,20 +94,16 @@ void request_handler::handle_request(const request& req, reply& rep)
     avecado::tile tile;
 
     // actually making the vector tile
-    bool ok = avecado::make_vector_tile(
+    bool painted = avecado::make_vector_tile(
       tile, options_.path_multiplier, *map_ptr_, options_.buffer_size,
       options_.scale_factor, options_.offset_x, options_.offset_y,
       options_.tolerance, options_.image_format, options_.scaling_method,
       options_.scale_denominator, pp);
 
-    if (!ok) {
-      throw std::runtime_error("Unable to make vector tile.");
-    }
-
     // Fill out the reply to be sent to the client.
     rep.status = reply::ok;
     rep.is_hard_error = false;
-    rep.content = tile.get_data();
+    rep.content = painted ? tile.get_data() : "";
     rep.headers.resize(2);
     rep.headers[0].name = "Content-Length";
     rep.headers[0].value = boost::lexical_cast<std::string>(rep.content.size());
