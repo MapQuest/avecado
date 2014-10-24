@@ -55,7 +55,7 @@ struct formatter {
 struct http::impl {
   impl(std::vector<std::string> &&patterns);
 
-  fetch_response fetch(int z, int x, int y);
+  fetch_response fetch(int z, int x, int y) const;
 
   std::string url_for(int z, int x, int y) const;
 
@@ -66,7 +66,7 @@ http::impl::impl(std::vector<std::string> &&patterns)
   : m_url_patterns(patterns) {
 }
 
-fetch_response http::impl::fetch(int z, int x, int y) {
+fetch_response http::impl::fetch(int z, int x, int y) const {
   std::string url = url_for(z, x, y);
 
   fetch_error err;
