@@ -6,6 +6,7 @@
 
 #include <stdexcept>
 #include <memory>
+#include <future>
 #include <boost/optional.hpp>
 
 namespace avecado {
@@ -43,7 +44,7 @@ struct fetcher {
 
    // fetches a tile from the source, returning either a
    // tile which contains the (z, x, y) tile or an error.
-   virtual fetch_response operator()(int z, int x, int y) = 0;
+  virtual std::future<fetch_response> operator()(int z, int x, int y) = 0;
 };
 
 } // namespace avecado

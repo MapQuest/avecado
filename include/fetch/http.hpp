@@ -18,7 +18,7 @@ struct http : public fetcher {
 
   virtual ~http();
 
-  fetch_response operator()(int z, int x, int y);
+  std::future<fetch_response> operator()(int z, int x, int y);
 
 private:
   struct impl;

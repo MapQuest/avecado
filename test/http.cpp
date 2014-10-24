@@ -55,7 +55,7 @@ void test_fetch_empty() {
   server_guard guard("test/empty_map_file.xml");
 
   avecado::fetch::http fetch(guard.base_url(), "pbf");
-  avecado::fetch_response response(fetch(0, 0, 0));
+  avecado::fetch_response response(fetch(0, 0, 0).get());
 
   test::assert_equal<bool>(response.is_left(), true, "should fetch tile OK");
   test::assert_equal<int>(response.left()->mapnik_tile().layers_size(), 0, "should have no layers");
@@ -65,14 +65,14 @@ void test_fetch_single_line() {
   server_guard guard("test/single_line.xml");
 
   avecado::fetch::http fetch(guard.base_url(), "pbf");
-  avecado::fetch_response response(fetch(0, 0, 0));
+  avecado::fetch_response response(fetch(0, 0, 0).get());
 
   test::assert_equal<bool>(response.is_left(), true, "should fetch tile OK");
   test::assert_equal<int>(response.left()->mapnik_tile().layers_size(), 1, "should have one layer");
 }
 
 void assert_is_error(avecado::fetch::http &fetch, int z, int x, int y, avecado::fetch_status status) {
-  avecado::fetch_response response(fetch(z, x, y));
+  avecado::fetch_response response(fetch(z, x, y).get());
   test::assert_equal<bool>(response.is_right(), true, (boost::format("(%1%, %2%, %3%): response should be failure") % z % x % y).str());
   test::assert_equal<avecado::fetch_status>(response.right().status, status,
                                             (boost::format("(%1%, %2%, %3%): response status is not what was expected") % z % x % y).str());

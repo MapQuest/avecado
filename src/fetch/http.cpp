@@ -145,8 +145,8 @@ http::http(std::vector<std::string> &&patterns)
 http::~http() {
 }
 
-fetch_response http::operator()(int z, int x, int y) {
-  return m_impl->fetch(z, x, y);
+std::future<fetch_response> http::operator()(int z, int x, int y) {
+  return std::async([this, z, x, y]() -> fetch_response { return m_impl->fetch(z, x, y); });
 }
 
 } } // namespace avecado::fetch
