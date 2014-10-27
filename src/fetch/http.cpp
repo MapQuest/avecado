@@ -57,7 +57,7 @@ struct formatter {
 };
 
 struct request {
-  request(std::promise<fetch_response> &&p_, int z_, int x_, int y_) 
+  request(std::promise<fetch_response> &&p_, int z_, int x_, int y_)
     : promise(std::move(p_)), z(z_), x(x_), y(y_), stream(new std::stringstream) {}
 
   request(request &&r)
@@ -65,7 +65,7 @@ struct request {
     , z(r.z), x(r.x), y(r.y)
     , stream(std::move(r.stream)) {
   }
-    
+
   std::promise<fetch_response> promise;
   int z, x, y;
   std::unique_ptr<std::stringstream> stream;
@@ -244,7 +244,7 @@ void http::impl::handle_response(CURLcode res, CURL *curl) {
   } else {
     long status_code = 0;
     curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &status_code);
-      
+
     if (status_code == 200) {
       std::unique_ptr<tile> ptr(new tile);
 
@@ -300,7 +300,7 @@ boost::optional<fetch_error> http::impl::new_request(CURL *curl, request *r) {
 
   CURLcode res = curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
   if (res != CURLE_OK) { return err; }
- 
+
   res = curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_callback);
   if (res != CURLE_OK) { return err; }
 
