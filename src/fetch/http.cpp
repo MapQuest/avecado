@@ -167,7 +167,7 @@ void http::impl::run_curl_multi(CURLM *curl_multi, int *running_handles) {
   curl_multi_timeout(curl_multi, &timeout_ms);
   if (timeout_ms < 0) {
     // no curl timeout, so set a default
-    timeout.tv_sec = 0;
+    timeout.tv_sec = 0L;
     timeout.tv_usec = 100000L;
 
   } else {
@@ -177,21 +177,26 @@ void http::impl::run_curl_multi(CURLM *curl_multi, int *running_handles) {
 
   int bits_set = 0;
   if (timeout_ms != 0) {
-    int max_fd = -1;
+    int max_fd = 0;
     fd_set read_fd_set, write_fd_set, exc_fd_set;
 
     FD_ZERO(&read_fd_set);
     FD_ZERO(&write_fd_set);
     FD_ZERO(&exc_fd_set);
 
-    curl_multi_fdset(curl_multi, &read_fd_set, &write_fd_set, &exc_fd_set, &max_fd);
+    CURLMcode res = curl_multi_fdset(curl_multi, &read_fd_set, &write_fd_set, &exc_fd_set, &max_fd);
+    if (res != CURLM_OK) {
+      // TODO: better error handling & reporting
+      std::cerr << "Error in curl_multi_fdset.\n" << std::flush;
 
-    if (max_fd > 0) {
-      bits_set = select(max_fd, &read_fd_set, &write_fd_set, &exc_fd_set, &timeout);
+    } else {
+      if (max_fd > 0) {
+        bits_set = select(max_fd + 1, &read_fd_set, &write_fd_set, &exc_fd_set, &timeout);
 
-      // TODO: handle this error better...
-      if (bits_set < 0) {
-        std::cerr << "Error in select: " << strerror(errno) << "\n" << std::flush;
+        // TODO: handle this error better...
+        if (bits_set < 0) {
+          std::cerr << "Error in select: " << strerror(errno) << "\n" << std::flush;
+        }
       }
     }
   }
@@ -204,18 +209,22 @@ void http::impl::perform_multi(CURLM *curl_multi, int *running_handles) {
   CURLMcode res = CURLM_OK;
   bool any_done = false;
 
-  res = curl_multi_perform(curl_multi, running_handles);
+  do {
+    do {
+      res = curl_multi_perform(curl_multi, running_handles);
+    } while (res == CURLM_CALL_MULTI_PERFORM);
 
-  CURLMsg *msg = nullptr;
-  any_done = false;
-  while ((msg = curl_multi_info_read(curl_multi, &msgs_in_queue)) != nullptr) {
-    if (msg->msg == CURLMSG_DONE) {
-      handle_response(msg->data.result, msg->easy_handle);
-      curl_multi_remove_handle(curl_multi, msg->easy_handle);
-      free_handle(msg->easy_handle);
-      any_done = true;
+    CURLMsg *msg = nullptr;
+    any_done = false;
+    while ((msg = curl_multi_info_read(curl_multi, &msgs_in_queue)) != nullptr) {
+      if (msg->msg == CURLMSG_DONE) {
+        handle_response(msg->data.result, msg->easy_handle);
+        curl_multi_remove_handle(curl_multi, msg->easy_handle);
+        free_handle(msg->easy_handle);
+        any_done = true;
+      }
     }
-  }
+  } while (any_done);
 }
 
 void http::impl::handle_response(CURLcode res, CURL *curl) {
