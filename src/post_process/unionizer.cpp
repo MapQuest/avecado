@@ -6,19 +6,6 @@
 #include <unordered_set>
 #include <unordered_map>
 
-/*TODO:
- *  rewrite the way we did this. basically the original idea was that
- *  each end point would be a candidate for merging with another end point
- *  however it is pretty much impossible to actually sort them in such a way
- *  that all optimal pairs end up next to each other in the sorted list
- *  so the alternative is to instead generate all pairs (excepting the impossible ones
- *  of course) and score them based on the heuristics, and then sort the set of
- *  pairs based on the score..
- */
-
-
-
-
 using namespace std;
 
 namespace {
@@ -30,16 +17,16 @@ namespace {
   //result in the steepest (ACUTE) or shallowest (OBTUSE) angle after the union.
   //one could think of another heuristic measuring similarity of tagging between
   //two features but this is not implemented yet
-  enum union_heuristic { GREEDY, ACUTE, OBTUSE/*, TAG*/ };
-  const unordered_map<string, union_heuristic> string_to_heuristic = { {"greedy", GREEDY}, {"acute", ACUTE}, {"obtuse", OBTUSE}/*, {"tag", TAG}*/ };
+  enum union_heuristic { GREEDY, OBTUSE/*, ACUTE, LONGEST, SHORTEST, TAG*/ };
+  const unordered_map<string, union_heuristic> string_to_heuristic = { {"greedy", GREEDY}, {"obtuse", OBTUSE}, /*{"acute", ACUTE}, {"longest", LONGEST}, {"shortest", SHORTEST}, {"tag", TAG}*/ };
 
   //we allow the user to specify a strategy for what they want to do with the
   //remaining unreferenced (not in the match_tags or preserve_direction_tags) after
   //the unioning of two geometries. the most straightforward variant is to not
   //include them (DROP). we also support keeping all unreferenced tags that either
   //are equivalent in all features or only present in one of the features (PRESERVE).
-  enum tag_strategy { DROP, PRESERVE };
-  const unordered_map<string, tag_strategy> string_to_strategy = { {"drop", DROP}, {"preserve", PRESERVE} };
+  enum tag_strategy { DROP/*, PRESERVE*/ };
+  const unordered_map<string, tag_strategy> string_to_strategy = { {"drop", DROP}/*, {"preserve", PRESERVE}*/ };
 
   //returns true if the given feature has all of the tags
   bool unionable(const mapnik::feature_ptr& feature, const unordered_set<string>& tags) {
@@ -77,43 +64,11 @@ namespace {
     candidate(position position_, size_t index_, mapnik::feature_ptr feature_, bool directional, double x_, double y_):
       m_position(position_), m_index(index_), m_parent(feature_), m_directional(directional), m_x(x_), m_y(y_) {
     }
-
-    mapnik::feature_ptr do_union(const candidate& c) const {
-      return mapnik::feature_ptr();
-    }
-
-    //returns true if this candidate can be unioned with the provided candidate
-    mapnik::feature_ptr try_union(const candidate& c) const {
-      //just in case don't try to merge with oneself
-      //should we consider it possible for multies within the same feature though?
-      if(m_parent == m_parent)
-        return mapnik::feature_ptr();
-
-      //so this if block is a bit insane so instead of anding and oring it together
-      //we break it up into separate conditions so as to hopefully make it more readable
-
-      //end points have to match
-      if(m_x == c.m_x && m_y == c.m_y){
-        //if we must preserve the direction of the geometry
-        if(m_directional || c.m_directional){
-          //then it has to connect back to front or front to back
-          if(m_position == c.m_position)
-            return mapnik::feature_ptr();
-          //union them
-          return do_union(c);
-        }//we dont care about the direction of the geometry
-        else{
-          //union them
-          return do_union(c);
-        }
-      }
-      return mapnik::feature_ptr();
-    }
   };
 
-  class greedy_comparator {
+  class candidate_comparator {
   public:
-    explicit greedy_comparator(const unordered_set<string>& tags):m_tags(tags){}
+    explicit candidate_comparator(const unordered_set<string>& tags):m_tags(tags){}
     bool operator()(const candidate& a, const candidate& b) const {
       //check the endpoint
       if(a.m_x < b.m_x)
@@ -124,9 +79,6 @@ namespace {
         return true;
       if(a.m_y > b.m_y)
         return false;
-
-      //TODO: we haven't checked the direction or positions
-      //is there a way to do that for the sort here?
 
       //check the tags
       for(const auto& tag : m_tags) {
@@ -144,8 +96,7 @@ namespace {
     const unordered_set<string> m_tags;
   };
 
-  template <class comparator>
-  void add_candidates(mapnik::feature_ptr feature, set<candidate, comparator>& candidates,
+  void add_candidates(mapnik::feature_ptr feature, set<candidate, candidate_comparator>& candidates,
     const union_heuristic heuristic, const bool preserve_direction) {
     //grab some statistics about the geom so we can play match maker
     for (size_t i = 0; i < feature->num_geometries(); ++i) {
@@ -158,10 +109,8 @@ namespace {
         candidate back(candidate::BACK, i, feature, preserve_direction, NAN, NAN);
         //tweak the candidates according to the union heuristic
         switch(heuristic) {
-          case ACUTE:
-            //not yet implemented
           case OBTUSE:
-            //not yet implemented
+            //TODO: set the angles from either end
           case GREEDY:
             geometry.vertex(0, &front.m_x, &front.m_y);
             geometry.vertex(geometry.size(), &back.m_x, &back.m_y);
@@ -174,11 +123,10 @@ namespace {
     }
   }
 
-  template <class comparator>
-  set<candidate, comparator> get_candidates(std::vector<mapnik::feature_ptr> &layer,
+  set<candidate, candidate_comparator> get_candidates(std::vector<mapnik::feature_ptr> &layer,
     const unordered_set<string>& tags, const unordered_set<string>& directional_tags, const union_heuristic heuristic) {
 
-    set<candidate, comparator> candidates{comparator(tags)};
+    set<candidate, candidate_comparator> candidates{candidate_comparator(tags)};
 
     //for each feature set
     for (mapnik::feature_ptr feature : layer) {
@@ -194,43 +142,156 @@ namespace {
       }
 
       //create some union candidates out of the geom
-      add_candidates<comparator>(feature, candidates, heuristic, preserve_direction);
+      add_candidates(feature, candidates, heuristic, preserve_direction);
     }
 
     return candidates;
   }
 
-  template <class comparator>
-  size_t union_candidates(set<candidate, comparator>& candidates, const tag_strategy strategy, const boost::optional<string>& ids_tag){
+  typedef unsigned char score_t;
+  typedef pair<candidate, candidate> couple_t;
+
+  boost::optional<couple_t> make_couple(const candidate& a, const candidate& b) {
+    //if they are the same exact geometry (a ring) we dont want to try to connect it
+    //note that we allow the same feature to connect geometries within itself
+    if(a.m_index == b.m_index && a.m_parent == b.m_parent)
+      return boost::none;
+    //if they need to maintain direction but they don't
+    if((a.m_directional || b.m_directional) && (a.m_position == b.m_position))
+      return boost::none;
+    return boost::optional<couple_t>(make_pair(a,b));
+  }
+
+  score_t greedy_score(const couple_t& couple) {
+    //favor them by ease of union operation
+
+    //front to back is easiest
+    if(couple.first.m_position != couple.second.m_position)
+      return std::numeric_limits<score_t>::min();
+    //next easiest is back to back
+    if(couple.first.m_position == candidate::BACK)
+      return std::numeric_limits<score_t>::max() / 2;
+    //hardest is front to front
+    return std::numeric_limits<score_t>::max();
+  }
+
+  score_t obtuse_score(const couple_t& couple) {
+    //TODO:
+    return std::numeric_limits<score_t>::min();
+  }
+
+  map<score_t, couple_t> score_candidates(const set<candidate, candidate_comparator>& candidates, score_t (*scorer)(const couple_t&)){
+
+    //a place to hold all of the scored pairs
+    map<score_t, couple_t> pairs;
+
+    //check all consecutive candidate pairs, technically n^2 but practically never that
+    auto cmp = candidates.key_comp();
+    for(set<candidate, candidate_comparator>::const_iterator candidate = candidates.begin(); candidate != candidates.end(); ++candidate){
+      //for all the adjacent candidates (same point and tags)
+      //reuse the comparators less than, if one that came after this
+      //one isn't less than (meaning equal in this case)
+      //then we are done making pairs for the current candidate
+      auto next_candidate = next(candidate);
+      while(next_candidate != candidates.end() && cmp(*next_candidate, *candidate)){
+        //see if they are compatible
+        boost::optional<couple_t> couple = make_couple(*candidate, *next_candidate);
+        if(couple)
+          pairs.emplace(scorer(*couple), *couple);
+      }
+    }
+
+    //return all the possible unions
+    return pairs;
+  }
+
+  void do_union(couple_t& couple) {
+    //if we are unioning back to front
+    if(couple.first.m_position != couple.second.m_position) {
+      //make it so its always adding second to first
+      if(couple.second.m_position == candidate::BACK) {
+        swap(couple.first, couple.second);
+      }
+      //add the vertices
+      double x, y;
+      mapnik::geometry_type& dst = couple.first.m_parent->get_geometry(couple.first.m_index);
+      mapnik::geometry_type& src = couple.second.m_parent->get_geometry(couple.second.m_index);
+      for(size_t i = 0; i < src.size(); ++i) {
+        if(src.vertex(i, &x, &y) != mapnik::SEG_END)
+          dst.line_to(x, y);
+      }
+      //remove the src geom
+      mapnik::geometry_container::iterator unioned = couple.second.m_parent->paths().begin() + couple.second.m_index;
+      couple.second.m_parent->paths().erase(unioned);
+
+      //TODO: worry about dropping or unioning tags
+
+    }//we have to do front to front or back to back
+    else {
+      //in this case we can just append vertices in reverse order
+      if(couple.first.m_position == candidate::BACK) {
+        //add the vertices
+        double x, y;
+        mapnik::geometry_type& dst = couple.first.m_parent->get_geometry(couple.first.m_index);
+        mapnik::geometry_type& src = couple.second.m_parent->get_geometry(couple.second.m_index);
+        for(size_t i = 0; i < src.size(); ++i) {
+          if(src.vertex((src.size() - i) - 1, &x, &y) != mapnik::SEG_END)
+            dst.line_to(x, y);
+        }
+        //remove the src geom
+        mapnik::geometry_container::iterator unioned = couple.second.m_parent->paths().begin() + couple.second.m_index;
+        couple.second.m_parent->paths().erase(unioned);
+      }//in this case we have to make new geom because there is no front insertion available
+      else {
+        //add the vertices of the first segment in reverse
+        double x, y;
+        auto_ptr<mapnik::geometry_type> dst(new mapnik::geometry_type());
+        mapnik::geometry_type& src1 = couple.first.m_parent->get_geometry(couple.first.m_index);
+        for(size_t i = 0; i < src1.size(); ++i) {
+          if(src1.vertex((src1.size() - i) - 1, &x, &y) != mapnik::SEG_END)
+            dst->line_to(x, y);
+        }
+        //add the vertices of the second segment in normal order
+        mapnik::geometry_type& src2 = couple.second.m_parent->get_geometry(couple.second.m_index);
+        for(size_t i = 0; i < src2.size(); ++i) {
+          if(src2.vertex(i, &x, &y) != mapnik::SEG_END)
+            dst->line_to(x, y);
+        }
+        //remove the src geoms
+        mapnik::geometry_container::iterator unioned = couple.first.m_parent->paths().begin() + couple.first.m_index;
+        couple.first.m_parent->paths().erase(unioned);
+        unioned = couple.second.m_parent->paths().begin() + couple.second.m_index;
+        couple.second.m_parent->paths().erase(unioned);
+        //add the new geom back on
+        couple.first.m_parent->paths().push_back(dst);
+      }
+
+      //TODO: worry about dropping or unioning tags
+    }
+  }
+
+  size_t union_candidates(map<score_t, couple_t>& scored, const tag_strategy strategy, const boost::optional<string>& ids_tag){
+
     //a place to hold all the unions we make so we don't
     //try to use the same one twice in one iteration
     unordered_set<mapnik::value_integer> unioned;
-
-    //check all consecutive candidate pairs
-    auto candidate = candidates.begin();
-    auto next_candidate = next(candidate);
-    while(candidate != candidates.end() && next_candidate != candidates.end()) {
-
-      //we've already used this feature in a union
-      //note that it may be the result of a union that we
-      //could actually union however it could also be an
-      //outdated candidate that should be removed due to a union
-      //and telling the difference between the two requires quite
-      //a lot of bookkeeping (bidirectional lookup)
-      if(unioned.find(candidate->m_parent->id()) != unioned.end()) {
-        candidate = next(candidate);
-        next_candidate = next(candidate);
+    for(auto& entry : scored)
+    {
+      //if we've already used either of these features in a union
+      //we can't use them again in this iteration mainly because
+      //the bookkeeping to make sure it would work is quite alot
+      couple_t& couple = entry.second;
+      if(unioned.find(couple.first.m_parent->id()) != unioned.end() ||
+        unioned.find(couple.second.m_parent->id()) != unioned.end()) {
         continue;
       }//speak now or forever hold your peace
       else {
         //attempt the union
-        mapnik::feature_ptr feature = candidate->try_union(*next_candidate);
-        //if they are still hitched mark them so as not to hitch them with anyone
-        //else in this round. dont worry we'll get polygomous in the next round
-        if(feature) {
-          unioned.emplace(candidate->m_parent->id());
-          unioned.emplace(next(candidate)->m_parent->id());
-        }
+        do_union(couple);
+        //mark them so as not to hitch them with anyone else in this round
+        //don't worry we'll get polygamous in the next round
+        unioned.emplace(couple.first.m_parent->id());
+        unioned.emplace(couple.second.m_parent->id());
       }
     }
 
@@ -238,20 +299,10 @@ namespace {
     return unioned.size();
   }
 
-  bool is_empty(const mapnik::feature_ptr& feature) {
-    return feature.operator bool() == false;
-  }
   void cull(std::vector<mapnik::feature_ptr> &layer) {
-    std::remove_if(layer.begin(), layer.end(), is_empty);
+    auto empty = [] (const mapnik::feature_ptr& feature) { return feature->num_geometries() == 0; };
+    std::remove_if(layer.begin(), layer.end(), empty);
   }
-
-  //explicit instantiation
-  /*template
-  void add_candidates<greedy_comparator>(mapnik::feature_ptr feature, set<candidate, greedy_comparator>& candidates,
-    const union_heuristic heuristic, const bool preserve_direction);*/
-  /*template
-  set<candidate, greedy_comparator> get_candidates<greedy_comparator>(std::vector<mapnik::feature_ptr> &layer,
-    const unordered_set<string>& tags, const unordered_set<string>& directional_tags, const union_heuristic heuristic);*/
 }
 
 namespace avecado {
@@ -288,22 +339,29 @@ unionizer::unionizer(const union_heuristic heuristic, const tag_strategy strateg
 void unionizer::process(std::vector<mapnik::feature_ptr> &layer) const {
   //only do up to as many iterations as the user specified
   for(size_t i = 0; i < m_max_iterations; ++i){
-    //templated by the different type of sorting that must be done
-    //to make the unioning work easier/faster
-    switch(m_heuristic) {
-      //TODO: use different comparators
-      case ACUTE:
-      case OBTUSE:
-      case GREEDY:
-        //grab all the current adjacent (sorted) tuples of candidates for unioning
-        set<candidate, greedy_comparator> candidates =
-            get_candidates<greedy_comparator>(layer, m_match_tags, m_preserve_direction_tags, m_heuristic);
 
-        //do the actual union, if none were unioned we quit
-        if(!union_candidates<greedy_comparator>(candidates, m_strategy, m_keep_ids_tag))
-          return cull(layer);
+    //grab all the current adjacent (sorted by endpoint and tags) tuples of candidates for unioning
+    set<candidate, candidate_comparator> candidates =
+        get_candidates(layer, m_match_tags, m_preserve_direction_tags, m_heuristic);
+
+    //a place to hold the scored pairs of candidates
+    map<score_t, couple_t> scored;
+
+    //templated by the different scoring heuristic of which are the best unions
+    switch(m_heuristic) {
+      case OBTUSE:
+        //score all the pairs of candidates
+        scored = score_candidates(candidates, obtuse_score);
+        break;
+      case GREEDY:
+        //score all the pairs of candidates
+        scored = score_candidates(candidates, greedy_score);
         break;
     }
+
+    //do the actual unioning, if the count of unions is 0 then we are done
+    if(!union_candidates(scored, m_strategy, m_keep_ids_tag))
+      return cull(layer);
   }
 
   //ran out of iterations
