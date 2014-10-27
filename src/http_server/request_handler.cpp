@@ -50,6 +50,12 @@ request_handler::request_handler(const boost::thread_specific_ptr<mapnik::Map> &
 
 void request_handler::handle_request(const request& req, reply& rep)
 {
+  handle_request_impl(req, rep);
+  if (options_.logger) { options_.logger->log(req, rep); }
+}
+
+void request_handler::handle_request_impl(const request &req, reply &rep)
+{
   // Decode url to path.
   std::string request_path;
   if (!url_decode(req.uri, request_path))

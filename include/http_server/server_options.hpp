@@ -3,6 +3,7 @@
 
 #include <mapnik/image_scaling.hpp>
 #include "post_processor.hpp"
+#include "http_server/access_logger.hpp"
 
 struct server_options {
   unsigned int path_multiplier;
@@ -19,6 +20,7 @@ struct server_options {
   std::string port;
   unsigned short thread_hint;
   std::shared_ptr<avecado::post_processor> post_processor;
+  std::shared_ptr<http::server3::access_logger> logger;
 };
 
 #endif /* SERVER_OPTIONS_HPP */

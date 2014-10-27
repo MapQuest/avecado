@@ -50,6 +50,9 @@ private:
   /// Perform URL-decoding on a string. Returns false if the encoding was
   /// invalid.
   static bool url_decode(const std::string& in, std::string& out);
+
+  /// Implementation detail of handling a request and producing a reply.
+  void handle_request_impl(const request& req, reply& rep);
 };
 
 } // namespace server3
