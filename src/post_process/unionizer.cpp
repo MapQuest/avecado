@@ -248,8 +248,13 @@ namespace {
         auto_ptr<mapnik::geometry_type> dst(new mapnik::geometry_type());
         mapnik::geometry_type& src1 = couple.first.m_parent->get_geometry(couple.first.m_index);
         for(size_t i = 0; i < src1.size(); ++i) {
-          if(src1.vertex((src1.size() - i) - 1, &x, &y) != mapnik::SEG_END)
-            dst->line_to(x, y);
+          if(src1.vertex((src1.size() - i) - 1, &x, &y) != mapnik::SEG_END){
+            //first point must start with move to or will mess up rendering
+            if(i == 0)
+              dst->move_to(x, y);
+            else
+              dst->line_to(x, y);
+          }
         }
         //add the vertices of the second segment in normal order
         mapnik::geometry_type& src2 = couple.second.m_parent->get_geometry(couple.second.m_index);
