@@ -36,6 +36,10 @@ AM_CONDITIONAL([HAVE_BOOST_PYTHON], [test -n "$BOOST_PYTHON_LIB"])
 REQUIRE_MAPNIK([3.0.0])
 REQUIRE_PROTOC
 
+# check for SQLite, which we use for HTTP cache information
+AX_LIB_SQLITE3([3.6.16])
+AM_CONDITIONAL([HAVE_SQLITE3], [test -n "$SQLITE3_VERSION"])
+
 # optionally enable coverage information
 CHECK_COVERAGE
 

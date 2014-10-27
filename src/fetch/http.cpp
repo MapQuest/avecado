@@ -1,5 +1,7 @@
 #include "fetch/http.hpp"
+#include "fetch/http_date_parser.hpp"
 #include "vector_tile.pb.h"
+#include "config.h"
 
 #include <boost/format.hpp>
 #include <boost/algorithm/string/find_format.hpp>
@@ -12,6 +14,10 @@
 #include <google/protobuf/io/zero_copy_stream_impl.h>
 
 #include <curl/curl.h>
+
+#ifdef HAVE_SQLITE3
+#include <sqlite3.h>
+#endif
 
 // maximum number of idle HTTP handles/connections to keep alive in
 // the handle pool. TODO: make this configurable.
@@ -57,19 +63,313 @@ struct formatter {
 };
 
 struct request {
-  request(std::promise<fetch_response> &&p_, int z_, int x_, int y_)
-    : promise(std::move(p_)), z(z_), x(x_), y(y_), stream(new std::stringstream) {}
+  request(std::promise<fetch_response> &&p_, int z_, int x_, int y_, std::string url_)
+    : promise(std::move(p_)), z(z_), x(x_), y(y_), stream(new std::stringstream), url(url_) {}
 
   request(request &&r)
     : promise(std::move(r.promise))
     , z(r.z), x(r.x), y(r.y)
-    , stream(std::move(r.stream)) {
+    , stream(std::move(r.stream))
+    , url(std::move(r.url))
+    , expires(std::move(r.expires))
+    , last_modified(std::move(r.last_modified))
+    , etag(std::move(r.etag)) {
+  }
+
+  bool expired() const {
+    if (expires) {
+      std::time_t now = time(nullptr);
+      return *expires < now;
+    }
+    return true;
   }
 
   std::promise<fetch_response> promise;
   int z, x, y;
   std::unique_ptr<std::stringstream> stream;
+  std::string url;
+  boost::optional<std::time_t> base_date;
+  boost::optional<std::time_t> expires;
+  boost::optional<std::time_t> last_modified;
+  boost::optional<std::string> etag;
 };
+
+bool parse_header_value(boost::iterator_range<const char *> &range) {
+  // skip space following key
+  while (bool(range) && (range.front() == ' ')) {
+    range.advance_begin(1);
+  }
+
+  // skip a colon
+  if (bool(range) && (range.front() == ':')) {
+    range.advance_begin(1);
+
+    // skip more space
+    while (bool(range) && (range.front() == ' ')) {
+      range.advance_begin(1);
+    }
+
+    // skip any \r\n at the end
+    while (bool(range) && ((range.back() == '\r') || (range.back() == '\n'))) {
+      range.advance_end(-1);
+    }
+
+    return true;
+  }
+
+  return false;
+}
+
+boost::optional<std::time_t> parse_date(boost::iterator_range<const char *> range) {
+  if (parse_header_value(range)) {
+    std::time_t t = 0;
+    if (parse_http_date(range, t)) {
+      return t;
+    }
+  }
+  return boost::none;
+}
+
+size_t header_callback(char *ptr, size_t size, size_t nmemb, void *userdata) {
+  typedef boost::iterator_range<const char *> string_range;
+
+  static const char header_date[] = "Date";
+  static const char header_etag[] = "ETag";
+  static const char header_expires[] = "Expires";
+  static const char header_last_modified[] = "Last-Modified";
+
+  request *req = static_cast<request *>(userdata);
+  const size_t total_bytes = size * nmemb;
+
+#define STRLEN(x) (sizeof(header_ ## x) / sizeof(header_ ## x[0]) - 1)
+#define HEADER_MATCH(x) ((total_bytes > STRLEN(x)) && (strncasecmp(ptr, header_ ## x, STRLEN(x)) == 0))
+
+  if (HEADER_MATCH(date)) {
+    string_range range(ptr + STRLEN(date), ptr + total_bytes);
+    req->base_date = parse_date(range);
+ 
+  } else if (HEADER_MATCH(etag)) {
+    string_range range(ptr + STRLEN(etag), ptr + total_bytes);
+    if (parse_header_value(range)) {
+      req->etag = std::string(range.begin(), range.end());
+    }
+
+  } else if (HEADER_MATCH(expires)) {
+    string_range range(ptr + STRLEN(expires), ptr + total_bytes);
+    req->expires = parse_date(range);
+
+  } else if (HEADER_MATCH(last_modified)) {
+    string_range range(ptr + STRLEN(last_modified), ptr + total_bytes);
+    req->last_modified = parse_date(range);
+  }
+
+#undef STRLEN
+#undef HEADER_MATCH
+
+  return total_bytes;
+}
+
+#ifdef HAVE_SQLITE3
+namespace sqlite {
+struct sqlite_db_deleter {
+  void operator()(sqlite3 *ptr) const {
+    if (ptr != nullptr) {
+      int status = sqlite3_close(ptr);
+      if (status != SQLITE_OK) {
+        // TODO: use logger
+        std::cerr << "Unable to close SQLite3 database\n" << std::flush;
+      }
+    }
+  }
+};
+
+struct sqlite_statement_finalizer {
+  void operator()(sqlite3_stmt *ptr) const {
+    if (ptr != nullptr) {
+      int status = sqlite3_finalize(ptr);
+      if (status != SQLITE_OK) {
+        // TODO: use logger
+        std::cerr << "Unable to finalize SQLite3 statement\n" << std::flush;
+      }
+    }
+  }
+};
+
+struct statement {
+  boost::optional<std::time_t> column_time(int i) {
+    if (sqlite3_column_type(ptr.get(), i) == SQLITE_NULL) {
+      return boost::none;
+    } else {
+      sqlite3_int64 t = sqlite3_column_int64(ptr.get(), i);
+      return std::time_t(t);
+    }
+  }
+
+  boost::optional<std::string> column_text(int i) {
+    if (sqlite3_column_type(ptr.get(), i) == SQLITE_NULL) {
+      return boost::none;
+    } else {
+      const unsigned char *str = sqlite3_column_text(ptr.get(), i);
+      int sz = sqlite3_column_bytes(ptr.get(), i);
+      return std::string((const char *)str, sz);
+    }
+  }
+
+  void column_blob(int i, std::stringstream &stream) {
+    const char *bytes = static_cast<const char *>(sqlite3_column_blob(ptr.get(), i));
+    int sz = sqlite3_column_bytes(ptr.get(), i);
+    stream.write(bytes, sz);
+  }
+
+  bool step() {
+    int status = sqlite3_step(ptr.get());
+    if (status == SQLITE_DONE) { return false; }
+    if (status != SQLITE_ROW) {
+      throw std::runtime_error((boost::format("Unable to step row in query result: %1%") % sqlite3_errmsg(db_for_errors)).str());
+    }
+    return true;
+  }
+
+  void bind_text(int i, const std::string &str) {
+    int sz = str.size();
+    char *strp = static_cast<char *>(malloc(sz));
+    if (strp == nullptr) { throw std::runtime_error("Unable to allocate memory for string copy."); }
+    memcpy(strp, str.c_str(), sz);
+    int status = sqlite3_bind_text(ptr.get(), i, strp, sz, &free);
+    if (status != SQLITE_OK) {
+      free(strp);
+      throw std::runtime_error((boost::format("Argument bind failed: %1%") % sqlite3_errmsg(db_for_errors)).str());
+    }
+  }
+
+  void bind_text(int i, const boost::optional<std::string> &str) {
+    if (str) {
+      bind_text(i, *str);
+
+    } else {
+      int status = sqlite3_bind_null(ptr.get(), i);
+      if (status != SQLITE_OK) {
+        throw std::runtime_error((boost::format("Argument bind failed: %1%") % sqlite3_errmsg(db_for_errors)).str());
+      }
+    }
+  }
+
+  void bind_time(int i, std::time_t t) {
+    int status = sqlite3_bind_int64(ptr.get(), i, sqlite3_int64(t));
+    if (status != SQLITE_OK) {
+      throw std::runtime_error((boost::format("Argument bind failed: %1%") % sqlite3_errmsg(db_for_errors)).str());
+    }
+  }
+
+  void bind_time(int i, boost::optional<std::time_t> t) {
+    if (t) {
+      bind_time(i, *t);
+
+    } else {
+      int status = sqlite3_bind_null(ptr.get(), i);
+      if (status != SQLITE_OK) {
+        throw std::runtime_error((boost::format("Argument bind failed: %1%") % sqlite3_errmsg(db_for_errors)).str());
+      }
+    }
+  }
+
+  void bind_blob(int i, std::stringstream &stream) {
+    std::string str = stream.str();
+    int sz = str.size();
+    char *strp = static_cast<char *>(malloc(sz));
+    if (strp == nullptr) { throw std::runtime_error("Unable to allocate memory for blob copy."); }
+    memcpy(strp, str.c_str(), sz);
+    int status = sqlite3_bind_blob(ptr.get(), i, strp, sz, &free);
+    if (status != SQLITE_OK) {
+      free(strp);
+      throw std::runtime_error((boost::format("Argument bind failed: %1%") % sqlite3_errmsg(db_for_errors)).str());
+    }
+  }
+
+private:
+  friend struct db;
+  statement(sqlite3 *db, const std::string &sql) {
+    const char *tail = nullptr;
+    sqlite3_stmt *ptr_ = nullptr;
+    int status = sqlite3_prepare_v2(db, sql.c_str(), sql.size(), &ptr_, &tail);
+    if (status != SQLITE_OK) {
+      throw std::runtime_error((boost::format("Unable to prepare SQLite3 statement \"%1%\": %2%") % sql % sqlite3_errmsg(db_for_errors)).str());
+    }
+    ptr.reset(ptr_);
+  }
+
+  std::unique_ptr<sqlite3_stmt, sqlite_statement_finalizer> ptr;
+  sqlite3 *db_for_errors; // use for ERRORS only.
+};
+
+struct db {
+  db(const std::string &loc) {
+    sqlite3 *ptr_;
+    int status = sqlite3_open(loc.c_str(), &ptr_);
+    if (status != SQLITE_OK) {
+      throw std::runtime_error((boost::format("Unable to open SQLite3 database \"%1%\": %2%") % loc % sqlite3_errmsg(ptr_)).str());
+    }
+    ptr.reset(ptr_);
+  }
+
+  statement prepare(const std::string &sql) {
+    return statement(ptr.get(), sql);
+  }
+
+private:
+  std::unique_ptr<sqlite3, sqlite_db_deleter> ptr;
+};
+
+} // namespace sqlite
+
+struct cache {
+  cache(const std::string &loc) 
+    : m_db(new sqlite::db(loc)) {
+
+    // ensure that the table for the cache data exists
+    sqlite::statement s(m_db->prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='cache'"));
+    if (!s.step()) {
+      // table doesn't exist, so create it
+      m_db->prepare("CREATE TABLE cache (url TEXT PRIMARY KEY, expires INTEGER, last_modified INTEGER, etag TEXT, body BLOB)").step();
+    }
+  }
+
+  void lookup(std::unique_ptr<request> &req) {
+    sqlite::statement s(m_db->prepare("select expires, last_modified, etag, body from cache where url=?"));
+    s.bind_text(1, req->url);
+
+    if (s.step()) {
+      req->expires = s.column_time(1);
+      req->last_modified = s.column_time(2);
+      req->etag = s.column_text(3);
+      s.column_blob(4, *(req->stream));
+    }
+  }
+
+  void write(request *req) {
+    sqlite::statement s(m_db->prepare("insert or replace into cache (url, expires, last_modified, etag, body) values (?, ?, ?, ?, ?)"));
+    s.bind_text(1, req->url);
+    s.bind_time(2, req->expires);
+    s.bind_time(3, req->last_modified);
+    s.bind_text(4, req->etag);
+    s.bind_blob(5, *(req->stream));
+    s.step();
+  }
+
+private:
+  std::unique_ptr<sqlite::db> m_db;
+};
+
+#else /* HAVE_SQLITE3 */
+struct cache {
+  cache(const std::string &) { not_implemented(); }
+  void lookup(std::unique_ptr<request> &req) { not_implemented(); }
+  void write(request *req) { not_implemented(); }
+  void not_implemented() const { 
+    throw std::runtime_error("Caching is not implemented because avecado was built without SQLite3 support.");
+  }
+};
+#endif /* HAVE_SQLITE3 */
 
 } // anonymous namespace
 
@@ -78,6 +378,9 @@ struct http::impl {
   ~impl();
 
   void start_request(std::promise<fetch_response> &&promise, int z, int x, int y);
+
+  void enable_cache(const std::string &cache_location);
+  void disable_cache();
 
 private:
   void thread_func();
@@ -88,13 +391,16 @@ private:
   CURL *new_handle();
   boost::optional<fetch_error> new_request(CURL *curl, request *r);
   std::string url_for(int z, int x, int y) const;
+  bool setup_response_tile(fetch_response &response, std::unique_ptr<std::stringstream> &stream);
 
   const std::vector<std::string> m_url_patterns;
   std::atomic<bool> m_shutdown;
   std::thread m_thread;
   std::mutex m_mutex;
-  std::list<request*> m_new_requests;
+  std::list<std::unique_ptr<request> > m_new_requests;
   std::queue<CURL*> m_handle_pool;
+  // note: m_cache is *shared* between threads, so it *must* be thread-safe
+  std::shared_ptr<cache> m_cache;
 };
 
 http::impl::impl(std::vector<std::string> &&patterns)
@@ -109,8 +415,25 @@ http::impl::~impl() {
 }
 
 void http::impl::start_request(std::promise<fetch_response> &&promise, int z, int x, int y) {
-  std::unique_lock<std::mutex> lock(m_mutex);
-  m_new_requests.emplace_back(new request(std::move(promise), z, x, y));
+  std::unique_ptr<request> req(new request(std::move(promise), z, x, y, url_for(z, x, y)));
+
+  if (m_cache) {
+    m_cache->lookup(req);
+  }
+
+  if (req->expired()) {
+    std::unique_lock<std::mutex> lock(m_mutex);
+    m_new_requests.emplace_back(std::move(req));
+
+  } else {
+    fetch_error err;
+    err.status = fetch_status::server_error;
+    fetch_response response(err);
+
+    setup_response_tile(response, req->stream);
+
+    req->promise.set_value(std::move(response));
+  }
 }
 
 void http::impl::thread_func() {
@@ -118,14 +441,15 @@ void http::impl::thread_func() {
   int running_handles = 0;
 
   while (m_shutdown.load() == false) {
-    std::list<request*> requests;
+    std::list<std::unique_ptr<request> > requests;
     {
       std::unique_lock<std::mutex> lock(m_mutex);
       requests.swap(m_new_requests);
     }
 
     bool added = false;
-    for (request *req : requests) {
+    for (auto &ptr : requests) {
+      request *req = ptr.release();
       CURL *curl = new_handle();
       boost::optional<fetch_error> err = new_request(curl, req);
 
@@ -246,11 +570,9 @@ void http::impl::handle_response(CURLcode res, CURL *curl) {
     curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &status_code);
 
     if (status_code == 200) {
-      std::unique_ptr<tile> ptr(new tile);
-
-      google::protobuf::io::IstreamInputStream gstream(req->stream.get());
-      if (ptr->mapnik_tile().ParseFromZeroCopyStream(&gstream)) {
-        response = fetch_response(std::move(ptr));
+      setup_response_tile(response, req->stream);
+      if (m_cache) {
+        m_cache->write(req);
       }
 
     } else {
@@ -267,6 +589,19 @@ void http::impl::handle_response(CURLcode res, CURL *curl) {
 
   req->promise.set_value(std::move(response));
   delete req;
+}
+
+bool http::impl::setup_response_tile(fetch_response &response, std::unique_ptr<std::stringstream> &stream) {
+  std::unique_ptr<tile> ptr(new tile);
+
+  google::protobuf::io::IstreamInputStream gstream(stream.get());
+
+  bool ok = ptr->mapnik_tile().ParseFromZeroCopyStream(&gstream);
+  if (ok) {
+    response = fetch_response(std::move(ptr));
+  }
+
+  return ok;
 }
 
 void http::impl::free_handle(CURL *curl) {
@@ -296,9 +631,7 @@ boost::optional<fetch_error> http::impl::new_request(CURL *curl, request *r) {
   fetch_error err;
   err.status = fetch_status::server_error;
 
-  std::string url = url_for(r->z, r->x, r->y);
-
-  CURLcode res = curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
+  CURLcode res = curl_easy_setopt(curl, CURLOPT_URL, r->url.c_str());
   if (res != CURLE_OK) { return err; }
 
   res = curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_callback);
@@ -308,6 +641,12 @@ boost::optional<fetch_error> http::impl::new_request(CURL *curl, request *r) {
   if (res != CURLE_OK) { return err; }
 
   res = curl_easy_setopt(curl, CURLOPT_PRIVATE, r);
+  if (res != CURLE_OK) { return err; }
+
+  res = curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, header_callback);
+  if (res != CURLE_OK) { return err; }
+
+  res = curl_easy_setopt(curl, CURLOPT_HEADERDATA, r);
   if (res != CURLE_OK) { return err; }
 
   return boost::none;
@@ -322,6 +661,14 @@ std::string http::impl::url_for(int z, int x, int y) const {
 
   sregex var = "{" >> (s1 = range('x','z')) >> "}";
   return regex_replace(m_url_patterns[0], var, formatter(z, x, y));
+}
+
+void http::impl::enable_cache(const std::string &cache_location) {
+  m_cache = std::make_shared<cache>(cache_location);
+}
+
+void http::impl::disable_cache() {
+  m_cache.reset();
 }
 
 http::http(const std::string &base_url, const std::string &ext)
@@ -340,6 +687,14 @@ std::future<fetch_response> http::operator()(int z, int x, int y) {
   std::future<fetch_response> future = promise.get_future();
   m_impl->start_request(std::move(promise), z, x, y);
   return future;
+}
+
+void http::enable_cache(const std::string &cache_location) {
+  m_impl->enable_cache(cache_location);
+}
+
+void http::disable_cache() {
+  m_impl->disable_cache();
 }
 
 } } // namespace avecado::fetch

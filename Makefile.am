@@ -5,6 +5,10 @@ AM_CPPFLAGS = \
 	@BOOST_CPPFLAGS@ @MAPNIK_CPPFLAGS@ @PROTOC_CPPFLAGS@ @LIBCURL_CFLAGS@
 AM_CXXFLAGS = @COVERAGE_CXXFLAGS@
 
+if HAVE_SQLITE3
+AM_CPPFLAGS += @SQLITE3_CFLAGS@
+endif
+
 LIBTOOL_DEPS = @LIBTOOL_DEPS@
 libtool: $(LIBTOOL_DEPS)
 	$(SHELL) ./config.status libtool
@@ -70,6 +74,7 @@ libavecado_la_SOURCES = \
 	src/fetcher_io.cpp \
 	src/fetch/overzoom.cpp \
 	src/fetch/http.cpp \
+	src/fetch/http_date_parser.cpp \
 	src/tilejson.cpp
 
 nodist_libavecado_la_SOURCES = \
@@ -77,7 +82,12 @@ nodist_libavecado_la_SOURCES = \
 
 libavecado_la_LIBADD = @MAPNIK_LIBS@ @PROTOC_LIBS@ @BOOST_PROGRAM_OPTIONS_LIB@ @LIBCURL_LIBS@
 
+if HAVE_SQLITE3
+libavecado_la_LIBADD += @SQLITE3_LDFLAGS@
+endif
+
 libavecado_server_la_SOURCES = \
+	src/http_server/access_logger.cpp \
 	src/http_server/connection.cpp \
 	src/http_server/mime_types.cpp \
 	src/http_server/parse_path.cpp \
@@ -120,7 +130,8 @@ check_PROGRAMS = \
 	test/multi_verification \
 	test/render_vector_tile \
 	test/overzoom \
-	test/http
+	test/http \
+	test/http_cache
 
 liblogging_la_SOURCES = \
 	logging/logger.cpp \
@@ -142,6 +153,8 @@ test_overzoom_SOURCES = test/overzoom.cpp test/common.cpp
 test_overzoom_LDADD = libavecado.la liblogging.la @BOOST_LDFLAGS@ @BOOST_ASIO_LIB@ @BOOST_THREAD_LIB@ @PTHREAD_LIBS@
 test_http_SOURCES = test/http.cpp test/common.cpp
 test_http_LDADD = libavecado.la libavecado_server.la liblogging.la
+test_http_cache_SOURCES = test/http_cache.cpp test/common.cpp
+test_http_cache_LDADD = libavecado.la libavecado_server.la liblogging.la
 
 TESTS = $(check_PROGRAMS)
 TEST_EXTENSIONS = .sh

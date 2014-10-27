@@ -52,6 +52,7 @@ test/multi_verification
 test/render_vector_tile
 test/overzoom
 test/http
+test/http_cache
 test/*.log
 test/*.trs
 
