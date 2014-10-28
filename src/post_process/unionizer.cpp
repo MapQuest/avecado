@@ -17,8 +17,8 @@ namespace {
   //result in the steepest (ACUTE) or shallowest (OBTUSE) angle after the union.
   //one could think of another heuristic measuring similarity of tagging between
   //two features but this is not implemented yet
-  enum union_heuristic { GREEDY, OBTUSE/*, ACUTE, LONGEST, SHORTEST, TAG*/ };
-  const unordered_map<string, union_heuristic> string_to_heuristic = { {"greedy", GREEDY}, {"obtuse", OBTUSE}, /*{"acute", ACUTE}, {"longest", LONGEST}, {"shortest", SHORTEST}, {"tag", TAG}*/ };
+  enum union_heuristic { GREEDY, OBTUSE, ACUTE, /*LONGEST, SHORTEST, TAG*/ };
+  const unordered_map<string, union_heuristic> string_to_heuristic = { {"greedy", GREEDY}, {"obtuse", OBTUSE}, {"acute", ACUTE}, /*{"longest", LONGEST}, {"shortest", SHORTEST}, {"tag", TAG}*/ };
 
   //we allow the user to specify a strategy for what they want to do with the
   //remaining unreferenced (not in the match_tags or preserve_direction_tags) after
@@ -54,11 +54,11 @@ namespace {
     bool m_directional;
     //the vertex
     double m_x, m_y;
-    //approximate directional vector along the curve leaving the vertex
-    double m_dx, m_dy;
+    //normal vector approximating the curve leaving the vertex
+    float m_dx, m_dy;
 
     candidate(position position_, size_t index_, mapnik::feature_ptr feature_, bool directional, union_heuristic heuristic_):
-      m_position(position_), m_index(index_), m_parent(feature_), m_directional(directional){
+      m_position(position_), m_index(index_), m_parent(feature_), m_directional(directional), m_dx(NAN), m_dy(NAN) {
       //grab the geom
       mapnik::geometry_type geometry = m_parent->get_geometry(m_index);
       //grab the vertex
@@ -66,9 +66,9 @@ namespace {
       //tweak the candidates according to the union heuristic
       switch(heuristic_) {
         case OBTUSE:
+        case ACUTE:
           //TODO: compute appx angle leading away from vertex
           break;
-        //TODO: other heuristics
       }
     }
   };
@@ -146,7 +146,9 @@ namespace {
     return candidates;
   }
 
+  //scores go from 0 to MAX_SCORE
   typedef unsigned char score_t;
+  #define MAX_SCORE std::numeric_limits<score_t>::max()
   typedef pair<candidate, candidate> couple_t;
 
   boost::optional<couple_t> make_couple(const candidate& a, const candidate& b) {
@@ -160,22 +162,29 @@ namespace {
     return boost::optional<couple_t>(make_pair(a,b));
   }
 
+  //favor them by ease of union operation
   score_t greedy_score(const couple_t& couple) {
-    //favor them by ease of union operation
-
     //front to back is easiest
     if(couple.first.m_position != couple.second.m_position)
-      return std::numeric_limits<score_t>::min();
+      return 0;
     //next easiest is back to back
     if(couple.first.m_position == candidate::BACK)
-      return std::numeric_limits<score_t>::max() / 2;
+      return MAX_SCORE / 2;
     //hardest is front to front
-    return std::numeric_limits<score_t>::max();
+    return MAX_SCORE;
   }
 
+  //favor them by smallest cosine similarity
   score_t obtuse_score(const couple_t& couple) {
-    //TODO:
-    return std::numeric_limits<score_t>::min();
+    //valid interval from -1 to 1 where -1 is opposite directions, 0 is right angle and 1 is same direction
+    float dot = couple.first.m_dx*couple.second.m_dx + couple.first.m_dy*couple.second.m_dy;
+    //move the dot into the range of 0 - 2, cut it in half to make it a percentage to scale the max score by
+    return MAX_SCORE * ((dot + 1) * .5f);
+  }
+
+  //favor the largest cosine similarity
+  score_t acute_score(const couple_t& couple) {
+    return MAX_SCORE - obtuse_score(couple);
   }
 
   map<score_t, couple_t> score_candidates(const set<candidate, candidate_comparator>& candidates, score_t (*scorer)(const couple_t&)){
@@ -352,13 +361,17 @@ void unionizer::process(std::vector<mapnik::feature_ptr> &layer) const {
 
     //templated by the different scoring heuristic of which are the best unions
     switch(m_heuristic) {
+      case GREEDY:
+        //score all the pairs of candidates
+        scored = score_candidates(candidates, greedy_score);
+        break;
       case OBTUSE:
         //score all the pairs of candidates
         scored = score_candidates(candidates, obtuse_score);
         break;
-      case GREEDY:
+      case ACUTE:
         //score all the pairs of candidates
-        scored = score_candidates(candidates, greedy_score);
+        scored = score_candidates(candidates, acute_score);
         break;
     }
 
