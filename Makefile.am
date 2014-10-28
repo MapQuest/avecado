@@ -130,7 +130,8 @@ check_PROGRAMS = \
 	test/render_vector_tile \
 	test/overzoom \
 	test/http \
-	test/http_cache
+	test/http_cache \
+	test/tilejson
 
 liblogging_la_SOURCES = \
 	logging/logger.cpp \
@@ -154,6 +155,8 @@ test_http_SOURCES = test/http.cpp test/common.cpp
 test_http_LDADD = libavecado.la libavecado_server.la liblogging.la
 test_http_cache_SOURCES = test/http_cache.cpp test/common.cpp
 test_http_cache_LDADD = libavecado.la libavecado_server.la liblogging.la
+test_tilejson_SOURCES = test/tilejson.cpp test/common.cpp
+test_tilejson_LDADD = libavecado.la liblogging.la
 
 TESTS = $(check_PROGRAMS)
 TEST_EXTENSIONS = .sh

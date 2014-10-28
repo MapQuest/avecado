@@ -53,6 +53,7 @@ test/render_vector_tile
 test/overzoom
 test/http
 test/http_cache
+test/tilejson
 test/*.log
 test/*.trs
 

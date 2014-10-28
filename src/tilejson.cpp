@@ -3,11 +3,13 @@
 #include "fetch/http.hpp"
 
 #include <boost/format.hpp>
+#include <boost/algorithm/string/predicate.hpp>
 #include <boost/property_tree/json_parser.hpp>
 
 #include <curl/curl.h>
 
 namespace bpt = boost::property_tree;
+namespace bal = boost::algorithm;
 
 namespace {
 
@@ -27,6 +29,7 @@ size_t write_callback(char *ptr, size_t size, size_t nmemb, void *userdata) {
 
 struct http_client {
   CURL *m_curl;
+  char m_error_buffer[CURL_ERROR_SIZE];
 
   http_client() : m_curl(curl_easy_init()) {
     if (m_curl == nullptr) {
@@ -45,10 +48,11 @@ struct http_client {
     CURL_SETOPT(m_curl, CURLOPT_URL, uri.c_str());
     CURL_SETOPT(m_curl, CURLOPT_WRITEFUNCTION, write_callback);
     CURL_SETOPT(m_curl, CURLOPT_WRITEDATA, &stream);
+    CURL_SETOPT(m_curl, CURLOPT_ERRORBUFFER, &m_error_buffer[0]);
 
     CURLcode res = curl_easy_perform(m_curl);
     if (res != CURLE_OK) {
-      throw std::runtime_error("cURL operation failed");
+      throw std::runtime_error((boost::format("cURL operation failed: %1%") % m_error_buffer).str());
     }
 
     long status_code = 0;
@@ -68,7 +72,11 @@ bpt::ptree tilejson(const std::string &uri) {
   std::stringstream data;
 
   long status_code = client.get(uri, data);
-  if (status_code != 200) {
+  if ((status_code != 200) &&
+      // note: this is a bit of a hack to allow local file paths to work - it
+      // seems that curl won't synthesize an HTTP status code, so we need to
+      // hack around it.
+      ((status_code != 0) || (!bal::starts_with(uri, "file:")))) {
     throw std::runtime_error((boost::format("Unable to fetch TileJSON \"%1%\": HTTP status %2%.") % uri % status_code).str());
   }
 

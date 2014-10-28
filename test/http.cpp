@@ -140,6 +140,15 @@ void test_no_url_patterns_is_error() {
   test::assert_equal<bool>(threw, true, "Should have thrown exception when patterns was empty.");
 }
 
+void test_fetcher_io() {
+  using avecado::fetch_status;
+
+  test::assert_equal<std::string>((boost::format("%1%") % fetch_status::bad_request).str(), "Bad Request");
+  test::assert_equal<std::string>((boost::format("%1%") % fetch_status::not_found).str(), "Not Found");
+  test::assert_equal<std::string>((boost::format("%1%") % fetch_status::server_error).str(), "Server Error");
+  test::assert_equal<std::string>((boost::format("%1%") % fetch_status::not_implemented).str(), "Not Implemented");
+}
+
 } // anonymous namespace
 
 int main() {
@@ -159,6 +168,7 @@ int main() {
   RUN_TEST(test_fetch_error_path_segments);
   RUN_TEST(test_fetch_error_non_numeric);
   RUN_TEST(test_no_url_patterns_is_error);
+  RUN_TEST(test_fetcher_io);
 
   std::cout << " >> Tests failed: " << tests_failed << std::endl << std::endl;
 
