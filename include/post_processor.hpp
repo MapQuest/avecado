@@ -28,7 +28,7 @@ public:
    *
    *   config
    *     Configuration tree specifying which processes to run on which
-   *     layers at which zoom levels.
+   *     layers at which scale levels.
    *
    * Throws an exception if an unrecoverable error was encountered
    * while reading config options.
@@ -47,7 +47,7 @@ public:
    *   layer_name
    *     The name of the layer.
    *
-   *   zoom_level
+   *   scale_level
    *     Zoom level of the tile.
    *
    * Throws an exception if an unrecoverable error was encountered
@@ -55,7 +55,7 @@ public:
    */
   void process_layer(std::vector<mapnik::feature_ptr> &layer, 
                      const std::string &layer_name,
-                     int zoom_level) const;
+                     double scale) const;
 
 private:
   class pimpl;

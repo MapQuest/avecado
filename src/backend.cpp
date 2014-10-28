@@ -5,8 +5,10 @@ namespace avecado {
 
 backend::backend(mapnik::vector::tile & tile,
                  unsigned path_multiplier,
+                 double scale,
                  boost::optional<const post_processor &> pp)
   : m_pbf(tile, path_multiplier),
+    m_scale(scale),
     m_tolerance(1),
     m_post_processor(pp) {}
 
@@ -17,13 +19,12 @@ void backend::start_tile_layer(std::string const& name) {
 
 void backend::stop_tile_layer() {
   if (m_post_processor) {
-    // TODO: passing the zoom level here is kinda annoying. we can
-    // get this information from the mapnik::Map, but it does make
+    // TODO: passing the scale is kind of annoying because it makes
     // the assumption of 900913, which nothing else at this layer
     // of avecado does.
     m_post_processor->process_layer(m_current_layer_features,
                                     m_current_layer_name,
-                                    0 /* TODO: zoom level */);
+                                    m_scale);
   }
 
   m_pbf.start_tile_layer(m_current_layer_name);
