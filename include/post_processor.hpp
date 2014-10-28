@@ -28,7 +28,7 @@ public:
    *
    *   config
    *     Configuration tree specifying which processes to run on which
-   *     layers at which scale levels.
+   *     layers at which scales.
    *
    * Throws an exception if an unrecoverable error was encountered
    * while reading config options.
@@ -47,8 +47,8 @@ public:
    *   layer_name
    *     The name of the layer.
    *
-   *   scale_level
-   *     Zoom level of the tile.
+   *   scale
+   *     Scale of the tile.
    *
    * Throws an exception if an unrecoverable error was encountered
    * while processing a vector layer.
