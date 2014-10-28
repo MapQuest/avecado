@@ -70,22 +70,22 @@ void request_handler::handle_request_impl(const request &req, reply &rep)
   // and we don't take account of anything fancy.
   int z, x, y;
   if (!parse_path(request_path, z, x, y)) {
-    rep = reply::stock_reply(reply::bad_request);
+    rep = reply::stock_reply(reply::not_found);
     return;
   }
 
   // some sanity checking for z, x, y ranges
   if ((z < 0) || (z > 30)) {
-    rep = reply::stock_reply(reply::bad_request);
+    rep = reply::stock_reply(reply::not_found);
     return;
   }
   const int max_coord = 1 << z;
   if ((x < 0) || (x >= max_coord)) {
-    rep = reply::stock_reply(reply::bad_request);
+    rep = reply::stock_reply(reply::not_found);
     return;
   }
   if ((y < 0) || (y >= max_coord)) {
-    rep = reply::stock_reply(reply::bad_request);
+    rep = reply::stock_reply(reply::not_found);
     return;
   }
 

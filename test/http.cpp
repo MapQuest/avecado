@@ -78,19 +78,66 @@ void assert_is_error(avecado::fetch::http &fetch, int z, int x, int y, avecado::
                                             (boost::format("(%1%, %2%, %3%): response status is not what was expected") % z % x % y).str());
 }
 
-void test_fetch_errors() {
+void test_fetch_error_coordinates() {
   using avecado::fetch_status;
 
   server_guard guard("test/empty_map_file.xml");
 
   avecado::fetch::http fetch(guard.base_url(), "pbf");
 
-  assert_is_error(fetch, -1, 0, 0, fetch_status::bad_request);
-  assert_is_error(fetch, 31, 0, 0, fetch_status::bad_request);
-  assert_is_error(fetch, 0, 0, 1, fetch_status::bad_request);
-  assert_is_error(fetch, 0, 1, 0, fetch_status::bad_request);
-  assert_is_error(fetch, 0, 0, -1, fetch_status::bad_request);
-  assert_is_error(fetch, 0, -1, 0, fetch_status::bad_request);
+  assert_is_error(fetch, -1, 0, 0, fetch_status::not_found);
+  assert_is_error(fetch, 31, 0, 0, fetch_status::not_found);
+  assert_is_error(fetch, 0, 0, 1, fetch_status::not_found);
+  assert_is_error(fetch, 0, 1, 0, fetch_status::not_found);
+  assert_is_error(fetch, 0, 0, -1, fetch_status::not_found);
+  assert_is_error(fetch, 0, -1, 0, fetch_status::not_found);
+}
+ 
+void test_fetch_error_extension() {
+  using avecado::fetch_status;
+
+  server_guard guard("test/empty_map_file.xml");
+
+  avecado::fetch::http fetch(guard.base_url(), "gif");
+
+  assert_is_error(fetch, 0, 0, 0, fetch_status::not_found);
+}
+
+void test_fetch_error_path_segments() {
+  using avecado::fetch_status;
+
+  server_guard guard("test/empty_map_file.xml");
+
+  avecado::fetch::http fetch(guard.base_url(), "/0.pbf");
+
+  assert_is_error(fetch, 0, 0, 0, fetch_status::not_found);
+}
+
+void test_fetch_error_non_numeric() {
+  using avecado::fetch_status;
+
+  server_guard guard("test/empty_map_file.xml");
+
+  std::vector<std::string> patterns;
+  patterns.push_back((boost::format("%1%/a/b/c.pbf") % guard.base_url()).str());
+  avecado::fetch::http fetch(std::move(patterns));
+
+  assert_is_error(fetch, 0, 0, 0, fetch_status::not_found);
+}
+
+void test_no_url_patterns_is_error() {
+  std::vector<std::string> patterns;
+  bool threw = false;
+
+  avecado::fetch::http fetch(std::move(patterns));
+
+  try {
+    avecado::fetch_response response(fetch(0, 0, 0).get());
+  } catch (...) {
+    threw = true;
+  }
+
+  test::assert_equal<bool>(threw, true, "Should have thrown exception when patterns was empty.");
 }
 
 } // anonymous namespace
@@ -107,8 +154,12 @@ int main() {
 #define RUN_TEST(x) { tests_failed += test::run(#x, &(x)); }
   RUN_TEST(test_fetch_empty);
   RUN_TEST(test_fetch_single_line);
-  RUN_TEST(test_fetch_errors);
-  
+  RUN_TEST(test_fetch_error_coordinates);
+  RUN_TEST(test_fetch_error_extension);
+  RUN_TEST(test_fetch_error_path_segments);
+  RUN_TEST(test_fetch_error_non_numeric);
+  RUN_TEST(test_no_url_patterns_is_error);
+
   std::cout << " >> Tests failed: " << tests_failed << std::endl << std::endl;
 
   return (tests_failed > 0) ? 1 : 0;
