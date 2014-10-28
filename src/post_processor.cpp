@@ -20,8 +20,8 @@ namespace avecado {
 
 typedef std::vector<post_process::izer_ptr> izer_vec_t;
 typedef struct {
-  int minscale;
-  int maxscale;
+  double minscale;
+  double maxscale;
   izer_vec_t processes;
 } scale_range_t;
 typedef std::vector<scale_range_t> scale_range_vec_t;
@@ -67,7 +67,7 @@ void post_processor::pimpl::load(pt::ptree const& config) {
   }
 }
 
-// Find post-processes for given layer at scale level and run them
+// Find post-processes for given layer at scale and run them
 void post_processor::pimpl::process_layer(std::vector<mapnik::feature_ptr> & layer,
                                           const std::string &layer_name,
                                           double scale) const {
