@@ -55,7 +55,7 @@ namespace {
     //the vertex
     double m_x, m_y;
     //normal vector approximating the curve leaving the vertex
-    float m_dx, m_dy;
+    double m_dx, m_dy;
 
     candidate(position position_, size_t index_, mapnik::feature_ptr feature_, bool directional, union_heuristic heuristic_):
       m_position(position_), m_index(index_), m_parent(feature_), m_directional(directional), m_dx(NAN), m_dy(NAN) {
@@ -63,11 +63,22 @@ namespace {
       mapnik::geometry_type geometry = m_parent->get_geometry(m_index);
       //grab the vertex
       geometry.vertex(m_position == FRONT ? 0 : geometry.size() - 1, &m_x, &m_y);
-      //tweak the candidates according to the union heuristic
+
+      //tweak the candidate according to the heuristic
       switch(heuristic_) {
         case OBTUSE:
         case ACUTE:
-          //TODO: compute appx angle leading away from vertex
+          //if we need to iterate forwards
+          if(m_position == FRONT) {
+            for(size_t i = 1; i < geometry.size(); ++i) {
+
+            }
+          }//we need to iterate backwards
+          else {
+            for(size_t i = geometry.size() - 1; i != static_cast<size_t>(0) - 1; --i) {
+
+            }
+          }
           break;
       }
     }
@@ -109,8 +120,8 @@ namespace {
     for (size_t i = 0; i < feature->num_geometries(); ++i) {
       //grab the geom
       mapnik::geometry_type& geometry = feature->get_geometry(i);
-      //we only handle line unioning at present
-      if (geometry.type() == mapnik::geometry_type::LineString) {
+      //we only handle (nontrivial) linestring unioning at present
+      if (geometry.type() == mapnik::geometry_type::LineString && geometry.size() > 1) {
         //make placeholders for the front and back
         candidate front(candidate::FRONT, i, feature, preserve_direction, heuristic);
         candidate back(candidate::BACK, i, feature, preserve_direction, heuristic);
@@ -177,9 +188,9 @@ namespace {
   //favor them by smallest cosine similarity
   score_t obtuse_score(const couple_t& couple) {
     //valid interval from -1 to 1 where -1 is opposite directions, 0 is right angle and 1 is same direction
-    float dot = couple.first.m_dx*couple.second.m_dx + couple.first.m_dy*couple.second.m_dy;
+    double dot = couple.first.m_dx*couple.second.m_dx + couple.first.m_dy*couple.second.m_dy;
     //move the dot into the range of 0 - 2, cut it in half to make it a percentage to scale the max score by
-    return MAX_SCORE * ((dot + 1) * .5f);
+    return MAX_SCORE * ((dot + 1) * .5);
   }
 
   //favor the largest cosine similarity
