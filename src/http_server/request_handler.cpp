@@ -10,6 +10,9 @@
 
 #include <sstream>
 #include <string>
+#include <ctime>
+#include <chrono>
+#include <iomanip>
 #include <boost/lexical_cast.hpp>
 #include <boost/algorithm/string/predicate.hpp>
 
@@ -110,11 +113,26 @@ void request_handler::handle_request_impl(const request &req, reply &rep)
     rep.status = reply::ok;
     rep.is_hard_error = false;
     rep.content = painted ? tile.get_data() : "";
-    rep.headers.resize(2);
+    rep.headers.resize(4);
     rep.headers[0].name = "Content-Length";
     rep.headers[0].value = boost::lexical_cast<std::string>(rep.content.size());
     rep.headers[1].name = "Content-Type";
     rep.headers[1].value = "application/octet-stream";
+    rep.headers[2].name = "Cache-control";
+    rep.headers[2].value = "max-age = 60";
+    rep.headers[3].name = "Date";
+    {
+      std::stringstream out;
+      std::time_t t = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
+      struct tm tt;
+      gmtime_r(&t, &tt);
+      char *oldlocale = setlocale(LC_TIME, NULL);
+      setlocale(LC_TIME, "C");
+      char buf[30];
+      strftime(buf, 30, "%a, %d %b %Y %H:%M:%S GMT", &tt);
+      rep.headers[3].value = buf;
+      setlocale(LC_TIME, oldlocale);
+    }
 
   } catch (...) {
     rep = reply::stock_reply(reply::internal_server_error);

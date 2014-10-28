@@ -135,13 +135,17 @@ int main() {
 
   std::cout << "== Testing HTTP caching ==" << std::endl << std::endl;
 
+  boost::property_tree::ptree conf;
+  conf.put("type", "stdout");
+  logging::log::configure(conf);
+
   // need datasource cache set up so that input plugins are available
   // when we parse map XML.
   mapnik::datasource_cache::instance().register_datasources(MAPNIK_DEFAULT_INPUT_PLUGIN_DIR);
 
 #define RUN_TEST(x) { tests_failed += test::run(#x, &(x)); }
   RUN_TEST(test_cache_once);
-  // TODO: failing... RUN_TEST(test_cache_twice);
+  RUN_TEST(test_cache_twice);
   RUN_TEST(test_cache_disable);
 
   std::cout << " >> Tests failed: " << tests_failed << std::endl << std::endl;

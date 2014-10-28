@@ -6,6 +6,8 @@
 #include <boost/format.hpp>
 #include <boost/algorithm/string/find_format.hpp>
 #include <boost/xpressive/xpressive.hpp>
+#include <boost/optional/optional_io.hpp>
+#include <boost/lexical_cast.hpp>
 
 #include <sstream>
 #include <list>
@@ -71,9 +73,11 @@ struct request {
     , z(r.z), x(r.x), y(r.y)
     , stream(std::move(r.stream))
     , url(std::move(r.url))
+    , base_date(std::move(r.base_date))
     , expires(std::move(r.expires))
     , last_modified(std::move(r.last_modified))
-    , etag(std::move(r.etag)) {
+    , etag(std::move(r.etag))
+    , max_age(std::move(r.max_age)) {
   }
 
   bool expired() const {
@@ -92,6 +96,7 @@ struct request {
   boost::optional<std::time_t> expires;
   boost::optional<std::time_t> last_modified;
   boost::optional<std::string> etag;
+  boost::optional<double> max_age;
 };
 
 bool parse_header_value(boost::iterator_range<const char *> &range) {
@@ -137,6 +142,7 @@ size_t header_callback(char *ptr, size_t size, size_t nmemb, void *userdata) {
   static const char header_etag[] = "ETag";
   static const char header_expires[] = "Expires";
   static const char header_last_modified[] = "Last-Modified";
+  static const char header_cache_control[] = "Cache-control";
 
   request *req = static_cast<request *>(userdata);
   const size_t total_bytes = size * nmemb;
@@ -161,6 +167,20 @@ size_t header_callback(char *ptr, size_t size, size_t nmemb, void *userdata) {
   } else if (HEADER_MATCH(last_modified)) {
     string_range range(ptr + STRLEN(last_modified), ptr + total_bytes);
     req->last_modified = parse_date(range);
+
+  } else if (HEADER_MATCH(cache_control)) {
+    string_range range(ptr + STRLEN(cache_control), ptr + total_bytes);
+    if (parse_header_value(range)) {
+      if ((range.size() > 7) && (strncasecmp(range.begin(), "max-age", 7) == 0)) {
+        range.advance_begin(7);
+        while (bool(range) && ((range.front() == ' ') || (range.front() == '='))) {
+          range.advance_begin(1);
+        }
+        if (bool(range)) {
+          req->max_age = boost::lexical_cast<int>(std::string(range.begin(), range.end()));
+        }
+      }
+    }
   }
 
 #undef STRLEN
@@ -339,14 +359,25 @@ struct cache {
     s.bind_text(1, req->url);
 
     if (s.step()) {
-      req->expires = s.column_time(1);
-      req->last_modified = s.column_time(2);
-      req->etag = s.column_text(3);
-      s.column_blob(4, *(req->stream));
+      req->expires = s.column_time(0);
+      req->last_modified = s.column_time(1);
+      req->etag = s.column_text(2);
+      s.column_blob(3, *(req->stream));
     }
   }
 
   void write(request *req) {
+    // first, normalise the request by collapsing any Cache-control / Expires headers.
+    if (req->max_age) {
+      req->expires = time(nullptr) + *req->max_age;
+
+    } else if (bool(req->expires) && bool(req->base_date)) {
+      req->expires = time(nullptr) + (*req->expires - *req->base_date);
+
+    } else {
+      req->expires = boost::none;
+    }
+
     sqlite::statement s(m_db->prepare("insert or replace into cache (url, expires, last_modified, etag, body) values (?, ?, ?, ?, ?)"));
     s.bind_text(1, req->url);
     s.bind_time(2, req->expires);
