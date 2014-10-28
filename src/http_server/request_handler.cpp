@@ -18,7 +18,6 @@
 
 #include "http_server/request_handler.hpp"
 #include "http_server/parse_path.hpp"
-#include "http_server/mime_types.hpp"
 #include "http_server/reply.hpp"
 #include "http_server/request.hpp"
 
