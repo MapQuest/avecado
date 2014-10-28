@@ -145,8 +145,12 @@ int main() {
 
 #define RUN_TEST(x) { tests_failed += test::run(#x, &(x)); }
   RUN_TEST(test_cache_once);
+
+  // these tests will only work if we have SQLite installed.
+#ifdef HAVE_SQLITE3
   RUN_TEST(test_cache_twice);
   RUN_TEST(test_cache_disable);
+#endif /* HAVE_SQLITE3 */
 
   std::cout << " >> Tests failed: " << tests_failed << std::endl << std::endl;
 
