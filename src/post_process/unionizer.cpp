@@ -54,15 +54,22 @@ namespace {
     bool m_directional;
     //the vertex
     double m_x, m_y;
-    //TODO: add some vector approximation of the linestring heading away from the vertex
-    //so that when sorting you can favor acute vs obtuse angles
-    //the difficulty here is how much of the linestring to consider when computing this
-    //directional vector. if you take to little it doesn't really represent the angle
-    //if you take too much it doesn't really represent the angle. initial thought is
-    //given two linestrings you could take up to a
+    //approximate directional vector along the curve leaving the vertex
+    double m_dx, m_dy;
 
-    candidate(position position_, size_t index_, mapnik::feature_ptr feature_, bool directional, double x_, double y_):
-      m_position(position_), m_index(index_), m_parent(feature_), m_directional(directional), m_x(x_), m_y(y_) {
+    candidate(position position_, size_t index_, mapnik::feature_ptr feature_, bool directional, union_heuristic heuristic_):
+      m_position(position_), m_index(index_), m_parent(feature_), m_directional(directional){
+      //grab the geom
+      mapnik::geometry_type geometry = m_parent->get_geometry(m_index);
+      //grab the vertex
+      geometry.vertex(m_position == FRONT ? 0 : geometry.size() - 1, &m_x, &m_y);
+      //tweak the candidates according to the union heuristic
+      switch(heuristic_) {
+        case OBTUSE:
+          //TODO: compute appx angle leading away from vertex
+          break;
+        //TODO: other heuristics
+      }
     }
   };
 
@@ -105,17 +112,8 @@ namespace {
       //we only handle line unioning at present
       if (geometry.type() == mapnik::geometry_type::LineString) {
         //make placeholders for the front and back
-        candidate front(candidate::FRONT, i, feature, preserve_direction, NAN, NAN);
-        candidate back(candidate::BACK, i, feature, preserve_direction, NAN, NAN);
-        //tweak the candidates according to the union heuristic
-        switch(heuristic) {
-          case OBTUSE:
-            //TODO: set the angles from either end
-          case GREEDY:
-            geometry.vertex(0, &front.m_x, &front.m_y);
-            geometry.vertex(geometry.size(), &back.m_x, &back.m_y);
-            break;
-        }
+        candidate front(candidate::FRONT, i, feature, preserve_direction, heuristic);
+        candidate back(candidate::BACK, i, feature, preserve_direction, heuristic);
         //add on the candidates
         candidates.emplace(front);
         candidates.emplace(back);
