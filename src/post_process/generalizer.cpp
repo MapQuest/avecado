@@ -18,7 +18,7 @@ public:
   generalizer(const string& algorithm, const double& tolerance);
   virtual ~generalizer() {}
 
-  virtual void process(vector<mapnik::feature_ptr> &layer) const;
+  virtual void process(vector<mapnik::feature_ptr> &layer, mapnik::Map const& map) const;
 
 private:
 
@@ -33,7 +33,7 @@ generalizer::generalizer(const string& algorithm, const double& tolerance):
 }
 
 
-void generalizer::process(vector<mapnik::feature_ptr> &layer) const {
+void generalizer::process(vector<mapnik::feature_ptr> &layer, mapnik::Map const& map) const {
   //for each feature set
   for(auto& feat : layer) {
     //for each geometry

@@ -55,7 +55,7 @@ public:
    */
   void process_layer(std::vector<mapnik::feature_ptr> &layer, 
                      const std::string &layer_name,
-                     double scale) const;
+                     mapnik::Map const& map) const;
 
 private:
   class pimpl;

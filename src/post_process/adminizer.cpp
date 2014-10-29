@@ -625,7 +625,7 @@ public:
   adminizer(pt::ptree const& config);
   virtual ~adminizer();
 
-  virtual void process(std::vector<mapnik::feature_ptr> &layer) const;
+  virtual void process(std::vector<mapnik::feature_ptr> &layer, mapnik::Map const& map) const;
 
 private:
   std::vector<entry> make_entries(const mapnik::box2d<double> &env) const;
@@ -784,7 +784,7 @@ void adminizer::adminize_feature(mapnik::feature_ptr &&f,
   }
 }
 
-void adminizer::process(std::vector<mapnik::feature_ptr> &layer) const {
+void adminizer::process(std::vector<mapnik::feature_ptr> &layer, mapnik::Map const& map) const {
   // build extent of all features in layer
   mapnik::box2d<double> env = envelope(layer);
 
