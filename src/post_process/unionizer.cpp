@@ -139,12 +139,13 @@ namespace {
           break;
         case OBTUSE:
         case ACUTE:
+          //a place to hold each point in the curve
+          double x = m_x, y = m_y;
           //object to use to approximate the curve
           curve_approximator appx(m_x, m_y, xy_distance.first, xy_distance.second);
           //pull out the geometry until we've consumed enough
           for(size_t i = 1; i < geometry.size(); ++i) {
             //grab this point in the geom
-            double x, y;
             if(m_position == FRONT)
               geometry.vertex(i, &x, &y);
             else
