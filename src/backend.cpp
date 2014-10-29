@@ -19,9 +19,6 @@ void backend::start_tile_layer(std::string const& name) {
 
 void backend::stop_tile_layer() {
   if (m_post_processor) {
-    // TODO: passing the scale is kind of annoying because it makes
-    // the assumption of 900913, which nothing else at this layer
-    // of avecado does.
     m_post_processor->process_layer(m_current_layer_features,
                                     m_current_layer_name,
                                     m_map);
