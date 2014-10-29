@@ -5,10 +5,10 @@ namespace avecado {
 
 backend::backend(mapnik::vector::tile & tile,
                  unsigned path_multiplier,
-                 double scale,
+                 mapnik::Map const& map,
                  boost::optional<const post_processor &> pp)
   : m_pbf(tile, path_multiplier),
-    m_scale(scale),
+    m_map(map),
     m_tolerance(1),
     m_post_processor(pp) {}
 
@@ -24,7 +24,7 @@ void backend::stop_tile_layer() {
     // of avecado does.
     m_post_processor->process_layer(m_current_layer_features,
                                     m_current_layer_name,
-                                    m_scale);
+                                    m_map);
   }
 
   m_pbf.start_tile_layer(m_current_layer_name);

@@ -2,7 +2,9 @@
 
 #include <string>
 #include <vector>
+#include <list>
 #include <set>
+#include <map>
 #include <unordered_set>
 #include <unordered_map>
 
@@ -40,6 +42,72 @@ namespace {
     return true;
   }
 
+  //used to approximate a curve with a single directional vector
+  struct curve_approximator {
+      //pass it the start point of the curve
+      curve_approximator(double x, double y, double consume_x, double consume_y):
+        m_x(x), m_y(y), m_consume_x(consume_x), m_consume_y(consume_y), m_total_length(0){}
+
+      //pass in the next points on the line which it will consume until it
+      //has consumed the limits specified in x/ydist. it will return false if it
+      //doesn't want anymore points
+      bool consume(double x, double y) {
+        //consume this bit
+        double x_diff = abs(m_x - x);
+        double y_diff = abs(m_y - y);
+
+        //if we've consumed too much x (what could possibly go wrong?)
+        if(m_consume_x - x_diff < 0){
+          //find the appropriate y_diff (intercept) that makes x_diff == m_consume_x
+          y_diff = (y_diff / x_diff) * m_consume_x;
+          x_diff = m_consume_x;
+        }
+
+        //if we've consumed too much y (surely there is some secrete club drug named 'y')
+        if(m_consume_y - y_diff < 0) {
+          //find the appropriate x_diff (intercept) that makes y_diff == m_consume_y
+          x_diff = (x_diff / y_diff) * m_consume_y;
+          y_diff = m_consume_y;
+        }
+
+        //update the amount you've consumed
+        m_consume_x -= x_diff;
+        m_consume_y -= y_diff;
+
+        //keep stats on how far away this point is
+        m_points.emplace_back(x_diff, y_diff, x_diff*x_diff + y_diff*y_diff);
+        m_total_length += get<2>(m_points.back());
+
+        //do we have length left to consume
+        return m_consume_x > 0 && m_consume_y > 0;
+      }
+
+      //returns the vector from the origin that follows the general
+      //direction of the portion of the curve that was sampled
+      void get_approximation(double& x, double& y) {
+        //this seems like a reasonable approximation. basically we
+        //take all the vectors from the union point to each point along the curve
+        //and average them together, but we weight them by their relative distance
+        //from the start point. perhaps this strategy has a name but what it is
+        //is anyone's guess
+
+        //a place to hold the approximate direction of the curve
+        x = y = 0;
+
+        //normalize the length to use as a weight to apply when averaging the vectors
+        double scale = 1 / m_total_length;
+        for(const auto& weighted_point : m_points) {
+          x += get<0>(weighted_point) * get<2>(weighted_point) * scale;
+          y += get<1>(weighted_point) * get<2>(weighted_point) * scale;
+        }
+      }
+
+      const double m_x, m_y;
+      double m_consume_x, m_consume_y;
+      double m_total_length;
+      list<tuple<double, double, double> > m_points;
+  };
+
   //a struct we can use to sort the end points of linestrings to be used in the
   //match making process. why is this starting to sound like marriage?
   struct candidate{
@@ -57,28 +125,36 @@ namespace {
     //normal vector approximating the curve leaving the vertex
     double m_dx, m_dy;
 
-    candidate(position position_, size_t index_, mapnik::feature_ptr feature_, bool directional, union_heuristic heuristic_):
+    candidate(position position_, size_t index_, mapnik::feature_ptr feature_, bool directional, union_heuristic heuristic_,
+      const pair<double, double>& xy_distance):
       m_position(position_), m_index(index_), m_parent(feature_), m_directional(directional), m_dx(NAN), m_dy(NAN) {
       //grab the geom
-      mapnik::geometry_type geometry = m_parent->get_geometry(m_index);
+      mapnik::geometry_type& geometry = m_parent->get_geometry(m_index);
       //grab the vertex
       geometry.vertex(m_position == FRONT ? 0 : geometry.size() - 1, &m_x, &m_y);
 
       //tweak the candidate according to the heuristic
       switch(heuristic_) {
+        case GREEDY:
+          break;
         case OBTUSE:
         case ACUTE:
-          //if we need to iterate forwards
-          if(m_position == FRONT) {
-            for(size_t i = 1; i < geometry.size(); ++i) {
-
-            }
-          }//we need to iterate backwards
-          else {
-            for(size_t i = geometry.size() - 1; i != static_cast<size_t>(0) - 1; --i) {
-
-            }
+          //object to use to approximate the curve
+          curve_approximator appx(m_x, m_y, xy_distance.first, xy_distance.second);
+          //pull out the geometry until we've consumed enough
+          for(size_t i = 1; i < geometry.size(); ++i) {
+            //grab this point in the geom
+            double x, y;
+            if(m_position == FRONT)
+              geometry.vertex(i, &x, &y);
+            else
+              geometry.vertex((geometry.size() - i) - 1, &x, &y);
+            //if its done consuming then stop
+            if(!appx.consume(x, y))
+              break;
           }
+          //set the approximate angle of the curve leaving the end point
+          appx.get_approximation(m_dx, m_dy);
           break;
       }
     }
@@ -115,7 +191,7 @@ namespace {
   };
 
   void add_candidates(mapnik::feature_ptr feature, set<candidate, candidate_comparator>& candidates,
-    const union_heuristic heuristic, const bool preserve_direction) {
+    const union_heuristic heuristic, const bool preserve_direction, const pair<double, double>& distance) {
     //grab some statistics about the geom so we can play match maker
     for (size_t i = 0; i < feature->num_geometries(); ++i) {
       //grab the geom
@@ -123,8 +199,8 @@ namespace {
       //we only handle (nontrivial) linestring unioning at present
       if (geometry.type() == mapnik::geometry_type::LineString && geometry.size() > 1) {
         //make placeholders for the front and back
-        candidate front(candidate::FRONT, i, feature, preserve_direction, heuristic);
-        candidate back(candidate::BACK, i, feature, preserve_direction, heuristic);
+        candidate front(candidate::FRONT, i, feature, preserve_direction, heuristic, distance);
+        candidate back(candidate::BACK, i, feature, preserve_direction, heuristic, distance);
         //add on the candidates
         candidates.emplace(front);
         candidates.emplace(back);
@@ -133,7 +209,8 @@ namespace {
   }
 
   set<candidate, candidate_comparator> get_candidates(std::vector<mapnik::feature_ptr> &layer,
-    const unordered_set<string>& tags, const unordered_set<string>& directional_tags, const union_heuristic heuristic) {
+    const unordered_set<string>& tags, const unordered_set<string>& directional_tags,
+    const union_heuristic heuristic, const pair<double, double>& distance) {
 
     set<candidate, candidate_comparator> candidates{candidate_comparator(tags)};
 
@@ -151,7 +228,7 @@ namespace {
       }
 
       //create some union candidates out of the geom
-      add_candidates(feature, candidates, heuristic, preserve_direction);
+      add_candidates(feature, candidates, heuristic, preserve_direction, distance);
     }
 
     return candidates;
@@ -338,10 +415,11 @@ namespace post_process {
 class unionizer : public izer {
 public:
   unionizer(const union_heuristic heuristic, const tag_strategy strategy, const boost::optional<string>& keep_ids_tag,
-    const size_t max_iterations, const unordered_set<string>& match_tags, const unordered_set<string>& preserve_direction_tags);
+    const size_t max_iterations, const unordered_set<string>& match_tags, const unordered_set<string>& preserve_direction_tags,
+    const double angle_union_sample_ratio);
   virtual ~unionizer() {}
 
-  virtual void process(std::vector<mapnik::feature_ptr> &layer) const;
+  virtual void process(std::vector<mapnik::feature_ptr> &layer, mapnik::Map const& map) const;
 
 private:
 
@@ -351,24 +429,34 @@ private:
   const size_t m_max_iterations;
   const unordered_set<string> m_match_tags;
   const unordered_set<string> m_preserve_direction_tags;
+  const double m_angle_union_sample_ratio;
 };
 
 unionizer::unionizer(const union_heuristic heuristic, const tag_strategy strategy, const boost::optional<string>& keep_ids_tag,
-  const size_t max_iterations, const unordered_set<string>& match_tags, const unordered_set<string>& preserve_direction_tags):
+  const size_t max_iterations, const unordered_set<string>& match_tags, const unordered_set<string>& preserve_direction_tags,
+  const double angle_union_sample_ratio):
   m_heuristic(heuristic), m_strategy(strategy), m_keep_ids_tag(keep_ids_tag), m_max_iterations(max_iterations),
-  m_match_tags(match_tags), m_preserve_direction_tags(preserve_direction_tags) {
+  m_match_tags(match_tags), m_preserve_direction_tags(preserve_direction_tags), m_angle_union_sample_ratio(angle_union_sample_ratio) {
 }
 
-void unionizer::process(std::vector<mapnik::feature_ptr> &layer) const {
+void unionizer::process(std::vector<mapnik::feature_ptr> &layer, mapnik::Map const& map) const {
+  //if they are using an angle union heuristic they need to know the distance along the feature
+  //to use for estimating an angle that represents the curve leaving the union point
+  //so we let them say how many units in each axis we should travel before we have enough data
+  //to make an approximation. this is rife with assumptions (non constant units per pixel as
+  //you vary the x or y coordinates) but hopefully works well enough for commonly used projections
+  double width_units = map.get_current_extent().width() * m_angle_union_sample_ratio;
+  double height_units = map.get_current_extent().height() * m_angle_union_sample_ratio;
+
   //only do up to as many iterations as the user specified
   for(size_t i = 0; i < m_max_iterations; ++i){
 
     //grab all the current adjacent (sorted by endpoint and tags) tuples of candidates for unioning
     set<candidate, candidate_comparator> candidates =
-        get_candidates(layer, m_match_tags, m_preserve_direction_tags, m_heuristic);
+        get_candidates(layer, m_match_tags, m_preserve_direction_tags, m_heuristic, make_pair(width_units, height_units));
 
     //a place to hold the scored pairs of candidates
-    map<score_t, couple_t> scored;
+    std::map<score_t, couple_t> scored;
 
     //templated by the different scoring heuristic of which are the best unions
     switch(m_heuristic) {
@@ -450,8 +538,19 @@ izer_ptr create_unionizer(pt::ptree const& config) {
     }
   }
 
-  return std::make_shared<unionizer>(heuristic, strategy, keep_ids_tag, max_iterations, match, direction);
+  //if you are using the angle based heuristic for unioning we need to have some measure of length of a feature to use
+  //when determining its approximate angle leaving a union point. we allow the user to specify this as a percentage of
+  //the resolution of the tiles they are targeting because we have a measure of how many units are encompassed in a given
+  //pixel of a given tile. note that we could allow users to specify the number of pixels but this would require them to
+  //know the target resolution of their tiles. also note that we default to 10%
+  double angle_union_sample_ratio = config.get<double>("angle_union_sample_ratio", .1);
+  //cap it at a sane value
+  if(angle_union_sample_ratio > .5)
+    angle_union_sample_ratio = .5;
+
+  return std::make_shared<unionizer>(heuristic, strategy, keep_ids_tag, max_iterations, match, direction, angle_union_sample_ratio);
 }
 
 } // namespace post_process
 } // namespace avecado
+

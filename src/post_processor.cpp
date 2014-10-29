@@ -33,7 +33,7 @@ public:
   void load(pt::ptree const& config);
   void process_layer(std::vector<mapnik::feature_ptr> & layer,
                      const std::string &layer_name,
-                     double scale) const;
+                     mapnik::Map const& map) const;
 private:
   layer_map_t m_layer_processes;
 };
@@ -70,16 +70,16 @@ void post_processor::pimpl::load(pt::ptree const& config) {
 // Find post-processes for given layer at scale and run them
 void post_processor::pimpl::process_layer(std::vector<mapnik::feature_ptr> & layer,
                                           const std::string &layer_name,
-                                          double scale) const {
+                                          mapnik::Map const& map) const {
   layer_map_t::const_iterator layer_itr = m_layer_processes.find(layer_name);
   if (layer_itr != m_layer_processes.end()) {
     scale_range_vec_t const& scale_ranges = layer_itr->second;
     // TODO: Consider ways to optimize scale range look up
     for (auto range : scale_ranges) {
-      if (scale >= range.minscale && scale <= range.maxscale) {
+      if (map.scale() >= range.minscale && map.scale() <= range.maxscale) {
         // TODO: unserialize geometry objects to pass through izers
         for (auto p : range.processes) {
-          p->process(layer);
+          p->process(layer, map);
         }
         break;
       }
@@ -102,8 +102,8 @@ void post_processor::load(pt::ptree const& config) {
 
 void post_processor::process_layer(std::vector<mapnik::feature_ptr> &layer, 
                                    const std::string &layer_name,
-                                   double scale) const {
-  m_impl->process_layer(layer, layer_name, scale);
+                                   mapnik::Map const& map) const {
+  m_impl->process_layer(layer, layer_name, map);
 }
 
 } // namespace avecado

@@ -2,6 +2,7 @@
 #define AVECADO_IZER_BASE_HPP
 
 #include "vector_tile_backend_pbf.hpp"
+#include "mapnik/map.hpp"
 
 namespace avecado {
 namespace post_process {
@@ -13,7 +14,7 @@ namespace post_process {
 class izer {
 public:
   virtual ~izer() {};
-  virtual void process(std::vector<mapnik::feature_ptr> &layer) const = 0;
+  virtual void process(std::vector<mapnik::feature_ptr> &layer, mapnik::Map const& map) const = 0;
 };
 
 typedef std::shared_ptr<izer> izer_ptr;
