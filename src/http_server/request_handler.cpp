@@ -112,14 +112,18 @@ void request_handler::handle_request_impl(const request &req, reply &rep)
     rep.status = reply::ok;
     rep.is_hard_error = false;
     rep.content = painted ? tile.get_data() : "";
-    rep.headers.resize(4);
+    rep.headers.resize(6);
     rep.headers[0].name = "Content-Length";
     rep.headers[0].value = boost::lexical_cast<std::string>(rep.content.size());
     rep.headers[1].name = "Content-Type";
     rep.headers[1].value = "application/octet-stream";
-    rep.headers[2].name = "Cache-control";
-    rep.headers[2].value = "max-age = 60";
-    rep.headers[3].name = "Date";
+    rep.headers[2].name = "Access-Control-Allow-Origin";
+    rep.headers[2].value = "*";
+    rep.headers[3].name= "access-control-allow-methods";
+    rep.headers[3].value = "GET";
+    rep.headers[4].name = "Cache-control";
+    rep.headers[4].value = "max-age = 60"; // <-- TODO: make configurable.
+    rep.headers[5].name = "Date";
     {
       std::stringstream out;
       std::time_t t = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
@@ -129,7 +133,7 @@ void request_handler::handle_request_impl(const request &req, reply &rep)
       setlocale(LC_TIME, "C");
       char buf[30];
       strftime(buf, 30, "%a, %d %b %Y %H:%M:%S GMT", &tt);
-      rep.headers[3].value = buf;
+      rep.headers[5].value = buf;
       setlocale(LC_TIME, oldlocale);
     }
 
