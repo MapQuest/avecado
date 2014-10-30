@@ -31,7 +31,7 @@ class post_processor::pimpl {
 public:
   pimpl();
   void load(pt::ptree const& config);
-  void process_layer(std::vector<mapnik::feature_ptr> & layer,
+  size_t process_layer(std::vector<mapnik::feature_ptr> & layer,
                      const std::string &layer_name,
                      mapnik::Map const& map) const;
 private:
@@ -53,8 +53,8 @@ void post_processor::pimpl::load(pt::ptree const& config) {
     scale_range_vec_t scale_ranges;
     for (auto range_child : layer_child.second) {
       scale_range_t scale_range;
-      scale_range.minscale = zoom_to_scale(range_child.second.get<int>("minzoom"));
-      scale_range.maxscale = zoom_to_scale(range_child.second.get<int>("maxzoom"));
+      scale_range.maxscale = zoom_to_scale(range_child.second.get<int>("minzoom"));
+      scale_range.minscale = zoom_to_scale(range_child.second.get<int>("maxzoom"));
       pt::ptree const& process_config = range_child.second.get_child("process");
       for (auto izer_child : process_config) {
         std::string const& type = izer_child.second.get<std::string>("type");
@@ -68,9 +68,10 @@ void post_processor::pimpl::load(pt::ptree const& config) {
 }
 
 // Find post-processes for given layer at scale and run them
-void post_processor::pimpl::process_layer(std::vector<mapnik::feature_ptr> & layer,
+size_t post_processor::pimpl::process_layer(std::vector<mapnik::feature_ptr> & layer,
                                           const std::string &layer_name,
                                           mapnik::Map const& map) const {
+  size_t ran = 0;
   layer_map_t::const_iterator layer_itr = m_layer_processes.find(layer_name);
   if (layer_itr != m_layer_processes.end()) {
     scale_range_vec_t const& scale_ranges = layer_itr->second;
@@ -80,11 +81,13 @@ void post_processor::pimpl::process_layer(std::vector<mapnik::feature_ptr> & lay
         // TODO: unserialize geometry objects to pass through izers
         for (auto p : range.processes) {
           p->process(layer, map);
+          ++ran;
         }
         break;
       }
     }
   }
+  return ran;
 }
 
 post_processor::post_processor()
@@ -100,10 +103,10 @@ void post_processor::load(pt::ptree const& config) {
   m_impl.swap(impl);
 }
 
-void post_processor::process_layer(std::vector<mapnik::feature_ptr> &layer, 
+size_t post_processor::process_layer(std::vector<mapnik::feature_ptr> &layer,
                                    const std::string &layer_name,
                                    mapnik::Map const& map) const {
-  m_impl->process_layer(layer, layer_name, map);
+  return m_impl->process_layer(layer, layer_name, map);
 }
 
 } // namespace avecado
