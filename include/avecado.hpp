@@ -125,8 +125,12 @@ bool make_vector_tile(tile &tile,
  *     Scale factor to use when rendering.
  *
  *   buffer_size:
- *     Buffer size to use around the rendered image. (TODO: check
- *     this is what's actually happening.)
+ *     Buffer size to use around the rendered image. Setting
+ *     this will not cause additional tiles to be fetched and
+ *     setting it to anything larger than the greatest
+ *     buffer_size of the underlying vector tiles will not
+ *     normally have an effect. (TODO: check this is what's
+ *     actually happening.)
  */
 bool render_vector_tile(mapnik::image_32 &image,
                         tile &tile,
