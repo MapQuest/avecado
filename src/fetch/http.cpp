@@ -308,7 +308,8 @@ struct statement {
 
 private:
   friend struct db;
-  statement(sqlite3 *db, const std::string &sql) {
+  statement(sqlite3 *db, const std::string &sql) 
+    : ptr(), db_for_errors(db) {
     const char *tail = nullptr;
     sqlite3_stmt *ptr_ = nullptr;
     int status = sqlite3_prepare_v2(db, sql.c_str(), sql.size(), &ptr_, &tail);
