@@ -10,9 +10,28 @@
 namespace pt = boost::property_tree;
 
 namespace {
-  const double WORLD_METERS = 40075016.68;
-  double zoom_to_scale(int zoom) {
-    return WORLD_METERS / double(1 << zoom);
+
+  //turn a zoom level into mapnik scale which is units per pixel:
+  //https://github.com/mapnik/mapnik/wiki/ScaleAndPpi
+  const double WORLD_CIRCUMFERENCE_METERS = 40075016.68;
+  double meters_per_pixel(const mapnik::Map& m, int z) {
+    //if we fit the whole world into a tile this size
+    //this is how many meters per pixel per axis we would have
+    //most often width and height will be 256 pixels
+    const double world_meters_per_pixel_x = WORLD_CIRCUMFERENCE_METERS / m.width();
+    const double world_meters_per_pixel_y = WORLD_CIRCUMFERENCE_METERS / m.height();
+    //ASSUMPTION: lets hope the tile is basically square in terms of pixels
+    const double world_meters_per_pixel = (world_meters_per_pixel_x + world_meters_per_pixel_y) * .5;
+    //this is how many tiles per axis we have at this zoom level
+    const int tiles_per_axis = 1 << z;
+    //this is how many meters fit in a pixel at a tile from this zoom level
+    return world_meters_per_pixel / tiles_per_axis;
+  }
+
+  //approximate equivalence using an epsilon
+  const double EPSILON = .0005;
+  bool appx_equal(const double a, const double b) {
+    return fabs(a-b) < EPSILON;
   }
 }
 
@@ -20,8 +39,8 @@ namespace avecado {
 
 typedef std::vector<post_process::izer_ptr> izer_vec_t;
 typedef struct {
-  double minscale;
-  double maxscale;
+  double minzoom;
+  double maxzoom;
   izer_vec_t processes;
 } scale_range_t;
 typedef std::vector<scale_range_t> scale_range_vec_t;
@@ -53,8 +72,8 @@ void post_processor::pimpl::load(pt::ptree const& config) {
     scale_range_vec_t scale_ranges;
     for (auto range_child : layer_child.second) {
       scale_range_t scale_range;
-      scale_range.maxscale = zoom_to_scale(range_child.second.get<int>("minzoom"));
-      scale_range.minscale = zoom_to_scale(range_child.second.get<int>("maxzoom"));
+      scale_range.minzoom = range_child.second.get<int>("minzoom");
+      scale_range.maxzoom = range_child.second.get<int>("maxzoom");
       pt::ptree const& process_config = range_child.second.get_child("process");
       for (auto izer_child : process_config) {
         std::string const& type = izer_child.second.get<std::string>("type");
@@ -77,7 +96,11 @@ size_t post_processor::pimpl::process_layer(std::vector<mapnik::feature_ptr> & l
     scale_range_vec_t const& scale_ranges = layer_itr->second;
     // TODO: Consider ways to optimize scale range look up
     for (auto range : scale_ranges) {
-      if (map.scale() >= range.minscale && map.scale() <= range.maxscale) {
+      double min_scale = meters_per_pixel(map, range.maxzoom);
+      double max_scale = meters_per_pixel(map, range.minzoom);
+      if ((map.scale() > min_scale && map.scale() < max_scale) ||
+          appx_equal(map.scale(), min_scale) ||
+          appx_equal(map.scale(), max_scale)) {
         // TODO: unserialize geometry objects to pass through izers
         for (auto p : range.processes) {
           p->process(layer, map);
