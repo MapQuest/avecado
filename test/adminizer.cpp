@@ -161,7 +161,7 @@ void assert_izer_include(const std::string &wkt) {
   std::vector<mapnik::feature_ptr> features;
   features.push_back(mk_feat_wkt(wkt));
 
-  izer->process(features);
+  izer->process(features, test::make_map("test/empty_map_file.xml", 256, 0, 0, 0));
 
   test::assert_equal<size_t>(features.size(), 1, "should be only one feature");
 
@@ -179,7 +179,7 @@ void assert_izer_exclude(const std::string &wkt) {
   std::vector<mapnik::feature_ptr> features;
   features.push_back(mk_feat_wkt(wkt));
 
-  izer->process(features);
+  izer->process(features, test::make_map("test/empty_map_file.xml", 256, 0, 0, 0));
 
   test::assert_equal<size_t>(features.size(), 1, "should be only one feature");
 
@@ -245,7 +245,7 @@ std::string intersection_param(pp::izer_ptr &izer, const std::string &wkt) {
   std::vector<mapnik::feature_ptr> features;
   features.push_back(mk_feat_wkt(wkt));
 
-  izer->process(features);
+  izer->process(features, test::make_map("test/empty_map_file.xml", 256, 0, 0, 0));
 
   test::assert_equal<size_t>(features.size(), 1, "should be only one feature");
   mapnik::feature_ptr feat = features[0];
@@ -308,7 +308,7 @@ void test_intersection_mode_split() {
   std::vector<feature_ptr> features;
   features.push_back(mk_feat_wkt("LINESTRING(-1 2, 5 2)"));
 
-  izer->process(features);
+  izer->process(features, test::make_map("test/empty_map_file.xml", 256, 0, 0, 0));
 
   int segments[] = {-1, -1, -1};
   int num_segments = 0;
@@ -386,7 +386,7 @@ void test_intersection_mode_split_first() {
   std::vector<feature_ptr> features;
   features.push_back(mk_feat_wkt("LINESTRING(-1 2, 5 2)"));
 
-  izer->process(features);
+  izer->process(features, test::make_map("test/empty_map_file.xml", 256, 0, 0, 0));
 
   int segments[] = {-1, -1, -1, -1};
   int num_segments = 0;
@@ -476,7 +476,7 @@ void test_intersection_mode_split_collect() {
   std::vector<feature_ptr> features;
   features.push_back(mk_feat_wkt("LINESTRING(-1 2, 5 2)"));
 
-  izer->process(features);
+  izer->process(features, test::make_map("test/empty_map_file.xml", 256, 0, 0, 0));
 
   int segments[] = {-1, -1, -1, -1, -1};
   int num_segments = 0;
@@ -601,7 +601,7 @@ void test_disjoint_admin_polygons() {
   features.push_back(mk_feat_wkt("POINT(1 1)"));
   features.push_back(mk_feat_wkt("POINT(8 8)"));
 
-  izer->process(features);
+  izer->process(features, test::make_map("test/empty_map_file.xml", 256, 0, 0, 0));
 
   test::assert_equal<size_t>(features.size(), 2, "should still be 2 features");
   for (size_t i = 0; i < 2; ++i) {

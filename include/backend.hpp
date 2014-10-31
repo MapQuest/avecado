@@ -8,6 +8,7 @@
 #include <mapnik/feature.hpp>
 #include <mapnik/value_types.hpp>
 #include <mapnik/vertex.hpp>
+#include <mapnik/map.hpp>
 
 // vector tile
 #include "vector_tile_backend_pbf.hpp"
@@ -23,6 +24,7 @@ class backend {
 public:
   backend(mapnik::vector::tile & tile,
           unsigned path_multiplier,
+          mapnik::Map const& map,
           boost::optional<const post_processor &> pp);
 
   void start_tile_layer(std::string const& name);
@@ -57,6 +59,7 @@ public:
 
 private:
   mapnik::vector::backend_pbf m_pbf;
+  mapnik::Map const& m_map;
   unsigned int m_tolerance;
   boost::optional<const post_processor &> m_post_processor;
   std::string m_current_layer_name;

@@ -39,7 +39,7 @@ bool make_vector_tile(tile &tile,
   typedef backend backend_type;
   typedef mapnik::vector::processor<backend_type> renderer_type;
   
-  backend_type backend(*tile.m_mapnik_tile, path_multiplier, pp);
+  backend_type backend(*tile.m_mapnik_tile, path_multiplier, map, pp);
   
   mapnik::request request(map.width(),
                           map.height(),
