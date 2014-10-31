@@ -72,8 +72,8 @@ void post_processor::pimpl::load(pt::ptree const& config) {
     scale_range_vec_t scale_ranges;
     for (auto range_child : layer_child.second) {
       scale_range_t scale_range;
-      scale_range.minzoom = range_child.second.get<int>("minzoom");
-      scale_range.maxzoom = range_child.second.get<int>("maxzoom");
+      scale_range.minzoom = range_child.second.get<int>("minzoom") - .5;
+      scale_range.maxzoom = range_child.second.get<int>("maxzoom") + .5;
       pt::ptree const& process_config = range_child.second.get_child("process");
       for (auto izer_child : process_config) {
         std::string const& type = izer_child.second.get<std::string>("type");
@@ -98,9 +98,9 @@ size_t post_processor::pimpl::process_layer(std::vector<mapnik::feature_ptr> & l
     for (auto range : scale_ranges) {
       double min_scale = meters_per_pixel(map, range.maxzoom);
       double max_scale = meters_per_pixel(map, range.minzoom);
-      if ((map.scale() > min_scale && map.scale() < max_scale) ||
+      if ((map.scale() >= min_scale && map.scale() <= max_scale)/* ||
           appx_equal(map.scale(), min_scale) ||
-          appx_equal(map.scale(), max_scale)) {
+          appx_equal(map.scale(), max_scale)*/) {
         // TODO: unserialize geometry objects to pass through izers
         for (auto p : range.processes) {
           p->process(layer, map);
