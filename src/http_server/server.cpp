@@ -66,13 +66,6 @@ server::server(const std::string& address, const server_options &options)
   tcp::resolver::query query(address, port_);
   tcp::endpoint endpoint = *resolver.resolve(query);
 
-  if (address == "*") {
-    // for some reason, resolving the address "*" results in a localhost
-    // address, rather than all the local interfaces as intended. this hack
-    // forces the endpoint back to all interfaces.
-    endpoint = tcp::endpoint(tcp::v4(), endpoint.port());
-  }
-
   // Open the acceptor with the option to reuse the address (i.e. SO_REUSEADDR).
   acceptor_.open(endpoint.protocol());
   acceptor_.set_option(tcp::acceptor::reuse_address(true));
