@@ -50,6 +50,8 @@ server::server(const std::string& address, const server_options &options)
     thread_specific_ptr_(),
     request_handler_(thread_specific_ptr_, options)
 {
+  using boost::asio::ip::tcp;
+
   // Register to handle the signals that indicate when the server should exit.
   // It is safe to register for the same signal multiple times in a program,
   // provided all registration for the specified signal is made through Asio.
@@ -60,12 +62,20 @@ server::server(const std::string& address, const server_options &options)
 #endif // defined(SIGQUIT)
   signals_.async_wait(boost::bind(&server::handle_stop, this));
 
+  tcp::resolver resolver(io_service_);
+  tcp::resolver::query query(address, port_);
+  tcp::endpoint endpoint = *resolver.resolve(query);
+
+  if (address == "*") {
+    // for some reason, resolving the address "*" results in a localhost
+    // address, rather than all the local interfaces as intended. this hack
+    // forces the endpoint back to all interfaces.
+    endpoint = tcp::endpoint(tcp::v4(), endpoint.port());
+  }
+
   // Open the acceptor with the option to reuse the address (i.e. SO_REUSEADDR).
-  boost::asio::ip::tcp::resolver resolver(io_service_);
-  boost::asio::ip::tcp::resolver::query query(address, port_);
-  boost::asio::ip::tcp::endpoint endpoint = *resolver.resolve(query);
   acceptor_.open(endpoint.protocol());
-  acceptor_.set_option(boost::asio::ip::tcp::acceptor::reuse_address(true));
+  acceptor_.set_option(tcp::acceptor::reuse_address(true));
   acceptor_.bind(endpoint);
   acceptor_.listen();
 
