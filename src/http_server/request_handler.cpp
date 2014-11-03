@@ -108,11 +108,15 @@ void request_handler::handle_request(const request& req, reply& rep)
     rep.status = reply::ok;
     rep.is_hard_error = false;
     rep.content = tile.get_data();
-    rep.headers.resize(2);
+    rep.headers.resize(4);
     rep.headers[0].name = "Content-Length";
     rep.headers[0].value = boost::lexical_cast<std::string>(rep.content.size());
     rep.headers[1].name = "Content-Type";
     rep.headers[1].value = "application/octet-stream";
+    rep.headers[2].name = "Access-Control-Allow-Origin";
+    rep.headers[2].value = "*";
+    rep.headers[3].name= "access-control-allow-methods";
+    rep.headers[3].value = "GET";
 
   } catch (...) {
     rep = reply::stock_reply(reply::internal_server_error);

@@ -10,9 +10,28 @@
 namespace pt = boost::property_tree;
 
 namespace {
-  const double WORLD_METERS = 40075016.68;
-  double zoom_to_scale(int zoom) {
-    return WORLD_METERS / double(1 << zoom);
+
+  //turn a zoom level into mapnik scale which is units per pixel:
+  //https://github.com/mapnik/mapnik/wiki/ScaleAndPpi
+  const double WORLD_CIRCUMFERENCE_METERS = 40075016.68;
+  double meters_per_pixel(const mapnik::Map& m, const double z) {
+    //if we fit the whole world into a tile this size
+    //this is how many meters per pixel per axis we would have
+    //most often width and height will be 256 pixels
+    const double world_meters_per_pixel_x = WORLD_CIRCUMFERENCE_METERS / m.width();
+    const double world_meters_per_pixel_y = WORLD_CIRCUMFERENCE_METERS / m.height();
+    //ASSUMPTION: lets hope the tile is basically square in terms of pixels
+    const double world_meters_per_pixel = (world_meters_per_pixel_x + world_meters_per_pixel_y) * .5;
+    //this is how many tiles per axis we have at this zoom level
+    const double tiles_per_axis = pow(2, z); //1 << z;
+    //this is how many meters fit in a pixel at a tile from this zoom level
+    return world_meters_per_pixel / tiles_per_axis;
+  }
+
+  //approximate equivalence using an epsilon
+  const double EPSILON = .0005;
+  bool appx_equal(const double a, const double b) {
+    return fabs(a-b) < EPSILON;
   }
 }
 
@@ -20,8 +39,8 @@ namespace avecado {
 
 typedef std::vector<post_process::izer_ptr> izer_vec_t;
 typedef struct {
-  double minscale;
-  double maxscale;
+  double minzoom;
+  double maxzoom;
   izer_vec_t processes;
 } scale_range_t;
 typedef std::vector<scale_range_t> scale_range_vec_t;
@@ -31,7 +50,7 @@ class post_processor::pimpl {
 public:
   pimpl();
   void load(pt::ptree const& config);
-  void process_layer(std::vector<mapnik::feature_ptr> & layer,
+  size_t process_layer(std::vector<mapnik::feature_ptr> & layer,
                      const std::string &layer_name,
                      mapnik::Map const& map) const;
 private:
@@ -53,8 +72,11 @@ void post_processor::pimpl::load(pt::ptree const& config) {
     scale_range_vec_t scale_ranges;
     for (auto range_child : layer_child.second) {
       scale_range_t scale_range;
-      scale_range.minscale = zoom_to_scale(range_child.second.get<int>("minzoom"));
-      scale_range.maxscale = zoom_to_scale(range_child.second.get<int>("maxzoom"));
+      //sample at the middle of the zoom range so to avoid having to worry about
+      //precision when turning it into a scale. we only allow you to select discrete
+      //zooms anyway
+      scale_range.minzoom = range_child.second.get<int>("minzoom") - .5;
+      scale_range.maxzoom = range_child.second.get<int>("maxzoom") + .5;
       pt::ptree const& process_config = range_child.second.get_child("process");
       for (auto izer_child : process_config) {
         std::string const& type = izer_child.second.get<std::string>("type");
@@ -68,23 +90,28 @@ void post_processor::pimpl::load(pt::ptree const& config) {
 }
 
 // Find post-processes for given layer at scale and run them
-void post_processor::pimpl::process_layer(std::vector<mapnik::feature_ptr> & layer,
+size_t post_processor::pimpl::process_layer(std::vector<mapnik::feature_ptr> & layer,
                                           const std::string &layer_name,
                                           mapnik::Map const& map) const {
+  size_t ran = 0;
   layer_map_t::const_iterator layer_itr = m_layer_processes.find(layer_name);
   if (layer_itr != m_layer_processes.end()) {
     scale_range_vec_t const& scale_ranges = layer_itr->second;
     // TODO: Consider ways to optimize scale range look up
     for (auto range : scale_ranges) {
-      if (map.scale() >= range.minscale && map.scale() <= range.maxscale) {
+      double min_scale = meters_per_pixel(map, range.maxzoom);
+      double max_scale = meters_per_pixel(map, range.minzoom);
+      if (map.scale() >= min_scale && map.scale() <= max_scale) {
         // TODO: unserialize geometry objects to pass through izers
         for (auto p : range.processes) {
           p->process(layer, map);
+          ++ran;
         }
         break;
       }
     }
   }
+  return ran;
 }
 
 post_processor::post_processor()
@@ -100,10 +127,10 @@ void post_processor::load(pt::ptree const& config) {
   m_impl.swap(impl);
 }
 
-void post_processor::process_layer(std::vector<mapnik::feature_ptr> &layer, 
+size_t post_processor::process_layer(std::vector<mapnik::feature_ptr> &layer,
                                    const std::string &layer_name,
                                    mapnik::Map const& map) const {
-  m_impl->process_layer(layer, layer_name, map);
+  return m_impl->process_layer(layer, layer_name, map);
 }
 
 } // namespace avecado
