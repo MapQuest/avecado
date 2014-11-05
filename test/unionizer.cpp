@@ -10,6 +10,13 @@ using namespace std;
 
 namespace {
 
+bool assert_equal(const mapnik::feature_ptr& a, const mapnik::feature_ptr& b) {
+
+
+
+  return true;
+}
+
 mapnik::feature_ptr mk_line(const vector<pair<double, double> >& line, const vector<pair<string, string> >& tags) {
   //make the geom
   mapnik::geometry_type *geom = new mapnik::geometry_type(mapnik::geometry_type::LineString);
@@ -65,7 +72,6 @@ void test_angle() {
 
 //check if the greedy algorithm unions properly
 void test_greedy() {
-
   //TODO: test no unions occur
 
   //TODO: test correct number of unions occur
