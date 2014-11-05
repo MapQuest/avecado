@@ -156,7 +156,7 @@ int main(int argc, char *argv[]) {
     mapnik::datasource_cache::instance().register_datasources(input_plugins_dir);
 
     // start the server running
-    http::server3::server server("*", srv_opts);
+    http::server3::server server("0.0.0.0", srv_opts);
     server.run(true);
 
   } catch (std::exception& e) {

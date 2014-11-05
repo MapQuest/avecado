@@ -43,7 +43,7 @@ void test_generalize_to_straight() {
   std::vector<mapnik::feature_ptr> features;
   features.push_back(mk_line({0, 0, 1, 1, 2, 0, 3, 1, 4, 0}));
 
-  izer->process(features);
+  izer->process(features, test::make_map("test/empty_map_file.xml", 256, 0, 0, 0));
 
   test::assert_equal<size_t>(features.size(), 1);
   test::assert_equal<size_t>(features[0]->num_geometries(), 1);

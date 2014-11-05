@@ -131,7 +131,8 @@ check_PROGRAMS = \
 	test/overzoom \
 	test/http \
 	test/http_cache \
-	test/tilejson
+	test/tilejson \
+	test/post_processor
 
 liblogging_la_SOURCES = \
 	logging/logger.cpp \
@@ -157,6 +158,9 @@ test_http_cache_SOURCES = test/http_cache.cpp test/common.cpp
 test_http_cache_LDADD = libavecado.la libavecado_server.la liblogging.la
 test_tilejson_SOURCES = test/tilejson.cpp test/common.cpp
 test_tilejson_LDADD = libavecado.la liblogging.la
+
+test_post_processor_SOURCES = test/post_processor.cpp test/common.cpp
+test_post_processor_LDADD = libavecado.la liblogging.la @BOOST_LDFLAGS@ @BOOST_ASIO_LIB@ @BOOST_THREAD_LIB@ @PTHREAD_LIBS@
 
 TESTS = $(check_PROGRAMS)
 TEST_EXTENSIONS = .sh

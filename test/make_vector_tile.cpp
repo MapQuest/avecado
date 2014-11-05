@@ -19,19 +19,6 @@
 using std::cout;
 using std::endl;
 
-#define WORLD_SIZE (40075016.68)
-
-mapnik::box2d<double> box_for_tile(int z, int x, int y) {
-  const double scale = WORLD_SIZE / double(1 << z);
-  const double half_world = 0.5 * WORLD_SIZE;
-
-  return mapnik::box2d<double>(
-    x * scale - half_world,
-    half_world - (y+1) * scale,
-    (x+1) * scale - half_world,
-    half_world - y * scale);
-}
-
 // Default constants
 
 const unsigned int path_multiplier = 1;
@@ -46,7 +33,7 @@ const double scale_denominator = 0;
 
 const unsigned tile_size = 256;
 const unsigned _x=0,_y=0,_z=0; 
-const mapnik::box2d<double> bbox = box_for_tile(_z, _x, _y);
+const mapnik::box2d<double> bbox = test::box_for_tile(_z, _x, _y);
 
 void setup_mapnik() {
   mapnik::freetype_engine::register_fonts(MAPNIK_DEFAULT_FONT_DIR);
@@ -74,11 +61,9 @@ void test_single_point() {
 /* This test uses a map file with a CSV source single point at 0,0 and checks
  * the resulting vector tile at 0/0/0
  */
-  mapnik::Map map;
+
   avecado::tile tile;
-  mapnik::load_map(map, "test/single_point.xml");
-  map.resize(tile_size, tile_size);
-  map.zoom_to_box(bbox);
+  mapnik::Map map = test::make_map("test/single_point.xml", tile_size, _z, _x, _y);
   avecado::make_vector_tile(tile, path_multiplier, map, buffer_size, scale_factor,
                             offset_x, offset_y, tolerance, image_format,
                             scaling_method, scale_denominator, boost::none);
@@ -103,11 +88,8 @@ void test_single_line() {
 /* This test uses a map file with a CSV source line and checks the resulting
  * vector tile at 0/0/0
  */
-  mapnik::Map map;
   avecado::tile tile;
-  mapnik::load_map(map, "test/single_line.xml");
-  map.resize(tile_size, tile_size);
-  map.zoom_to_box(bbox);
+  mapnik::Map map = test::make_map("test/single_line.xml", tile_size, _z, _x, _y);
   avecado::make_vector_tile(tile, path_multiplier, map, buffer_size, scale_factor,
                             offset_x, offset_y, tolerance, image_format,
                             scaling_method, scale_denominator, boost::none);
@@ -132,11 +114,8 @@ void test_single_polygon() {
 /* This test uses a map file with a CSV source polygon and checks the
  * resulting vector tile at 0/0/0
  */
-  mapnik::Map map;
   avecado::tile tile;
-  mapnik::load_map(map, "test/single_poly.xml");
-  map.resize(tile_size, tile_size);
-  map.zoom_to_box(bbox);
+  mapnik::Map map = test::make_map("test/single_poly.xml", tile_size, _z, _x, _y);
   avecado::make_vector_tile(tile, path_multiplier, map, buffer_size, scale_factor,
                             offset_x, offset_y, tolerance, image_format,
                             scaling_method, scale_denominator, boost::none);
@@ -161,11 +140,8 @@ void test_intersected_line() {
 /* This test uses a map file with a CSV source line and checks the resulting
  * vector tile for 1/0/0, while the line extends outside that tile
  */
-  mapnik::Map map;
   avecado::tile tile;
-  mapnik::load_map(map, "test/single_line.xml");
-  map.resize(tile_size, tile_size);
-  map.zoom_to_box(box_for_tile(1, 0, 0));
+  mapnik::Map map = test::make_map("test/single_line.xml", tile_size, 1, 0, 0);
   avecado::make_vector_tile(tile, path_multiplier, map, buffer_size, scale_factor,
                             offset_x, offset_y, tolerance, image_format,
                             scaling_method, scale_denominator, boost::none);
@@ -178,7 +154,7 @@ void test_intersected_line() {
   // note tile_datasource has x, y, z
   mapnik::vector::tile_datasource ds(layer, 0, 0, 1, tile_size);
 
-  mapnik::query qq = mapnik::query(box_for_tile(1, 0, 0));
+  mapnik::query qq = mapnik::query(test::box_for_tile(1, 0, 0));
   qq.add_property_name("name");
   mapnik::featureset_ptr fs;
   fs = ds.features(qq);
