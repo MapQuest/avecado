@@ -10,12 +10,14 @@
 
 #include <sstream>
 #include <string>
+#include <ctime>
+#include <chrono>
+#include <iomanip>
 #include <boost/lexical_cast.hpp>
 #include <boost/algorithm/string/predicate.hpp>
 
 #include "http_server/request_handler.hpp"
 #include "http_server/parse_path.hpp"
-#include "http_server/mime_types.hpp"
 #include "http_server/reply.hpp"
 #include "http_server/request.hpp"
 
@@ -50,6 +52,12 @@ request_handler::request_handler(const boost::thread_specific_ptr<mapnik::Map> &
 
 void request_handler::handle_request(const request& req, reply& rep)
 {
+  handle_request_impl(req, rep);
+  if (options_.logger) { options_.logger->log(req, rep); }
+}
+
+void request_handler::handle_request_impl(const request &req, reply &rep)
+{
   // Decode url to path.
   std::string request_path;
   if (!url_decode(req.uri, request_path))
@@ -62,22 +70,22 @@ void request_handler::handle_request(const request& req, reply& rep)
   // and we don't take account of anything fancy.
   int z, x, y;
   if (!parse_path(request_path, z, x, y)) {
-    rep = reply::stock_reply(reply::bad_request);
+    rep = reply::stock_reply(reply::not_found);
     return;
   }
 
   // some sanity checking for z, x, y ranges
   if ((z < 0) || (z > 30)) {
-    rep = reply::stock_reply(reply::bad_request);
+    rep = reply::stock_reply(reply::not_found);
     return;
   }
   const int max_coord = 1 << z;
   if ((x < 0) || (x >= max_coord)) {
-    rep = reply::stock_reply(reply::bad_request);
+    rep = reply::stock_reply(reply::not_found);
     return;
   }
   if ((y < 0) || (y >= max_coord)) {
-    rep = reply::stock_reply(reply::bad_request);
+    rep = reply::stock_reply(reply::not_found);
     return;
   }
 
@@ -94,21 +102,17 @@ void request_handler::handle_request(const request& req, reply& rep)
     avecado::tile tile;
 
     // actually making the vector tile
-    bool ok = avecado::make_vector_tile(
+    bool painted = avecado::make_vector_tile(
       tile, options_.path_multiplier, *map_ptr_, options_.buffer_size,
       options_.scale_factor, options_.offset_x, options_.offset_y,
       options_.tolerance, options_.image_format, options_.scaling_method,
       options_.scale_denominator, pp);
 
-    if (!ok) {
-      throw std::runtime_error("Unable to make vector tile.");
-    }
-
     // Fill out the reply to be sent to the client.
     rep.status = reply::ok;
     rep.is_hard_error = false;
-    rep.content = tile.get_data();
-    rep.headers.resize(4);
+    rep.content = painted ? tile.get_data() : "";
+    rep.headers.resize(6);
     rep.headers[0].name = "Content-Length";
     rep.headers[0].value = boost::lexical_cast<std::string>(rep.content.size());
     rep.headers[1].name = "Content-Type";
@@ -117,6 +121,21 @@ void request_handler::handle_request(const request& req, reply& rep)
     rep.headers[2].value = "*";
     rep.headers[3].name= "access-control-allow-methods";
     rep.headers[3].value = "GET";
+    rep.headers[4].name = "Cache-control";
+    rep.headers[4].value = "max-age = 60"; // <-- TODO: make configurable.
+    rep.headers[5].name = "Date";
+    {
+      std::stringstream out;
+      std::time_t t = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
+      struct tm tt;
+      gmtime_r(&t, &tt);
+      char *oldlocale = setlocale(LC_TIME, NULL);
+      setlocale(LC_TIME, "C");
+      char buf[30];
+      strftime(buf, 30, "%a, %d %b %Y %H:%M:%S GMT", &tt);
+      rep.headers[5].value = buf;
+      setlocale(LC_TIME, oldlocale);
+    }
 
   } catch (...) {
     rep = reply::stock_reply(reply::internal_server_error);

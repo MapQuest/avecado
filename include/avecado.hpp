@@ -9,6 +9,9 @@
 #include <mapnik/map.hpp>
 #include <mapnik/image_scaling.hpp>
 
+// forward declaration of mapnik's raster image type
+namespace mapnik { class image_32; }
+
 namespace avecado {
 
 // more efficient output function for zero-copy streams
@@ -94,6 +97,49 @@ bool make_vector_tile(tile &tile,
                       mapnik::scaling_method_e scaling_method,
                       double scale_denominator,
                       boost::optional<const post_processor &> post_processor);
+
+/* Render a vector tile to a raster image.
+ *
+ * This function takes a vector tile as data, and renders to the
+ * referenced raster image using the other parameters given.
+ *
+ * Arguments:
+ *
+ *   image:
+ *     The raster image type to render into. Any content already
+ *     rendered to this object will likely be overwritten.
+ *
+ *   tile:
+ *     Vector tile object, containing the data about the features
+ *     which will be rendered. Note that the tile object may cover
+ *     a larger extent than needs to be rendered (a.k.a. overzoom)
+ *
+ *   map:
+ *     The Mapnik object encapsulating the style with which to
+ *     render the map.
+ *
+ *   z, x & y:
+ *     Tile coordinates of the region to be rendered to the image.
+ *
+ *   scale_factor:
+ *     Scale factor to use when rendering.
+ *
+ *   buffer_size:
+ *     Buffer size to use around the rendered image. Setting
+ *     this will not cause additional tiles to be fetched and
+ *     setting it to anything larger than the greatest
+ *     buffer_size of the underlying vector tiles will not
+ *     normally have an effect. (TODO: check this is what's
+ *     actually happening.)
+ */
+bool render_vector_tile(mapnik::image_32 &image,
+                        tile &tile,
+                        mapnik::Map const &map,
+                        unsigned int z,
+                        unsigned int x,
+                        unsigned int y,
+                        double scale_factor,
+                        unsigned int buffer_size);
 
 } // namespace avecado
 

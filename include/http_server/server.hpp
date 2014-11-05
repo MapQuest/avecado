@@ -48,6 +48,9 @@ public:
   /// Stop the server's io_service loop.
   void stop();
 
+  /// Return what port the server is accepting connections on.
+  std::string port() const;
+
 private:
   /// Initiate an asynchronous accept operation.
   void start_accept();
@@ -60,9 +63,6 @@ private:
 
   /// The number of threads that will call io_service::run().
   std::size_t thread_pool_size_;
-
-  /// The port to run on
-  std::string port_;
 
   /// The io_service used to perform asynchronous operations.
   boost::asio::io_service io_service_;
@@ -78,6 +78,9 @@ private:
 
   /// the map XML config file for mapnik
   std::string map_xml_;
+
+  /// The port to run on
+  std::string port_;
 
   /// thread local storage, so that we can construct Mapnik Map objects and
   /// re-use them on threads without having to worry about locking them or

@@ -12,6 +12,7 @@
 #include <boost/thread/thread.hpp>
 #include <boost/bind.hpp>
 #include <boost/shared_ptr.hpp>
+#include <boost/format.hpp>
 #include <vector>
 
 // for the Map object destructor
@@ -70,6 +71,12 @@ server::server(const std::string& address, const server_options &options)
   acceptor_.open(endpoint.protocol());
   acceptor_.set_option(tcp::acceptor::reuse_address(true));
   acceptor_.bind(endpoint);
+
+  // get the actual port bound
+  endpoint = acceptor_.local_endpoint();
+  port_ = (boost::format("%1%") % endpoint.port()).str();
+
+  // listen on the socket
   acceptor_.listen();
 
   start_accept();
@@ -131,6 +138,10 @@ void server::handle_accept(const boost::system::error_code& e)
 void server::handle_stop()
 {
   io_service_.stop();
+}
+
+std::string server::port() const {
+  return port_;
 }
 
 } // namespace server3

@@ -1,0 +1,6 @@
+{
+    "maskLevel": 8, 
+    "maxzoom": 15, 
+    "minzoom": 0, 
+    "tiles": [ "file://test/tiles" ]
+}
