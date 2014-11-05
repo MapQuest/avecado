@@ -56,9 +56,30 @@ void simple_greedy_union(vector<mapnik::feature_ptr>& features, const vector<str
   avecado::post_process::izer_ptr processor = avecado::post_process::create_unionizer(conf);
 }
 
-//check if the greedy algorithm merges properly
+//check if the angle algorithm unions properly
+void test_angle() {
+  //TODO: test no unions occur
+
+  //TODO: test correct number of unions occur
+}
+
+//check if the greedy algorithm unions properly
 void test_greedy() {
 
+  //TODO: test no unions occur
+
+  //TODO: test correct number of unions occur
+}
+
+//check some basic properties of unioning
+void test_generic() {
+  //TODO: check that directions are adhered to
+
+  //TODO: check that the tags are dropped on the unioned features
+
+  //TODO: check that the right number of unions happen with limited iterations
+
+  //TODO: check that the previous ids of all the unioned features are stored within the keep_ids_tag
 }
 
 } // anonymous namespace
