@@ -31,7 +31,7 @@ namespace {
   const unordered_map<string, tag_strategy> string_to_strategy = { {"drop", DROP}/*, {"preserve", PRESERVE}*/ };
 
   //returns true if the given feature has all of the tags
-  bool unionable(const mapnik::feature_ptr& feature, const unordered_set<string>& tags) {
+  bool unionable(const mapnik::feature_ptr& feature, const set<string>& tags) {
     if(!feature)
       return false;
 
@@ -163,7 +163,7 @@ namespace {
 
   class candidate_comparator {
   public:
-    explicit candidate_comparator(const unordered_set<string>& tags):m_tags(tags){}
+    explicit candidate_comparator(const set<string>& tags):m_tags(tags){}
     bool operator()(const candidate& a, const candidate& b) const {
       //check the endpoint
       if(a.m_x < b.m_x)
@@ -188,7 +188,7 @@ namespace {
       //must be equivalent both in points and tags
       return false;
     }
-    const unordered_set<string> m_tags;
+    const set<string> m_tags;
   };
 
   void add_candidates(mapnik::feature_ptr feature, set<candidate, candidate_comparator>& candidates,
@@ -210,7 +210,7 @@ namespace {
   }
 
   set<candidate, candidate_comparator> get_candidates(std::vector<mapnik::feature_ptr> &layer,
-    const unordered_set<string>& tags, const unordered_set<string>& directional_tags,
+    const set<string>& tags, const set<string>& directional_tags,
     const union_heuristic heuristic, const pair<double, double>& distance) {
 
     set<candidate, candidate_comparator> candidates{candidate_comparator(tags)};
@@ -241,6 +241,8 @@ namespace {
   typedef pair<candidate, candidate> couple_t;
 
   boost::optional<couple_t> make_couple(const candidate& a, const candidate& b) {
+    //TODO: reject if tag values don't match
+
     //if they are the same exact geometry (a ring) we dont want to try to connect it
     //note that we allow the same feature to connect geometries within itself
     if(a.m_index == b.m_index && a.m_parent == b.m_parent)
@@ -321,6 +323,7 @@ namespace {
       couple.second.m_parent->paths().erase(unioned);
 
       //TODO: worry about dropping or unioning tags
+      //TODO: worry about keeping ids
 
     }//we have to do front to front or back to back
     else {
@@ -368,6 +371,7 @@ namespace {
       }
 
       //TODO: worry about dropping or unioning tags
+      //TODO: worry about keeping ids
     }
   }
 
@@ -416,7 +420,7 @@ namespace post_process {
 class unionizer : public izer {
 public:
   unionizer(const union_heuristic heuristic, const tag_strategy strategy, const boost::optional<string>& keep_ids_tag,
-    const size_t max_iterations, const unordered_set<string>& match_tags, const unordered_set<string>& preserve_direction_tags,
+    const size_t max_iterations, const set<string>& match_tags, const set<string>& preserve_direction_tags,
     const double angle_union_sample_ratio);
   virtual ~unionizer() {}
 
@@ -428,13 +432,13 @@ private:
   const tag_strategy m_strategy;
   const boost::optional<string> m_keep_ids_tag;
   const size_t m_max_iterations;
-  const unordered_set<string> m_match_tags;
-  const unordered_set<string> m_preserve_direction_tags;
+  const set<string> m_match_tags;
+  const set<string> m_preserve_direction_tags;
   const double m_angle_union_sample_ratio;
 };
 
 unionizer::unionizer(const union_heuristic heuristic, const tag_strategy strategy, const boost::optional<string>& keep_ids_tag,
-  const size_t max_iterations, const unordered_set<string>& match_tags, const unordered_set<string>& preserve_direction_tags,
+  const size_t max_iterations, const set<string>& match_tags, const set<string>& preserve_direction_tags,
   const double angle_union_sample_ratio):
   m_heuristic(heuristic), m_strategy(strategy), m_keep_ids_tag(keep_ids_tag), m_max_iterations(max_iterations),
   m_match_tags(match_tags), m_preserve_direction_tags(preserve_direction_tags), m_angle_union_sample_ratio(angle_union_sample_ratio) {
@@ -521,7 +525,7 @@ izer_ptr create_unionizer(pt::ptree const& config) {
 
   //some tags that must match before unioning
   boost::optional<const pt::ptree&> match_tags = config.get_child_optional("match_tags");
-  unordered_set<string> match;
+  set<string> match;
   if(match_tags) {
     for(const pt::ptree::value_type &v: *match_tags) {
       match.insert(v.first);
@@ -532,7 +536,7 @@ izer_ptr create_unionizer(pt::ptree const& config) {
   //this is useful for oneway roads or streams where you want to enforce that the direction of the geometry
   //remains consistent after the union (ie can only union start to end points and vice versa)
   boost::optional<const pt::ptree&> preserve_direction_tags = config.get_child_optional("preserve_direction_tags");
-  unordered_set<string> direction;
+  set<string> direction;
   if(preserve_direction_tags) {
     for(const pt::ptree::value_type &v: *preserve_direction_tags) {
       direction.insert(v.first);

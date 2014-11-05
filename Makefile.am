@@ -108,7 +108,8 @@ check_PROGRAMS = \
 	test/generalizer \
 	test/adminizer \
 	test/multi_verification \
-	test/post_processor
+	test/post_processor \
+	test/unionizer
 
 liblogging_la_SOURCES = \
 	logging/logger.cpp \
@@ -127,6 +128,9 @@ test_multi_verification_LDADD = libavecado.la liblogging.la @BOOST_LDFLAGS@ @BOO
 
 test_post_processor_SOURCES = test/post_processor.cpp test/common.cpp
 test_post_processor_LDADD = libavecado.la liblogging.la @BOOST_LDFLAGS@ @BOOST_ASIO_LIB@ @BOOST_THREAD_LIB@ @PTHREAD_LIBS@
+
+test_unionizer_SOURCES = test/unionizer.cpp test/common.cpp
+test_unionizer_LDADD = libavecado.la liblogging.la @BOOST_LDFLAGS@ @BOOST_ASIO_LIB@ @BOOST_THREAD_LIB@ @PTHREAD_LIBS@
 
 TESTS = $(check_PROGRAMS)
 TEST_EXTENSIONS = .sh
