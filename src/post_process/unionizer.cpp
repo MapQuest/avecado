@@ -496,9 +496,8 @@ izer_ptr create_unionizer(pt::ptree const& config) {
   union_heuristic heuristic = GREEDY;
   if(maybe_heuristic != string_to_heuristic.end())
     heuristic = maybe_heuristic->second;
-  //TODO:
-  //else
-  //  LOG::WARNING(requested_heurstic + " is not supported, falling back to `greedy'")
+  else
+    throw runtime_error(requested_heuristic + " is not supported, try `greedy, obtuse or acute'");
 
   //figure out what type of union heuristic to use
   string requested_strategy = config.get<string>("tag_strategy", "drop");
@@ -506,14 +505,13 @@ izer_ptr create_unionizer(pt::ptree const& config) {
   tag_strategy strategy = DROP;
   if(maybe_strategy != string_to_strategy.end())
     strategy = maybe_strategy->second;
-  //TODO:
-  //else
-  //  LOG::WARNING(requested_strategy + " is not supported, falling back to `drop'")
+  else
+    throw runtime_error(requested_strategy + " is not supported, try `drop'");
 
   //TODO: add a snap_tolerance option to allow unioning of linestring
   //end points within a specified tolerance from each other
   //NOTE: instead of doing this we could look at the tile info/resolution
-  //and use a bitmap to see where features could be union, this would
+  //and use a bitmap to see where features could be unioned, this would
   //implicitly set the tolerance via the resolution so there would be
   //no way to set it to only do unions on exact matches
 
@@ -549,9 +547,9 @@ izer_ptr create_unionizer(pt::ptree const& config) {
   //pixel of a given tile. note that we could allow users to specify the number of pixels but this would require them to
   //know the target resolution of their tiles. also note that we default to 10%
   double angle_union_sample_ratio = config.get<double>("angle_union_sample_ratio", .1);
-  //cap it at a sane value
-  if(angle_union_sample_ratio > .5)
-    angle_union_sample_ratio = .5;
+  //we only allow sane values here
+  if(angle_union_sample_ratio <= 0 || angle_union_sample_ratio > .5)
+    throw runtime_error("Please make sure 0 < angle_union_sample_ratio <= .5");
 
   return std::make_shared<unionizer>(heuristic, strategy, keep_ids_tag, max_iterations, match, direction, angle_union_sample_ratio);
 }
