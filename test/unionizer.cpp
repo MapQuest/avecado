@@ -10,6 +10,33 @@ using namespace std;
 
 namespace {
 
+bool assert_equal_tags(const mapnik::feature_ptr& a, const mapnik::feature_ptr& b) {
+  //cant be the same if they dont have the same number of items in them
+  if(a->size() != b->size())
+    return false;
+
+  //NOTE: not sure how this is implemented underneath, but since the keys are
+  //in a map, we should be able to just do one pass over them both and as soon
+  //as one isn't equal bail. just to be safe we do the check of all pairs though
+
+  //for each key value tuple of a
+  for(auto akv : *a) {
+    bool found = false;
+    //for each key value tuple of b
+    for(auto bkv : *b) {
+      //if they are equal we are good, tuple equality should work fine
+      if(akv == bkv) {
+        found = true;
+        break;
+      }
+    }
+    if(!found)
+      return false;
+  }
+
+  return true;
+}
+
 bool assert_equal(const mapnik::geometry_type& a, const mapnik::geometry_type& b) {
   //cant be the same if they dont have the same number of vertices
   if(a.size() != b.size())
@@ -27,9 +54,13 @@ bool assert_equal(const mapnik::geometry_type& a, const mapnik::geometry_type& b
   return true;
 }
 
-bool assert_equal(const mapnik::feature_ptr& a, const mapnik::feature_ptr& b) {
+bool assert_equal(const mapnik::feature_ptr& a, const mapnik::feature_ptr& b, const bool match_tags = false) {
   //cant be the same if they dont have the same number of geometries
   if(a->num_geometries() != b->num_geometries())
+    return false;
+
+  //check the tags if we are asked to
+  if(match_tags && !assert_equal_tags(a, b))
     return false;
 
   //for each geometry of a
@@ -50,7 +81,7 @@ bool assert_equal(const mapnik::feature_ptr& a, const mapnik::feature_ptr& b) {
   return true;
 }
 
-bool assert_equal(const vector<mapnik::feature_ptr>& a, const vector<mapnik::feature_ptr>& b) {
+bool assert_equal(const vector<mapnik::feature_ptr>& a, const vector<mapnik::feature_ptr>& b, const bool match_tags = false) {
   //cant be the same if they dont have the same number of features
   if(a.size() != b.size())
     return false;
@@ -61,7 +92,7 @@ bool assert_equal(const vector<mapnik::feature_ptr>& a, const vector<mapnik::fea
     //for all features in b
     for(auto bf : b) {
       //if they are equal we are good
-      if(assert_equal(af, bf)) {
+      if(assert_equal(af, bf, match_tags)) {
         found = true;
         break;
       }
@@ -95,12 +126,14 @@ mapnik::feature_ptr mk_line(const vector<pair<double, double> >& line, const vec
   return feat;
 }
 
-void simple_greedy_union(vector<mapnik::feature_ptr>& features, const vector<string>& tags, const vector<string>& direction_tags, const float angle_ratio){
+avecado::post_process::izer_ptr creat_unionizer(const string& heuristic, const string& strategy, const size_t iterations,
+  const float angle_ratio, const vector<string>& tags, const vector<string>& direction_tags){
+
   pt::ptree conf;
-  conf.put("union_heuristic", "greedy");
-  conf.put("tag_strategy", "drop");
-  conf.put("keep_ids_tag", "unioned_ids");
-  conf.put("max_iterations", 10);
+  conf.put("union_heuristic", heuristic);
+  conf.put("tag_strategy", strategy);
+  //conf.put("keep_ids_tag", "unioned_ids");
+  conf.put("max_iterations", iterations);
   conf.put("angle_union_sample_ratio", angle_ratio);
 
   pt::ptree tag_array;
@@ -115,7 +148,7 @@ void simple_greedy_union(vector<mapnik::feature_ptr>& features, const vector<str
   }
   conf.put_child("preserve_direction_tags", directions_array);
 
-  avecado::post_process::izer_ptr processor = avecado::post_process::create_unionizer(conf);
+  return avecado::post_process::create_unionizer(conf);
 }
 
 //check if the angle algorithm unions properly
