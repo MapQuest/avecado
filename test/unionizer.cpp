@@ -103,7 +103,7 @@ bool assert_equal(const vector<mapnik::feature_ptr>& a, const vector<mapnik::fea
   return true;
 }
 
-mapnik::feature_ptr mk_line(const vector<pair<double, double> >& line, const vector<pair<string, string> >& tags) {
+mapnik::feature_ptr create_feature(const vector<pair<double, double> >& line, const vector<pair<string, string> >& tags) {
   //make the geom
   mapnik::geometry_type *geom = new mapnik::geometry_type(mapnik::geometry_type::LineString);
   mapnik::CommandType cmd = mapnik::SEG_MOVETO;
@@ -126,7 +126,7 @@ mapnik::feature_ptr mk_line(const vector<pair<double, double> >& line, const vec
   return feat;
 }
 
-avecado::post_process::izer_ptr creat_unionizer(const string& heuristic, const string& strategy, const size_t iterations,
+avecado::post_process::izer_ptr create_unionizer(const string& heuristic, const string& strategy, const size_t iterations,
   const float angle_ratio, const vector<string>& tags, const vector<string>& direction_tags){
 
   pt::ptree conf;
@@ -149,6 +149,16 @@ avecado::post_process::izer_ptr creat_unionizer(const string& heuristic, const s
   conf.put_child("preserve_direction_tags", directions_array);
 
   return avecado::post_process::create_unionizer(conf);
+}
+
+void do_test(const avecado::post_process::izer_ptr& izer, vector<mapnik::feature_ptr>& input,
+  const vector<mapnik::feature_ptr>& expected, const string& message){
+
+  //unionize the features in the layer
+  izer->process(input, test::make_map("empty_map_file.xml", 256, 18, 75344, 98762));
+  //check if you got what you paid for
+  if(!assert_equal(input, expected, true))
+    throw runtime_error(message);
 }
 
 //check if the angle algorithm unions properly
