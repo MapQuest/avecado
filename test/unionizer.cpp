@@ -10,10 +10,65 @@ using namespace std;
 
 namespace {
 
+bool assert_equal(const mapnik::geometry_type& a, const mapnik::geometry_type& b) {
+  //cant be the same if they dont have the same number of vertices
+  if(a.size() != b.size())
+    return false;
+
+  //check every vertex
+  double ax=0, ay=1, bx=2, by=3;
+  for(size_t i = 0; i < a.size(); ++i) {
+    a.vertex(i, &ax, &ay);
+    b.vertex(i, &bx, &by);
+    if(ax != bx || ay != by)
+      return false;
+  }
+
+  return true;
+}
+
 bool assert_equal(const mapnik::feature_ptr& a, const mapnik::feature_ptr& b) {
+  //cant be the same if they dont have the same number of geometries
+  if(a->num_geometries() != b->num_geometries())
+    return false;
 
+  //for each geometry of a
+  for(auto& ag : a->paths()) {
+    bool found = false;
+    //for each geometry of b
+    for(auto& bg : b->paths()) {
+      //if they are equal we are good
+      if(assert_equal(ag, bg)) {
+        found = true;
+        break;
+      }
+    }
+    if(!found)
+      return false;
+  }
 
+  return true;
+}
 
+bool assert_equal(const vector<mapnik::feature_ptr>& a, const vector<mapnik::feature_ptr>& b) {
+  //cant be the same if they dont have the same number of features
+  if(a.size() != b.size())
+    return false;
+
+  //for all features in a
+  for(auto af : a) {
+    bool found = false;
+    //for all features in b
+    for(auto bf : b) {
+      //if they are equal we are good
+      if(assert_equal(af, bf)) {
+        found = true;
+        break;
+      }
+    }
+    if(!found)
+      return false;
+  }
   return true;
 }
 

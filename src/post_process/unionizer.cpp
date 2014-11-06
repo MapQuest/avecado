@@ -241,8 +241,6 @@ namespace {
   typedef pair<candidate, candidate> couple_t;
 
   boost::optional<couple_t> make_couple(const candidate& a, const candidate& b) {
-    //TODO: reject if tag values don't match
-
     //if they are the same exact geometry (a ring) we dont want to try to connect it
     //note that we allow the same feature to connect geometries within itself
     if(a.m_index == b.m_index && a.m_parent == b.m_parent)
