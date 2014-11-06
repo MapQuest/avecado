@@ -5,6 +5,7 @@
 
 #include <boost/format.hpp>
 #include <boost/algorithm/string/find_format.hpp>
+#include <boost/algorithm/string/predicate.hpp>
 #include <boost/xpressive/xpressive.hpp>
 #include <boost/optional/optional_io.hpp>
 #include <boost/lexical_cast.hpp>
@@ -584,6 +585,8 @@ void http::impl::perform_multi(CURLM *curl_multi, int *running_handles) {
 }
 
 void http::impl::handle_response(CURLcode res, CURL *curl) {
+  namespace bal = boost::algorithm;
+
   request *req = nullptr;
   CURLcode res2 = curl_easy_getinfo(curl, CURLINFO_PRIVATE, &req);
 
@@ -606,6 +609,11 @@ void http::impl::handle_response(CURLcode res, CURL *curl) {
       if (m_cache) {
         m_cache->write(req);
       }
+
+    } else if ((status_code == 0) && bal::starts_with(req->url, "file:")) {
+      setup_response_tile(response, req->stream);
+      // don't cache if this was a local file - that would just be
+      // a waste of disk space.
 
     } else {
       switch (status_code) {
