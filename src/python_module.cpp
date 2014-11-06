@@ -2,26 +2,13 @@
 
 #include "avecado.hpp"
 #include "post_processor.hpp"
+#include "util.hpp"
 #include "../logging/logger.hpp"
 
 namespace pt = boost::property_tree;
 using namespace boost::python;
 
 namespace {
-
-#define WORLD_SIZE (40075016.68)
-
-// get the mercator bounding box for a tile coordinate
-mapnik::box2d<double> box_for_tile(int z, int x, int y) {
-  const double scale = WORLD_SIZE / double(1 << z);
-  const double half_world = 0.5 * WORLD_SIZE;
-
-  return mapnik::box2d<double>(
-    x * scale - half_world,
-    half_world - (y+1) * scale,
-    (x+1) * scale - half_world,
-    half_world - y * scale);
-}
 
 str mk_tile(object py_map,
             unsigned int z,
@@ -40,7 +27,7 @@ str mk_tile(object py_map,
 
   mapnik::Map &map = extract<mapnik::Map &>(py_map);
   map.resize(256, 256);
-  map.zoom_to_box(box_for_tile(z, x, y));
+  map.zoom_to_box(avecado::util::box_for_tile(z, x, y));
 
   boost::optional<const avecado::post_processor &> pp = boost::none;
   if (!post_processor.is_none()) {

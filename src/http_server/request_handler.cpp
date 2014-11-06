@@ -21,24 +21,9 @@
 #include "http_server/reply.hpp"
 #include "http_server/request.hpp"
 
-// for vector tile rendering
+// for vector tile creation
 #include "avecado.hpp"
-
-#define WORLD_SIZE (40075016.68)
-
-namespace {
-// get the mercator bounding box for a tile coordinate
-mapnik::box2d<double> box_for_tile(int z, int x, int y) {
-  const double scale = WORLD_SIZE / double(1 << z);
-  const double half_world = 0.5 * WORLD_SIZE;
-
-  return mapnik::box2d<double>(
-    x * scale - half_world,
-    half_world - (y+1) * scale,
-    (x+1) * scale - half_world,
-    half_world - y * scale);
-}
-} // anonymous namespace
+#include "util.hpp"
 
 namespace http {
 namespace server3 {
@@ -92,7 +77,7 @@ void request_handler::handle_request_impl(const request &req, reply &rep)
   try {
     // setup map parameters
     map_ptr_->resize(256, 256);
-    map_ptr_->zoom_to_box(box_for_tile(z, x, y));
+    map_ptr_->zoom_to_box(avecado::util::box_for_tile(z, x, y));
 
     boost::optional<const avecado::post_processor &> pp = boost::none;
     if (options_.post_processor) {

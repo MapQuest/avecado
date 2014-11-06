@@ -18,24 +18,11 @@
 #include "tilejson.hpp"
 #include "fetcher.hpp"
 #include "fetcher_io.hpp"
+#include "util.hpp"
 #include "config.h"
 
 namespace bpo = boost::program_options;
 namespace bpt = boost::property_tree;
-
-#define WORLD_SIZE (40075016.68)
-
-// get the mercator bounding box for a tile coordinate
-mapnik::box2d<double> box_for_tile(int z, int x, int y) {
-  const double scale = WORLD_SIZE / double(1 << z);
-  const double half_world = 0.5 * WORLD_SIZE;
-
-  return mapnik::box2d<double>(
-    x * scale - half_world,
-    half_world - (y+1) * scale,
-    (x+1) * scale - half_world,
-    half_world - y * scale);
-}
 
 int make_vector(int argc, char *argv[]) {
   unsigned int path_multiplier;
@@ -187,7 +174,7 @@ int make_vector(int argc, char *argv[]) {
 
     // setup map parameters
     map.resize(256, 256);
-    map.zoom_to_box(box_for_tile(z, x, y));
+    map.zoom_to_box(avecado::util::box_for_tile(z, x, y));
 
     // actually make the vector tile
     avecado::make_vector_tile(tile, path_multiplier, map, buffer_size, scale_factor,
@@ -296,7 +283,7 @@ int make_raster(int argc, char *argv[]) {
 
     // setup map parameters
     map.resize(width, height);
-    map.zoom_to_box(box_for_tile(z, x, y));
+    map.zoom_to_box(avecado::util::box_for_tile(z, x, y));
 
     bpt::ptree conf = avecado::tilejson(tilejson_uri);
     std::unique_ptr<avecado::fetcher> fetcher = avecado::make_tilejson_fetcher(conf);

@@ -13,6 +13,7 @@
 
 #include "vector_tile.pb.h"
 #include "vector_tile_datasource.hpp"
+#include "util.hpp"
 
 #include "config.h"
 
@@ -33,7 +34,7 @@ const double scale_denominator = 0;
 
 const unsigned tile_size = 256;
 const unsigned _x=0,_y=0,_z=0; 
-const mapnik::box2d<double> bbox = test::box_for_tile(_z, _x, _y);
+const mapnik::box2d<double> bbox = avecado::util::box_for_tile(_z, _x, _y);
 
 void setup_mapnik() {
   mapnik::freetype_engine::register_fonts(MAPNIK_DEFAULT_FONT_DIR);
@@ -154,7 +155,7 @@ void test_intersected_line() {
   // note tile_datasource has x, y, z
   mapnik::vector::tile_datasource ds(layer, 0, 0, 1, tile_size);
 
-  mapnik::query qq = mapnik::query(test::box_for_tile(1, 0, 0));
+  mapnik::query qq = mapnik::query(avecado::util::box_for_tile(1, 0, 0));
   qq.add_property_name("name");
   mapnik::featureset_ptr fs;
   fs = ds.features(qq);

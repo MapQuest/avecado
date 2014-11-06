@@ -13,24 +13,12 @@
 
 #include "vector_tile.pb.h"
 #include "vector_tile_datasource.hpp"
+#include "util.hpp"
 
 #include "config.h"
 
 using std::cout;
 using std::endl;
-
-#define WORLD_SIZE (40075016.68)
-
-mapnik::box2d<double> box_for_tile(int z, int x, int y) {
-  const double scale = WORLD_SIZE / double(1 << z);
-  const double half_world = 0.5 * WORLD_SIZE;
-
-  return mapnik::box2d<double>(
-    x * scale - half_world,
-    half_world - (y+1) * scale,
-    (x+1) * scale - half_world,
-    half_world - y * scale);
-}
 
 // Default constants
 
@@ -46,7 +34,7 @@ const double scale_denominator = 0;
 
 const unsigned tile_size = 256;
 const unsigned _x=0,_y=0,_z=0; 
-const mapnik::box2d<double> bbox = box_for_tile(_z, _x, _y);
+const mapnik::box2d<double> bbox = avecado::util::box_for_tile(_z, _x, _y);
 
 void setup_mapnik() {
   mapnik::freetype_engine::register_fonts(MAPNIK_DEFAULT_FONT_DIR);

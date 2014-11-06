@@ -113,8 +113,6 @@ private:
    boost::filesystem::path m_path;
 };
 
-mapnik::box2d<double> box_for_tile(int z, int x, int y);
-
 // often tests will need map objects to call izer::process
 mapnik::Map make_map(std::string style_file, unsigned tile_resolution, int z, int x, int y);
 
