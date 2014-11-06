@@ -62,7 +62,7 @@ void test_single_point() {
  * the resulting vector tile at 0/0/0
  */
 
-  avecado::tile tile;
+  avecado::tile tile(_z, _x, _y);
   mapnik::Map map = test::make_map("test/single_point.xml", tile_size, _z, _x, _y);
   avecado::make_vector_tile(tile, path_multiplier, map, buffer_size, scale_factor,
                             offset_x, offset_y, tolerance, image_format,
@@ -88,7 +88,7 @@ void test_single_line() {
 /* This test uses a map file with a CSV source line and checks the resulting
  * vector tile at 0/0/0
  */
-  avecado::tile tile;
+  avecado::tile tile(_z, _x, _y);
   mapnik::Map map = test::make_map("test/single_line.xml", tile_size, _z, _x, _y);
   avecado::make_vector_tile(tile, path_multiplier, map, buffer_size, scale_factor,
                             offset_x, offset_y, tolerance, image_format,
@@ -114,7 +114,7 @@ void test_single_polygon() {
 /* This test uses a map file with a CSV source polygon and checks the
  * resulting vector tile at 0/0/0
  */
-  avecado::tile tile;
+  avecado::tile tile(_z, _x, _y);
   mapnik::Map map = test::make_map("test/single_poly.xml", tile_size, _z, _x, _y);
   avecado::make_vector_tile(tile, path_multiplier, map, buffer_size, scale_factor,
                             offset_x, offset_y, tolerance, image_format,
@@ -140,7 +140,7 @@ void test_intersected_line() {
 /* This test uses a map file with a CSV source line and checks the resulting
  * vector tile for 1/0/0, while the line extends outside that tile
  */
-  avecado::tile tile;
+  avecado::tile tile(_z, _x, _y);
   mapnik::Map map = test::make_map("test/single_line.xml", tile_size, 1, 0, 0);
   avecado::make_vector_tile(tile, path_multiplier, map, buffer_size, scale_factor,
                             offset_x, offset_y, tolerance, image_format,

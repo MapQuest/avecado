@@ -99,7 +99,7 @@ void request_handler::handle_request_impl(const request &req, reply &rep)
       pp = *options_.post_processor;
     }
 
-    avecado::tile tile;
+    avecado::tile tile(z, x, y);
 
     // actually making the vector tile
     bool painted = avecado::make_vector_tile(

@@ -135,9 +135,6 @@ bool make_vector_tile(tile &tile,
 bool render_vector_tile(mapnik::image_32 &image,
                         tile &tile,
                         mapnik::Map const &map,
-                        unsigned int z,
-                        unsigned int x,
-                        unsigned int y,
                         double scale_factor,
                         unsigned int buffer_size);
 

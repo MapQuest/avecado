@@ -176,7 +176,7 @@ int make_vector(int argc, char *argv[]) {
 
   try {
     mapnik::Map map;
-    avecado::tile tile;
+    avecado::tile tile(z, x, y);
 
     // try to register fonts and input plugins
     mapnik::freetype_engine::register_fonts(fonts_dir);
@@ -307,7 +307,7 @@ int make_raster(int argc, char *argv[]) {
       mapnik::image_32 image(width, height);
 
       std::unique_ptr<avecado::tile> tile(std::move(response.left()));
-      avecado::render_vector_tile(image, *tile, map, z, x, y, scale_factor, buffer_size);
+      avecado::render_vector_tile(image, *tile, map, scale_factor, buffer_size);
       mapnik::save_to_file(image, output_file, "png");
 
     } else {

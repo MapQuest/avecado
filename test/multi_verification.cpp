@@ -66,7 +66,7 @@ void test_multiline() {
  * the resulting vector tile at 0/0/0
  */
   mapnik::Map map;
-  avecado::tile tile;
+  avecado::tile tile(_z, _x, _y);
   mapnik::load_map(map, "test/single_multiline.xml");
   map.resize(tile_size, tile_size);
   map.zoom_to_box(bbox);
@@ -116,7 +116,7 @@ void test_multipolygon() {
  * the resulting vector tile at 0/0/0
  */
   mapnik::Map map;
-  avecado::tile tile;
+  avecado::tile tile(_z, _x, _y);
   mapnik::load_map(map, "test/single_multipolygon.xml");
   map.resize(tile_size, tile_size);
   map.zoom_to_box(bbox);

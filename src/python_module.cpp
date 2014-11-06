@@ -9,7 +9,24 @@ using namespace boost::python;
 
 namespace {
 
-str mk_tile(object py_map, 
+#define WORLD_SIZE (40075016.68)
+
+// get the mercator bounding box for a tile coordinate
+mapnik::box2d<double> box_for_tile(int z, int x, int y) {
+  const double scale = WORLD_SIZE / double(1 << z);
+  const double half_world = 0.5 * WORLD_SIZE;
+
+  return mapnik::box2d<double>(
+    x * scale - half_world,
+    half_world - (y+1) * scale,
+    (x+1) * scale - half_world,
+    half_world - y * scale);
+}
+
+str mk_tile(object py_map,
+            unsigned int z,
+            unsigned int x,
+            unsigned int y,
             unsigned int path_multiplier,
             int buffer_size,
             double scale_factor,
@@ -21,7 +38,10 @@ str mk_tile(object py_map,
             double scale_denominator,
             object post_processor) {
 
-  mapnik::Map const &map = extract<mapnik::Map const &>(py_map);
+  mapnik::Map &map = extract<mapnik::Map &>(py_map);
+  map.resize(256, 256);
+  map.zoom_to_box(box_for_tile(z, x, y));
+
   boost::optional<const avecado::post_processor &> pp = boost::none;
   if (!post_processor.is_none()) {
     // NOTE: extracting this to a pointer first, then initialising
@@ -33,7 +53,7 @@ str mk_tile(object py_map,
       extract<const avecado::post_processor *>(post_processor);
     pp = *pp_ptr;
   }
-  avecado::tile tile;
+  avecado::tile tile(z, x, y);
 
   mapnik::scaling_method_e scaling_method = mapnik::SCALING_NEAR;
   boost::optional<mapnik::scaling_method_e> method =
@@ -204,7 +224,8 @@ BOOST_PYTHON_MODULE(avecado) {
        arg("scale_denominator") = 0.0,
        arg("post_processor") = object()),
       "Make a vector tile from a Mapnik map\n"
-      "object and return the serialised PBF.\n"
+      "object and tile coordinates. Return\n"
+      "the serialised PBF.\n"
       "\n"
       "Note that you need to import mapnik\n"
       "before using avecado.\n"
@@ -214,7 +235,6 @@ BOOST_PYTHON_MODULE(avecado) {
       ">>> import avecado\n"
       ">>> m = mapnik.Map(256, 256)\n"
       ">>> mapnik.load_map(m, 'style.xml')\n"
-      ">>> m.zoom_to_box(mapnik.Box2d(-100, -100, 100, 100))\n"
-      ">>> t = avecado.make_vector_tile(m, path_multiplier = 16, scale_factor = 1.0)\n"
+      ">>> t = avecado.make_vector_tile(m, 0, 0, 0, path_multiplier = 16, scale_factor = 1.0)\n"
     );
 }
