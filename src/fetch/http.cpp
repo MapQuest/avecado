@@ -5,6 +5,7 @@
 
 #include <boost/format.hpp>
 #include <boost/algorithm/string/find_format.hpp>
+#include <boost/algorithm/string/predicate.hpp>
 #include <boost/xpressive/xpressive.hpp>
 #include <boost/optional/optional_io.hpp>
 #include <boost/lexical_cast.hpp>
@@ -43,9 +44,9 @@ std::vector<std::string> singleton(const std::string &base_url, const std::strin
 }
 
 struct formatter {
-  int z, x, y;
+  unsigned int z, x, y;
 
-  formatter(int z_, int x_, int y_) : z(z_), x(x_), y(y_) {}
+  formatter(unsigned int z_, unsigned int x_, unsigned int y_) : z(z_), x(x_), y(y_) {}
 
   template<typename Out>
   Out operator()(boost::xpressive::smatch const &what, Out out) const {
@@ -65,7 +66,7 @@ struct formatter {
 };
 
 struct request {
-  request(std::promise<fetch_response> &&p_, int z_, int x_, int y_, std::string url_)
+  request(std::promise<fetch_response> &&p_, unsigned int z_, unsigned int x_, unsigned int y_, std::string url_)
     : promise(std::move(p_)), z(z_), x(x_), y(y_), stream(new std::stringstream), url(url_) {}
 
   request(request &&r)
@@ -89,7 +90,7 @@ struct request {
   }
 
   std::promise<fetch_response> promise;
-  int z, x, y;
+  unsigned int z, x, y;
   std::unique_ptr<std::stringstream> stream;
   std::string url;
   boost::optional<std::time_t> base_date;
@@ -422,8 +423,8 @@ private:
   void free_handle(CURL *curl);
   CURL *new_handle();
   boost::optional<fetch_error> new_request(CURL *curl, request *r);
-  std::string url_for(int z, int x, int y) const;
-  bool setup_response_tile(fetch_response &response, std::unique_ptr<std::stringstream> &stream);
+  std::string url_for(unsigned int z, unsigned int x, unsigned int y) const;
+  bool setup_response_tile(fetch_response &response, std::unique_ptr<std::stringstream> &stream, unsigned int z, unsigned int x, unsigned int y);
 
   const std::vector<std::string> m_url_patterns;
   std::atomic<bool> m_shutdown;
@@ -447,24 +448,32 @@ http::impl::~impl() {
 }
 
 void http::impl::start_request(std::promise<fetch_response> &&promise, int z, int x, int y) {
-  std::unique_ptr<request> req(new request(std::move(promise), z, x, y, url_for(z, x, y)));
-
-  if (m_cache) {
-    m_cache->lookup(req);
-  }
-
-  if (req->expired()) {
-    std::unique_lock<std::mutex> lock(m_mutex);
-    m_new_requests.emplace_back(std::move(req));
+  if ((z < 0) || (x < 0) || (y < 0)) {
+    fetch_error err;
+    err.status = fetch_status::not_found;
+    fetch_response response(err);
+    promise.set_value(std::move(response));
 
   } else {
-    fetch_error err;
-    err.status = fetch_status::server_error;
-    fetch_response response(err);
+    std::unique_ptr<request> req(new request(std::move(promise), z, x, y, url_for(z, x, y)));
 
-    setup_response_tile(response, req->stream);
+    if (m_cache) {
+      m_cache->lookup(req);
+    }
 
-    req->promise.set_value(std::move(response));
+    if (req->expired()) {
+      std::unique_lock<std::mutex> lock(m_mutex);
+      m_new_requests.emplace_back(std::move(req));
+
+    } else {
+      fetch_error err;
+      err.status = fetch_status::server_error;
+      fetch_response response(err);
+
+      setup_response_tile(response, req->stream, z, x, y);
+
+      req->promise.set_value(std::move(response));
+    }
   }
 }
 
@@ -584,6 +593,8 @@ void http::impl::perform_multi(CURLM *curl_multi, int *running_handles) {
 }
 
 void http::impl::handle_response(CURLcode res, CURL *curl) {
+  namespace bal = boost::algorithm;
+
   request *req = nullptr;
   CURLcode res2 = curl_easy_getinfo(curl, CURLINFO_PRIVATE, &req);
 
@@ -602,10 +613,15 @@ void http::impl::handle_response(CURLcode res, CURL *curl) {
     curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &status_code);
 
     if (status_code == 200) {
-      setup_response_tile(response, req->stream);
+      setup_response_tile(response, req->stream, req->z, req->x, req->y);
       if (m_cache) {
         m_cache->write(req);
       }
+
+    } else if ((status_code == 0) && bal::starts_with(req->url, "file:")) {
+      setup_response_tile(response, req->stream, req->z, req->x, req->y);
+      // don't cache if this was a local file - that would just be
+      // a waste of disk space.
 
     } else {
       switch (status_code) {
@@ -623,8 +639,8 @@ void http::impl::handle_response(CURLcode res, CURL *curl) {
   delete req;
 }
 
-bool http::impl::setup_response_tile(fetch_response &response, std::unique_ptr<std::stringstream> &stream) {
-  std::unique_ptr<tile> ptr(new tile);
+bool http::impl::setup_response_tile(fetch_response &response, std::unique_ptr<std::stringstream> &stream, unsigned int z, unsigned int x, unsigned int y) {
+  std::unique_ptr<tile> ptr(new tile(z, x, y));
 
   google::protobuf::io::IstreamInputStream gstream(stream.get());
 
@@ -684,7 +700,7 @@ boost::optional<fetch_error> http::impl::new_request(CURL *curl, request *r) {
   return boost::none;
 }
 
-std::string http::impl::url_for(int z, int x, int y) const {
+std::string http::impl::url_for(unsigned int z, unsigned int x, unsigned int y) const {
   using namespace boost::xpressive;
 
   if (m_url_patterns.empty()) {

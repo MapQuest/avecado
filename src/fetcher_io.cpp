@@ -2,6 +2,11 @@
 
 namespace avecado {
 
+std::ostream &operator<<(std::ostream &out, const fetch_error & error) {
+  out << "Fetch error: " << error.status;
+  return out;
+}
+
 std::ostream &operator<<(std::ostream &out, fetch_status status) {
   switch (status) {
   case fetch_status::bad_request:     out << "Bad Request";     break;

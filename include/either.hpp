@@ -27,6 +27,8 @@ struct either {
    inline bool is_left() const { const L *ptr = boost::get<L>(&m_impl); return ptr != nullptr; }
    inline bool is_right() const { return !is_left(); }
 
+   inline L &left() { return *boost::get<L>(&m_impl); }
+   inline R &right() { return *boost::get<R>(&m_impl); }
    inline const L &left() const { return *boost::get<L>(&m_impl); }
    inline const R &right() const { return *boost::get<R>(&m_impl); }
 

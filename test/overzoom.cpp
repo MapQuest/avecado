@@ -14,11 +14,11 @@ struct test_fetcher : public avecado::fetcher {
   test_fetcher(int min_zoom, int max_zoom, avecado::fetch_status status) : m_min_zoom(min_zoom), m_max_zoom(max_zoom), m_status(status) {}
   virtual ~test_fetcher() {}
 
-  std::future<avecado::fetch_response> operator()(int z, int, int) {
+  std::future<avecado::fetch_response> operator()(int z, int x, int y) {
     std::promise<avecado::fetch_response> response;
 
     if ((z >= m_min_zoom) && (z <= m_max_zoom)) {
-      std::unique_ptr<avecado::tile> tile(new avecado::tile);
+      std::unique_ptr<avecado::tile> tile(new avecado::tile(z, x, y));
       response.set_value(avecado::fetch_response(std::move(tile)));
 
     } else {

@@ -20,7 +20,7 @@ class post_processor;
 class tile {
 public:
   // Construct an empty vector tile
-  tile();
+  tile(unsigned int z_, unsigned int x_, unsigned int y_);
 
   ~tile();
 
@@ -30,6 +30,9 @@ public:
   // Return the in-memory structure of the tile.
   mapnik::vector::tile const &mapnik_tile() const;
   mapnik::vector::tile &mapnik_tile();
+
+  // coordinates of this tile
+  const unsigned int z, x, y;
 
 private:
   std::unique_ptr<mapnik::vector::tile> m_mapnik_tile;

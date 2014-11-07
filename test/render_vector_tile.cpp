@@ -24,11 +24,11 @@ namespace {
 void test_empty() {
   mapnik::color background_colour(0x8c, 0xc6, 0x3f);
   mapnik::image_32 image(256, 256);
-  avecado::tile tile;
+  avecado::tile tile(0, 0, 0);
   mapnik::Map map(256, 256);
   map.set_background(background_colour);
 
-  bool status = avecado::render_vector_tile(image, tile, map, 0, 0, 0, 1.0, 0);
+  bool status = avecado::render_vector_tile(image, tile, map, 1.0, 0);
 
   test::assert_equal<bool>(status, true, "should have rendered an image");
 
@@ -66,7 +66,7 @@ void test_full() {
     map.add_layer(std::move(layer));
   }
 
-  avecado::tile tile;
+  avecado::tile tile(0, 0, 0);
   {
     mapnik::vector::tile_layer *layer = tile.mapnik_tile().add_layers();
     layer->set_version(1);
@@ -82,7 +82,7 @@ void test_full() {
     layer->set_extent(256);
   }
 
-  bool status = avecado::render_vector_tile(image, tile, map, 0, 0, 0, 1.0, 0);
+  bool status = avecado::render_vector_tile(image, tile, map, 1.0, 0);
 
   test::assert_equal<bool>(status, true, "should have rendered an image");
 

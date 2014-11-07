@@ -3,8 +3,8 @@
 
 namespace avecado {
 
-tile::tile()
-  : m_mapnik_tile(new mapnik::vector::tile) {
+tile::tile(unsigned int z_, unsigned int x_, unsigned int y_)
+  : z(z_), x(x_), y(y_), m_mapnik_tile(new mapnik::vector::tile) {
 }
 
 tile::~tile() {

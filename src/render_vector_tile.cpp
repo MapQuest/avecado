@@ -20,6 +20,9 @@ namespace {
 
 /* render the layers in order, taking the data from each from the vector tile
  * rather than the datasource which was loaded as part of the "map" object.
+ *
+ * NOTE: z, x, & y are the coordinates of the tile's data, not of the request.
+ * the two can be different due to overzooming.
  */
 void process_layers(std::vector<mapnik::layer> const &layers,
                     mapnik::vector::tile const &tile,
@@ -62,9 +65,6 @@ void process_layers(std::vector<mapnik::layer> const &layers,
 bool render_vector_tile(mapnik::image_32 &image,
                         tile &avecado_tile,
                         mapnik::Map const &map,
-                        unsigned int z,
-                        unsigned int x,
-                        unsigned int y,
                         double scale_factor,
                         unsigned int buffer_size) {
 
@@ -90,8 +90,9 @@ bool render_vector_tile(mapnik::image_32 &image,
   // can replace the datasource with one based on the vector tile.
   // TODO: can we avoid this with an up-front replacement of the datasources?
   renderer.start_map_processing(map);
-  process_layers(map.layers(), tile, request, z, x, y, projection,
-                 scale_denom, variables, renderer);
+  process_layers(map.layers(), tile, request,
+                 avecado_tile.z, avecado_tile.x, avecado_tile.y,
+                 projection, scale_denom, variables, renderer);
   renderer.end_map_processing(map);
 
   return true;
