@@ -169,4 +169,140 @@ mapnik::Map make_map(std::string style_file, unsigned tile_resolution, int z, in
   return map;
 }
 
+std::string to_string(const mapnik::geometry_type& a) {
+  std::string result = "{";
+  //for each vertex
+  double ax=0, ay=1;
+  for(size_t i = 0; i < a.size(); ++i) {
+    a.vertex(i, &ax, &ay);
+    result += (boost::format("[%3.1f, %3.1f],") % ax % ay).str();
+  }
+  if(result.back() == ',')
+    result.pop_back();
+  return result + "}";
+}
+
+std::string to_string(const mapnik::feature_ptr& a) {
+  std::string result = "{{";
+  //for each tag value of a
+  for(auto& kv : *a) {
+    result += (boost::format("[%1%, %2%],") % std::get<0>(kv) % std::get<1>(kv)).str();
+  }
+  if(result.back() == ',')
+    result.pop_back();
+  result += "}, ";
+
+  //for each geometry of a
+  for(auto& ag : a->paths()) {
+    result += to_string(ag) + ",";
+  }
+  if(result.back() == ',')
+      result.pop_back();
+  return result + "}";
+}
+
+std::string to_string(const std::vector<mapnik::feature_ptr>& a) {
+  std::string result = "{";
+  //for all features in a
+  for(const auto& af : a) {
+    result += to_string(af) + ",";
+  }
+  if(result.back() == ',')
+      result.pop_back();
+  return result + "}";
+}
+
+bool equal_tags(const mapnik::feature_ptr& a, const mapnik::feature_ptr& b) {
+  //cant be the same if they dont have the same number of items in them
+  if(a->size() != b->size())
+    return false;
+
+  //NOTE: not sure how this is implemented underneath, but since the keys are
+  //in a map, we should be able to just do one pass over them both and as soon
+  //as one isn't equal bail. just to be safe we do the check of all pairs though
+
+  //for each key value tuple of a
+  for(auto akv : *a) {
+    bool found = false;
+    //for each key value tuple of b
+    for(auto bkv : *b) {
+      //if they are equal we are good, tuple equality should work fine
+      if(akv == bkv) {
+        found = true;
+        break;
+      }
+    }
+    if(!found)
+      return false;
+  }
+
+  return true;
+}
+
+bool equal(const mapnik::geometry_type& a, const mapnik::geometry_type& b) {
+  //cant be the same if they dont have the same number of vertices
+  if(a.size() != b.size())
+    return false;
+
+  //check every vertex
+  double ax=0, ay=1, bx=2, by=3;
+  for(size_t i = 0; i < a.size(); ++i) {
+    a.vertex(i, &ax, &ay);
+    b.vertex(i, &bx, &by);
+    if(ax != bx || ay != by)
+      return false;
+  }
+
+  return true;
+}
+
+bool equal(const mapnik::feature_ptr& a, const mapnik::feature_ptr& b, const bool match_tags) {
+  //cant be the same if they dont have the same number of geometries
+  if(a->num_geometries() != b->num_geometries())
+    return false;
+
+  //check the tags if we are asked to
+  if(match_tags && !equal_tags(a, b))
+    return false;
+
+  //for each geometry of a
+  for(auto& ag : a->paths()) {
+    bool found = false;
+    //for each geometry of b
+    for(auto& bg : b->paths()) {
+      //if they are equal we are good
+      if(equal(ag, bg)) {
+        found = true;
+        break;
+      }
+    }
+    if(!found)
+      return false;
+  }
+
+  return true;
+}
+
+bool equal(const std::vector<mapnik::feature_ptr>& a, const std::vector<mapnik::feature_ptr>& b, const bool match_tags) {
+  //cant be the same if they dont have the same number of features
+  if(a.size() != b.size())
+    return false;
+
+  //for all features in a
+  for(auto& af : a) {
+    bool found = false;
+    //for all features in b
+    for(auto& bf : b) {
+      //if they are equal we are good
+      if(equal(af, bf, match_tags)) {
+        found = true;
+        break;
+      }
+    }
+    if(!found)
+      return false;
+  }
+  return true;
+}
+
 }

@@ -245,8 +245,11 @@ namespace {
     //note that we allow the same feature to connect geometries within itself
     if(a.m_index == b.m_index && a.m_parent == b.m_parent)
       return boost::none;
+    //they either both care about the direction or they dont
+    if(a.m_directional != b.m_directional)
+      return boost::none;
     //if they need to maintain direction but they don't
-    if((a.m_directional || b.m_directional) && (a.m_position == b.m_position))
+    if(a.m_directional && (a.m_position == b.m_position))
       return boost::none;
     return boost::optional<couple_t>(make_pair(a,b));
   }
@@ -320,6 +323,7 @@ namespace {
       mapnik::geometry_container::iterator unioned = couple.second.m_parent->paths().begin() + couple.second.m_index;
       couple.second.m_parent->paths().erase(unioned);
 
+      //TODO: if one of them was directional we need to keep that tag
       //TODO: worry about dropping or unioning tags
       //TODO: worry about keeping ids
 
