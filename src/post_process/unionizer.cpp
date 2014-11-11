@@ -25,12 +25,11 @@ namespace {
   const unordered_map<string, union_heuristic> string_to_heuristic = { {"greedy", GREEDY}, {"obtuse", OBTUSE}, {"acute", ACUTE}, /*{"longest", LONGEST}, {"shortest", SHORTEST}, {"tag", TAG}*/ };
 
   //we allow the user to specify a strategy for what they want to do with the
-  //remaining unreferenced (not in the match_tags or preserve_direction_tags) after
-  //the unioning of two geometries. the most straightforward variant is to not
-  //include them (DROP). we also support keeping all unreferenced tags that either
-  //are equivalent in all features or only present in one of the features (PRESERVE).
-  enum tag_strategy { DROP/*, PRESERVE*/ };
-  const unordered_map<string, tag_strategy> string_to_strategy = { {"drop", DROP}/*, {"preserve", PRESERVE}*/ };
+  //tags when unioning to features. the most straightforward variant is to keep only
+  //those that match in both features (INTERSECT). We also support keeping both
+  //the matching tags and also tags that only appear in one or the other feature (ACCUMULATE)
+  enum tag_strategy { INTERSECT, ACCUMULATE };
+  const unordered_map<string, tag_strategy> string_to_strategy = { {"intersect", INTERSECT}, {"accumulate", ACCUMULATE} };
 
   //used to approximate a curve with a single directional vector
   struct curve_approximator {
@@ -316,6 +315,9 @@ namespace {
     return pairs;
   }
 
+  //by the power invested in mapnik, move around the objects within the feature_ptr objects to perform the union
+  //NOTE: we always make the union such that the resulting geometry ends up in couple.firsts feature_ptr, don't
+  //changes this other assumptions later on are based on it
   void do_union(couple_t& couple) {
     //if we are unioning back to front
     if(couple.first.m_position != couple.second.m_position) {
@@ -334,11 +336,6 @@ namespace {
       //remove the src geom
       mapnik::geometry_container::iterator unioned = couple.second.m_parent->paths().begin() + couple.second.m_index;
       couple.second.m_parent->paths().erase(unioned);
-
-      //TODO: if one of them was directional we need to keep that tag
-      //TODO: worry about dropping or unioning tags
-      //TODO: worry about keeping ids
-
     }//we have to do front to front or back to back
     else {
       //in this case we can just append vertices in reverse order
@@ -383,12 +380,41 @@ namespace {
         //add the new geom back on
         couple.first.m_parent->paths().push_back(dst);
       }
-
-      //TODO: worry about dropping or unioning tags
-      //TODO: worry about keeping ids
     }
   }
 
+  //decide what each person gets to keep in this marriage
+  void sanitize_tags(const tag_strategy strategy, const couple_t& couple) {
+    //the first one in the couple is always where the result geometry went
+    //so we only worry about adding/removing/changing tags on that guy
+
+    //for each item in first partner
+    for(auto kv = couple.first.m_parent->begin(); kv != couple.first.m_parent->end(); ++kv) {
+      //the second partner does even recognize this particular item
+      string key = get<0>(*kv);
+      if(strategy == INTERSECT && !couple.second.m_parent->has_key(key)){
+        //so the first partner must throw it out!
+        couple.first.m_parent->put(key, mapnik::value_null());
+      }//the second partner doesn't agree on this particular item
+      else if(get<1>(*kv) != couple.second.m_parent->get(key)) {
+        //so the first partner must throw it out!
+        couple.first.m_parent->put(key, mapnik::value_null());
+      }
+    }
+
+    //get the rest of the stuff from the second partner that the first partner doesn't mind having
+    //for each item in second partner
+    for(auto kv = couple.second.m_parent->begin(); strategy == ACCUMULATE && kv != couple.second.m_parent->end(); ++kv) {
+      //the first partner doesn't have this particular item
+      string key = get<0>(*kv);
+      if(!couple.second.m_parent->has_key(key)){
+        //so the first partner must throw it out!
+        couple.first.m_parent->put(key, get<1>(*kv));
+      }
+    }
+  }
+
+  //union the avialable pairs of candidates
   size_t union_candidates(map<score_t, couple_t>& scored, const tag_strategy strategy, const boost::optional<string>& ids_tag){
 
     //a place to hold all the unions we make so we don't
@@ -407,6 +433,12 @@ namespace {
       else {
         //attempt the union
         do_union(couple);
+
+        //worry about dropping or unioning tags
+        sanitize_tags(strategy, couple);
+
+        //TODO: worry about keeping ids
+
         //mark them so as not to hitch them with anyone else in this round
         //don't worry we'll get polygamous in the next round
         unioned.emplace(couple.first.m_parent->id());
@@ -516,13 +548,13 @@ izer_ptr create_unionizer(pt::ptree const& config) {
     throw runtime_error(requested_heuristic + " is not supported, try `greedy, obtuse or acute'");
 
   //figure out what type of union heuristic to use
-  string requested_strategy = config.get<string>("tag_strategy", "drop");
+  string requested_strategy = config.get<string>("tag_strategy", "intersect");
   unordered_map<string, tag_strategy>::const_iterator maybe_strategy = string_to_strategy.find(requested_strategy);
-  tag_strategy strategy = DROP;
+  tag_strategy strategy = INTERSECT;
   if(maybe_strategy != string_to_strategy.end())
     strategy = maybe_strategy->second;
   else
-    throw runtime_error(requested_strategy + " is not supported, try `drop'");
+    throw runtime_error(requested_strategy + " is not supported, try `intersect'");
 
   //TODO: add a snap_tolerance option to allow unioning of linestring
   //end points within a specified tolerance from each other

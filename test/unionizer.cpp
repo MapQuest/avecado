@@ -65,7 +65,7 @@ void test_angle() {
     test::create_feature({ {-1, 0}, {0, 0}, {1, 0} }, {}),
     test::create_feature({ {-1, 1}, {0, 0}, {1, 1} }, {})
   };
-  avecado::post_process::izer_ptr izer = create_unionizer("obtuse", "drop", 10, .1, {}, {});
+  avecado::post_process::izer_ptr izer = create_unionizer("obtuse", "intersect", 10, .1, {}, {});
   do_test(izer, input, expected, "Obtuse heuristic during union did not produce the expected output");
 
   //test that union favors very acute angles (high frequency)
@@ -79,7 +79,7 @@ void test_angle() {
     test::create_feature({ {-1, 0}, {0, 0}, {-1, 1} }, {}),
     test::create_feature({ {1, 0}, {0, 0}, {1, 1} }, {})
   };
-  izer = create_unionizer("acute", "drop", 10, .1, {}, {});
+  izer = create_unionizer("acute", "intersect", 10, .1, {}, {});
   do_test(izer, input, expected, "Acute heuristic during union did not produce the expected output");
 }
 
@@ -104,7 +104,7 @@ void test_generic() {
     test::create_feature({ { 0, 0}, {1, 0} }, {{"a", "c"}}),
     test::create_feature({ { 0, 1}, {0, 0} }, {})
   };
-  avecado::post_process::izer_ptr izer = create_unionizer("greedy", "drop", 1, .1, {"a"}, {});
+  avecado::post_process::izer_ptr izer = create_unionizer("greedy", "intersect", 1, .1, {"a"}, {});
   do_test(izer, input, expected, "Non-unionable features came out different than when they went in");
 
   //check that directions are adhered to
@@ -118,7 +118,7 @@ void test_generic() {
     test::create_feature({ {-1, 0}, {0, 0}, {1, 0} }, {{"oneway", "yes"}}),
     test::create_feature({ { 0,-1}, {0, 0}, { 0, 1} }, {})
   };
-  izer = create_unionizer("greedy", "drop", 10, .1, {}, {"oneway"});
+  izer = create_unionizer("greedy", "intersect", 10, .1, {}, {"oneway"});
   do_test(izer, input, expected, "Direction preserving during union did not produce the expected output");
 
   //TODO: check multi's make it through unmolested
@@ -133,8 +133,8 @@ void test_generic() {
   expected = {
     test::create_feature({ {-1, 0}, {0, 0}, {0, -1} }, {{"gutes_zeug", "yes"}})
   };
-  izer = create_unionizer("greedy", "drop", 10, .1, {"gutes_zeug"}, {});
-  do_test(izer, input, expected, "Tag dropping during union did not produce the expected output");
+  izer = create_unionizer("greedy", "intersect", 10, .1, {"gutes_zeug"}, {});
+  do_test(izer, input, expected, "Tag intersection during union did not produce the expected output");
 
   //check that the right number of unions happen with limited iterations
   input = {
@@ -146,7 +146,7 @@ void test_generic() {
     test::create_feature({ {-1, 0}, {0, 0}, {0, -1} }, {}),
     test::create_feature({ { 0, 2}, {0, 0} }, {})
   };
-  izer = create_unionizer("greedy", "drop", 10, .1, {}, {});
+  izer = create_unionizer("greedy", "intersect", 10, .1, {}, {});
   do_test(izer, input, expected, "Union was expected to produce 2 features in the layer");
 
   //TODO: check that the previous ids of all the unioned features are stored within the keep_ids_tag
