@@ -11,54 +11,6 @@ using namespace std;
 
 namespace {
 
-mapnik::feature_ptr create_multi_feature(const vector<vector<pair<double, double> > >& lines, const vector<pair<string, string> >& tags) {
-  //a feature to hold the geometries and attribution
-  mapnik::context_ptr ctx = std::make_shared<mapnik::context_type>();
-  mapnik::feature_ptr feat = std::make_shared<mapnik::feature_impl>(ctx, 0);
-
-  //add the tagging to it
-  for(const auto& kv: tags) {
-    feat->put_new(kv.first, mapnik::value_unicode_string::fromUTF8(kv.second));
-  }
-
-  //make the geom
-  for(const auto& line : lines) {
-    mapnik::geometry_type *geom = new mapnik::geometry_type(mapnik::geometry_type::LineString);
-    mapnik::CommandType cmd = mapnik::SEG_MOVETO;
-    for(const auto& p : line) {
-      geom->push_vertex(p.first, p.second, cmd);
-      cmd = mapnik::SEG_LINETO;
-    }
-    feat->add_geometry(geom);
-  }
-
-  //hand it back
-  return feat;
-}
-
-mapnik::feature_ptr create_feature(const vector<pair<double, double> >& line, const vector<pair<string, string> >& tags) {
-  //a feature to hold the geometries and attribution
-  mapnik::context_ptr ctx = std::make_shared<mapnik::context_type>();
-  mapnik::feature_ptr feat = std::make_shared<mapnik::feature_impl>(ctx, 0);
-
-  //add the tagging to it
-  for(const auto& kv: tags) {
-    feat->put_new(kv.first, mapnik::value_unicode_string::fromUTF8(kv.second));
-  }
-
-  //make the geom
-  mapnik::geometry_type *geom = new mapnik::geometry_type(mapnik::geometry_type::LineString);
-  mapnik::CommandType cmd = mapnik::SEG_MOVETO;
-  for(const auto& p : line) {
-    geom->push_vertex(p.first, p.second, cmd);
-    cmd = mapnik::SEG_LINETO;
-  }
-  feat->add_geometry(geom);
-
-  //hand it back
-  return feat;
-}
-
 avecado::post_process::izer_ptr create_unionizer(const string& heuristic, const string& strategy, const size_t iterations,
   const float angle_ratio, const vector<string>& tags, const vector<string>& direction_tags){
 
@@ -71,13 +23,13 @@ avecado::post_process::izer_ptr create_unionizer(const string& heuristic, const 
 
   pt::ptree tag_array;
   for(const auto& tag : tags) {
-    tag_array.put_value(tag);
+    tag_array.add("", tag);
   }
   conf.put_child("match_tags", tag_array);
 
   pt::ptree directions_array;
   for(const auto& tag : direction_tags) {
-    directions_array.put_value(tag);
+    directions_array.add("", tag);
   }
   conf.put_child("preserve_direction_tags", directions_array);
 
@@ -104,28 +56,28 @@ void do_test(const avecado::post_process::izer_ptr& izer, vector<mapnik::feature
 void test_angle() {
   //test that union favors very obtuse angles (low frequency)
   vector<mapnik::feature_ptr> input = {
-    create_feature({ {-1, 0}, {0, 0} }, {}),
-    create_feature({ { 0, 0}, {1, 0} }, {}),
-    create_feature({ {-1, 1}, {0, 0} }, {}),
-    create_feature({ { 0, 0}, {1, 1} }, {})
+    test::create_feature({ {-1, 0}, {0, 0} }, {}),
+    test::create_feature({ { 0, 0}, {1, 0} }, {}),
+    test::create_feature({ {-1, 1}, {0, 0} }, {}),
+    test::create_feature({ { 0, 0}, {1, 1} }, {})
   };
   vector<mapnik::feature_ptr> expected = {
-    create_feature({ {-1, 0}, {0, 0}, {1, 0} }, {}),
-    create_feature({ {-1, 1}, {0, 0}, {1, 1} }, {})
+    test::create_feature({ {-1, 0}, {0, 0}, {1, 0} }, {}),
+    test::create_feature({ {-1, 1}, {0, 0}, {1, 1} }, {})
   };
   avecado::post_process::izer_ptr izer = create_unionizer("obtuse", "drop", 10, .1, {}, {});
   do_test(izer, input, expected, "Obtuse heuristic during union did not produce the expected output");
 
   //test that union favors very acute angles (high frequency)
   input = {
-    create_feature({ {-1, 0}, {0, 0} }, {}),
-    create_feature({ { 0, 0}, {1, 0} }, {}),
-    create_feature({ {-1, 1}, {0, 0} }, {}),
-    create_feature({ { 0, 0}, {1, 1} }, {})
+    test::create_feature({ {-1, 0}, {0, 0} }, {}),
+    test::create_feature({ { 0, 0}, {1, 0} }, {}),
+    test::create_feature({ {-1, 1}, {0, 0} }, {}),
+    test::create_feature({ { 0, 0}, {1, 1} }, {})
   };
   expected = {
-    create_feature({ {-1, 0}, {0, 0}, {-1, 1} }, {}),
-    create_feature({ {1, 0}, {0, 0}, {1, 1} }, {})
+    test::create_feature({ {-1, 0}, {0, 0}, {-1, 1} }, {}),
+    test::create_feature({ {1, 0}, {0, 0}, {1, 1} }, {})
   };
   izer = create_unionizer("acute", "drop", 10, .1, {}, {});
   do_test(izer, input, expected, "Acute heuristic during union did not produce the expected output");
@@ -141,30 +93,30 @@ void test_greedy() {
 void test_generic() {
   //check that nothing is unioned
   vector<mapnik::feature_ptr> input = {
-    create_feature({ {-1, 0}, {0, 0} }, {{"a", "b"}}),
-    create_feature({ { 0,-1}, {0, 0} }, {{"a", "tunafish"}}),
-    create_feature({ { 0, 0}, {1, 0} }, {{"a", "c"}}),
-    create_feature({ { 0, 1}, {0, 0} }, {})
+    test::create_feature({ {-1, 0}, {0, 0} }, {{"a", "b"}}),
+    test::create_feature({ { 0,-1}, {0, 0} }, {{"a", "tunafish"}}),
+    test::create_feature({ { 0, 0}, {1, 0} }, {{"a", "c"}}),
+    test::create_feature({ { 0, 1}, {0, 0} }, {})
   };
   vector<mapnik::feature_ptr> expected = {
-      create_feature({ {-1, 0}, {0, 0} }, {{"a", "b"}}),
-      create_feature({ { 0,-1}, {0, 0} }, {{"a", "tunafish"}}),
-      create_feature({ { 0, 0}, {1, 0} }, {{"a", "c"}}),
-      create_feature({ { 0, 1}, {0, 0} }, {})
+    test::create_feature({ {-1, 0}, {0, 0} }, {{"a", "b"}}),
+    test::create_feature({ { 0,-1}, {0, 0} }, {{"a", "tunafish"}}),
+    test::create_feature({ { 0, 0}, {1, 0} }, {{"a", "c"}}),
+    test::create_feature({ { 0, 1}, {0, 0} }, {})
   };
-  avecado::post_process::izer_ptr izer = create_unionizer("greedy", "drop", 10, .1, {}, {"a"});
+  avecado::post_process::izer_ptr izer = create_unionizer("greedy", "drop", 1, .1, {"a"}, {});
   do_test(izer, input, expected, "Non-unionable features came out different than when they went in");
 
   //check that directions are adhered to
   input = {
-    create_feature({ {-1, 0}, {0, 0} }, {{"oneway", "yes"}}),
-    create_feature({ { 0,-1}, {0, 0} }, {}),
-    create_feature({ { 0, 0}, {1, 0} }, {{"oneway", "yes"}}),
-    create_feature({ { 0, 1}, {0, 0} }, {})
+    test::create_feature({ {-1, 0}, {0, 0} }, {{"oneway", "yes"}}),
+    test::create_feature({ { 0,-1}, {0, 0} }, {}),
+    test::create_feature({ { 0, 0}, {1, 0} }, {{"oneway", "yes"}}),
+    test::create_feature({ { 0, 1}, {0, 0} }, {})
   };
   expected = {
-    create_feature({ {-1, 0}, {0, 0}, {1, 0} }, {{"oneway", "yes"}}),
-    create_feature({ { 0,-1}, {0, 0}, { 0, 1} }, {})
+    test::create_feature({ {-1, 0}, {0, 0}, {1, 0} }, {{"oneway", "yes"}}),
+    test::create_feature({ { 0,-1}, {0, 0}, { 0, 1} }, {})
   };
   izer = create_unionizer("greedy", "drop", 10, .1, {}, {"oneway"});
   do_test(izer, input, expected, "Direction preserving during union did not produce the expected output");
@@ -175,24 +127,24 @@ void test_generic() {
 
   //check that the tags are dropped on the unioned features
   input = {
-    create_feature({ {-1, 0}, {0, 0} }, {{"gutes_zeug", "yes"}, {"zusaetzliches_tag", "schrott"}}),
-    create_feature({ { 0,-1}, {0, 0} }, {{"gutes_zeug", "yes"}})
+    test::create_feature({ {-1, 0}, {0, 0} }, {{"gutes_zeug", "yes"}, {"zusaetzliches_tag", "schrott"}}),
+    test::create_feature({ { 0,-1}, {0, 0} }, {{"gutes_zeug", "yes"}})
   };
   expected = {
-    create_feature({ {-1, 0}, {0, 0}, {0, -1} }, {{"gutes_zeug", "yes"}})
+    test::create_feature({ {-1, 0}, {0, 0}, {0, -1} }, {{"gutes_zeug", "yes"}})
   };
   izer = create_unionizer("greedy", "drop", 10, .1, {"gutes_zeug"}, {});
   do_test(izer, input, expected, "Tag dropping during union did not produce the expected output");
 
   //check that the right number of unions happen with limited iterations
   input = {
-    create_feature({ {-1, 0}, {0, 0} }, {}),
-    create_feature({ { 0,-1}, {0, 0} }, {}),
-    create_feature({ { 0, 2}, {0, 0} }, {})
+    test::create_feature({ {-1, 0}, {0, 0} }, {}),
+    test::create_feature({ { 0,-1}, {0, 0} }, {}),
+    test::create_feature({ { 0, 2}, {0, 0} }, {})
   };
   expected = {
-    create_feature({ {-1, 0}, {0, 0}, {0, -1} }, {}),
-    create_feature({ { 0, 2}, {0, 0} }, {})
+    test::create_feature({ {-1, 0}, {0, 0}, {0, -1} }, {}),
+    test::create_feature({ { 0, 2}, {0, 0} }, {})
   };
   izer = create_unionizer("greedy", "drop", 10, .1, {}, {});
   do_test(izer, input, expected, "Union was expected to produce 2 features in the layer");

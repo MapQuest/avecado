@@ -32,18 +32,6 @@ namespace {
   enum tag_strategy { DROP/*, PRESERVE*/ };
   const unordered_map<string, tag_strategy> string_to_strategy = { {"drop", DROP}/*, {"preserve", PRESERVE}*/ };
 
-  //returns true if the given feature has all of the tags
-  bool unionable(const mapnik::feature_ptr& feature, const set<string>& tags) {
-    if(feature->num_geometries() == 0)
-      return false;
-
-    for(const auto& key : tags) {
-      if(!feature->has_key(key))
-        return false;
-    }
-    return true;
-  }
-
   //used to approximate a curve with a single directional vector
   struct curve_approximator {
       //pass it the start point of the curve
@@ -127,7 +115,7 @@ namespace {
     //normal vector approximating the curve leaving the vertex
     double m_dx, m_dy;
 
-    candidate(position position_, size_t index_, mapnik::feature_ptr feature_, bool directional, union_heuristic heuristic_,
+    candidate(position position_, size_t index_, const mapnik::feature_ptr& feature_, bool directional, union_heuristic heuristic_,
       const pair<double, double>& xy_distance):
       m_position(position_), m_index(index_), m_parent(feature_), m_directional(directional), m_dx(NAN), m_dy(NAN) {
       //grab the geom
@@ -198,7 +186,7 @@ namespace {
     const set<string> m_tags;
   };
 
-  void add_candidates(mapnik::feature_ptr feature, multiset<candidate, candidate_comparator>& candidates,
+  void add_candidates(const mapnik::feature_ptr& feature, multiset<candidate, candidate_comparator>& candidates,
     const union_heuristic heuristic, const bool preserve_direction, const pair<double, double>& distance) {
     //grab some statistics about the geom so we can play match maker
     for (size_t i = 0; i < feature->num_geometries(); ++i) {
@@ -216,14 +204,26 @@ namespace {
     }
   }
 
-  multiset<candidate, candidate_comparator> get_candidates(std::vector<mapnik::feature_ptr> &layer,
+  //returns true if the given feature has all of the tags
+  bool unionable(const mapnik::feature_ptr& feature, const set<string>& tags) {
+    if(feature->num_geometries() == 0)
+      return false;
+
+    for(const auto& key : tags) {
+      if(!feature->has_key(key))
+        return false;
+    }
+    return true;
+  }
+
+  multiset<candidate, candidate_comparator> get_candidates(const std::vector<mapnik::feature_ptr> &layer,
     const set<string>& tags, const set<string>& directional_tags,
     const union_heuristic heuristic, const pair<double, double>& distance) {
 
     multiset<candidate, candidate_comparator> candidates{candidate_comparator(tags)};
 
     //for each feature set
-    for (mapnik::feature_ptr feature : layer) {
+    for (const auto& feature : layer) {
       //do we care to union this feature
       if (!unionable(feature, tags))
         continue;
@@ -294,20 +294,21 @@ namespace {
     //check all consecutive candidate pairs, technically n^2 but practically never that
     auto cmp = candidates.key_comp();
     for(multiset<candidate, candidate_comparator>::const_iterator candidate = candidates.begin(); candidate != candidates.end(); ++candidate){
-      //printf("\n%s\n", candidate->to_string().c_str());
+      printf("\n%s\n", candidate->to_string().c_str());
       //for all the adjacent candidates (same point and tags)
       //reuse the comparators less than, if the current one
       //isn't less than the next one then they must be equal
       //because we know the current one isn't greater than
       //the next one since the set is already sorted
-      for(auto next_candidate = next(candidate);
-          next_candidate != candidates.end() && !cmp(*candidate, *next_candidate);
-          next_candidate = next(next_candidate)){
-
+      auto next_candidate = next(candidate);
+      while(next_candidate != candidates.end() && !cmp(*candidate, *next_candidate)){
         //see if they are compatible
         boost::optional<couple_t> couple = make_couple(*candidate, *next_candidate);
         if(couple)
           pairs.emplace(scorer(*couple), *couple);
+
+        //look at the next one
+        next_candidate = next(next_candidate);
       }
     }
 
@@ -540,8 +541,8 @@ izer_ptr create_unionizer(pt::ptree const& config) {
   boost::optional<const pt::ptree&> match_tags = config.get_child_optional("match_tags");
   set<string> match;
   if(match_tags) {
-    for(const pt::ptree::value_type &v: *match_tags) {
-      match.insert(v.first);
+    for(const pt::ptree::value_type &kv: *match_tags) {
+      match.insert(kv.second.get_value<string>());
     }
   }
 
@@ -551,8 +552,8 @@ izer_ptr create_unionizer(pt::ptree const& config) {
   boost::optional<const pt::ptree&> preserve_direction_tags = config.get_child_optional("preserve_direction_tags");
   set<string> direction;
   if(preserve_direction_tags) {
-    for(const pt::ptree::value_type &v: *preserve_direction_tags) {
-      direction.insert(v.first);
+    for(const pt::ptree::value_type &kv: *preserve_direction_tags) {
+      direction.insert(kv.second.get_value<string>());
     }
   }
 

@@ -3,6 +3,7 @@
 
 #include <string>
 #include <vector>
+#include <utility>
 #include <sstream>
 #include <boost/function.hpp>
 #include <boost/format.hpp>
@@ -63,6 +64,12 @@ bool equal(const mapnik::geometry_type& a, const mapnik::geometry_type& b);
 bool equal(const mapnik::feature_ptr& a, const mapnik::feature_ptr& b, const bool match_tags = false);
 
 bool equal(const std::vector<mapnik::feature_ptr>& a, const std::vector<mapnik::feature_ptr>& b, const bool match_tags = false);
+
+mapnik::feature_ptr create_multi_feature(const std::vector<std::vector<std::pair<double, double> > >& lines,
+  const std::vector<std::pair<std::string, std::string> >& tags);
+
+mapnik::feature_ptr create_feature(const std::vector<std::pair<double, double> >& line,
+  const std::vector<std::pair<std::string, std::string> >& tags);
 
 
 /* runs the test function, formats the output nicely and returns 1

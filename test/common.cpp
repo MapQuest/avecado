@@ -305,4 +305,52 @@ bool equal(const std::vector<mapnik::feature_ptr>& a, const std::vector<mapnik::
   return true;
 }
 
+mapnik::feature_ptr create_multi_feature(const std::vector<std::vector<std::pair<double, double> > >& lines, const std::vector<std::pair<std::string, std::string> >& tags) {
+  //a feature to hold the geometries and attribution
+  mapnik::context_ptr ctx = std::make_shared<mapnik::context_type>();
+  mapnik::feature_ptr feat = std::make_shared<mapnik::feature_impl>(ctx, 0);
+
+  //add the tagging to it
+  for(const auto& kv: tags) {
+    feat->put_new(kv.first, mapnik::value_unicode_string::fromUTF8(kv.second));
+  }
+
+  //make the geom
+  for(const auto& line : lines) {
+    mapnik::geometry_type *geom = new mapnik::geometry_type(mapnik::geometry_type::LineString);
+    mapnik::CommandType cmd = mapnik::SEG_MOVETO;
+    for(const auto& p : line) {
+      geom->push_vertex(p.first, p.second, cmd);
+      cmd = mapnik::SEG_LINETO;
+    }
+    feat->add_geometry(geom);
+  }
+
+  //hand it back
+  return feat;
+}
+
+mapnik::feature_ptr create_feature(const std::vector<std::pair<double, double> >& line, const std::vector<std::pair<std::string, std::string> >& tags) {
+  //a feature to hold the geometries and attribution
+  mapnik::context_ptr ctx = std::make_shared<mapnik::context_type>();
+  mapnik::feature_ptr feat = std::make_shared<mapnik::feature_impl>(ctx, 0);
+
+  //add the tagging to it
+  for(const auto& kv: tags) {
+    feat->put_new(kv.first, mapnik::value_unicode_string::fromUTF8(kv.second));
+  }
+
+  //make the geom
+  mapnik::geometry_type *geom = new mapnik::geometry_type(mapnik::geometry_type::LineString);
+  mapnik::CommandType cmd = mapnik::SEG_MOVETO;
+  for(const auto& p : line) {
+    geom->push_vertex(p.first, p.second, cmd);
+    cmd = mapnik::SEG_LINETO;
+  }
+  feat->add_geometry(geom);
+
+  //hand it back
+  return feat;
+}
+
 }
