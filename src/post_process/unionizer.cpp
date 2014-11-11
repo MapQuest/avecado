@@ -34,7 +34,7 @@ namespace {
 
   //returns true if the given feature has all of the tags
   bool unionable(const mapnik::feature_ptr& feature, const set<string>& tags) {
-    if(!feature)
+    if(feature->num_geometries() == 0)
       return false;
 
     for(const auto& key : tags) {
@@ -417,9 +417,11 @@ namespace {
     return unioned.size();
   }
 
-  void cull(std::vector<mapnik::feature_ptr> &layer) {
+  //throws out any features who no longer have geometry
+  void cull(vector<mapnik::feature_ptr>& layer) {
     auto empty = [] (const mapnik::feature_ptr& feature) { return feature->num_geometries() == 0; };
-    std::remove_if(layer.begin(), layer.end(), empty);
+    auto end = std::remove_if(layer.begin(), layer.end(), empty);
+    layer.resize(end - layer.begin());
   }
 }
 
@@ -437,7 +439,7 @@ public:
     const double angle_union_sample_ratio);
   virtual ~unionizer() {}
 
-  virtual void process(std::vector<mapnik::feature_ptr> &layer, mapnik::Map const& map) const;
+  virtual void process(vector<mapnik::feature_ptr> &layer, mapnik::Map const& map) const;
 
 private:
 
@@ -457,7 +459,7 @@ unionizer::unionizer(const union_heuristic heuristic, const tag_strategy strateg
   m_match_tags(match_tags), m_preserve_direction_tags(preserve_direction_tags), m_angle_union_sample_ratio(angle_union_sample_ratio) {
 }
 
-void unionizer::process(std::vector<mapnik::feature_ptr> &layer, mapnik::Map const& map) const {
+void unionizer::process(vector<mapnik::feature_ptr>& layer, mapnik::Map const& map) const {
   //if they are using an angle union heuristic they need to know the distance along the feature
   //to use for estimating an angle that represents the curve leaving the union point
   //so we let them say how many units in each axis we should travel before we have enough data
