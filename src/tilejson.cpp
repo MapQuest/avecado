@@ -8,6 +8,8 @@
 
 #include <curl/curl.h>
 
+#include <mapnik/map.hpp>
+
 namespace bpt = boost::property_tree;
 namespace bal = boost::algorithm;
 
@@ -102,6 +104,10 @@ std::unique_ptr<fetcher> make_tilejson_fetcher(const bpt::ptree &conf) {
   std::unique_ptr<fetcher> overzoom(new fetch::overzoom(std::move(http), max_zoom, mask_zoom));
 
   return overzoom;
+}
+
+std::string make_tilejson(const mapnik::Map &map) {
+  return "{}";
 }
 
 } // namespace avecado
