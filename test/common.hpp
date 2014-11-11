@@ -1,3 +1,6 @@
+#ifndef TEST_COMMON
+#define TEST_COMMON
+
 #include <string>
 #include <vector>
 #include <sstream>
@@ -138,3 +141,5 @@ mapnik::box2d<double> box_for_tile(int z, int x, int y);
 mapnik::Map make_map(std::string style_file, unsigned tile_resolution, int z, int x, int y);
 
 } // namespace test
+
+#endif //TEST_COMMON

@@ -8,6 +8,8 @@
 #include <unordered_set>
 #include <unordered_map>
 
+#include <boost/format.hpp>
+
 using namespace std;
 
 namespace {
@@ -159,6 +161,11 @@ namespace {
           break;
       }
     }
+
+    string to_string() const {
+      return (boost::format("%1% %2% %3% %4% %5% %6%")
+        % (m_position == FRONT ? "FRONT" : "BACK") % m_index % m_parent.get() % (m_directional ? "DIR" : "NO_DIR") % m_x % m_y).str();
+    }
   };
 
   class candidate_comparator {
@@ -191,7 +198,7 @@ namespace {
     const set<string> m_tags;
   };
 
-  void add_candidates(mapnik::feature_ptr feature, set<candidate, candidate_comparator>& candidates,
+  void add_candidates(mapnik::feature_ptr feature, multiset<candidate, candidate_comparator>& candidates,
     const union_heuristic heuristic, const bool preserve_direction, const pair<double, double>& distance) {
     //grab some statistics about the geom so we can play match maker
     for (size_t i = 0; i < feature->num_geometries(); ++i) {
@@ -209,11 +216,11 @@ namespace {
     }
   }
 
-  set<candidate, candidate_comparator> get_candidates(std::vector<mapnik::feature_ptr> &layer,
+  multiset<candidate, candidate_comparator> get_candidates(std::vector<mapnik::feature_ptr> &layer,
     const set<string>& tags, const set<string>& directional_tags,
     const union_heuristic heuristic, const pair<double, double>& distance) {
 
-    set<candidate, candidate_comparator> candidates{candidate_comparator(tags)};
+    multiset<candidate, candidate_comparator> candidates{candidate_comparator(tags)};
 
     //for each feature set
     for (mapnik::feature_ptr feature : layer) {
@@ -279,21 +286,24 @@ namespace {
     return MAX_SCORE - obtuse_score(couple);
   }
 
-  map<score_t, couple_t> score_candidates(const set<candidate, candidate_comparator>& candidates, score_t (*scorer)(const couple_t&)){
+  map<score_t, couple_t> score_candidates(const multiset<candidate, candidate_comparator>& candidates, score_t (*scorer)(const couple_t&)){
 
     //a place to hold all of the scored pairs
     map<score_t, couple_t> pairs;
 
     //check all consecutive candidate pairs, technically n^2 but practically never that
     auto cmp = candidates.key_comp();
-    for(set<candidate, candidate_comparator>::const_iterator candidate = candidates.begin(); candidate != candidates.end(); ++candidate){
+    for(multiset<candidate, candidate_comparator>::const_iterator candidate = candidates.begin(); candidate != candidates.end(); ++candidate){
+      //printf("\n%s\n", candidate->to_string().c_str());
       //for all the adjacent candidates (same point and tags)
       //reuse the comparators less than, if the current one
       //isn't less than the next one then they must be equal
       //because we know the current one isn't greater than
       //the next one since the set is already sorted
-      auto next_candidate = next(candidate);
-      while(next_candidate != candidates.end() && !cmp(*candidate, *next_candidate)){
+      for(auto next_candidate = next(candidate);
+          next_candidate != candidates.end() && !cmp(*candidate, *next_candidate);
+          next_candidate = next(next_candidate)){
+
         //see if they are compatible
         boost::optional<couple_t> couple = make_couple(*candidate, *next_candidate);
         if(couple)
@@ -460,7 +470,7 @@ void unionizer::process(std::vector<mapnik::feature_ptr> &layer, mapnik::Map con
   for(size_t i = 0; i < m_max_iterations; ++i){
 
     //grab all the current adjacent (sorted by endpoint and tags) tuples of candidates for unioning
-    set<candidate, candidate_comparator> candidates =
+    multiset<candidate, candidate_comparator> candidates =
         get_candidates(layer, m_match_tags, m_preserve_direction_tags, m_heuristic, make_pair(width_units, height_units));
 
     //a place to hold the scored pairs of candidates
