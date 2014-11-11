@@ -110,8 +110,8 @@ void test_angle() {
     create_feature({ { 0, 0}, {1, 1} }, {})
   };
   vector<mapnik::feature_ptr> expected = {
-    create_feature({ {-1, 0}, {0, 0}, { 0, 0}, {1, 0} }, {}),
-    create_feature({ {-1, 1}, {0, 0}, { 0, 0}, {1, 1} }, {})
+    create_feature({ {-1, 0}, {0, 0}, {1, 0} }, {}),
+    create_feature({ {-1, 1}, {0, 0}, {1, 1} }, {})
   };
   avecado::post_process::izer_ptr izer = create_unionizer("obtuse", "drop", 10, .1, {}, {});
   do_test(izer, input, expected, "Obtuse heuristic during union did not produce the expected output");
@@ -124,8 +124,8 @@ void test_angle() {
     create_feature({ { 0, 0}, {1, 1} }, {})
   };
   expected = {
-    create_feature({ {-1, 0}, {0, 0}, { 0, 0}, {-1, 1} }, {}),
-    create_feature({ {1, 0}, {0, 0}, { 0, 0}, {1, 1} }, {})
+    create_feature({ {-1, 0}, {0, 0}, {-1, 1} }, {}),
+    create_feature({ {1, 0}, {0, 0}, {1, 1} }, {})
   };
   izer = create_unionizer("acute", "drop", 10, .1, {}, {});
   do_test(izer, input, expected, "Acute heuristic during union did not produce the expected output");
@@ -147,11 +147,13 @@ void test_generic() {
     create_feature({ { 0, 1}, {0, 0} }, {})
   };
   vector<mapnik::feature_ptr> expected = {
-    create_feature({ {-1, 0}, {0, 0}, { 0, 0}, {1, 0} }, {{"oneway", "yes"}}),
-    create_feature({ { 0,-1}, {0, 0}, { 0, 1}, {0, 0} }, {})
+      create_feature({ {-1, 0}, {0, 0} }, {{"a", "b"}}),
+      create_feature({ { 0,-1}, {0, 0} }, {{"a", "tunafish"}}),
+      create_feature({ { 0, 0}, {1, 0} }, {{"a", "c"}}),
+      create_feature({ { 0, 1}, {0, 0} }, {})
   };
-  avecado::post_process::izer_ptr izer = create_unionizer("greedy", "drop", 10, .1, {}, {"oneway"});
-  do_test(izer, input, expected, "Direction perserving during union did not produce the expected output");
+  avecado::post_process::izer_ptr izer = create_unionizer("greedy", "drop", 10, .1, {}, {"a"});
+  do_test(izer, input, expected, "Non-unionable features came out different than when they went in");
 
   //check that directions are adhered to
   input = {
@@ -161,8 +163,8 @@ void test_generic() {
     create_feature({ { 0, 1}, {0, 0} }, {})
   };
   expected = {
-    create_feature({ {-1, 0}, {0, 0}, { 0, 0}, {1, 0} }, {{"oneway", "yes"}}),
-    create_feature({ { 0,-1}, {0, 0}, { 0, 1}, {0, 0} }, {})
+    create_feature({ {-1, 0}, {0, 0}, {1, 0} }, {{"oneway", "yes"}}),
+    create_feature({ { 0,-1}, {0, 0}, { 0, 1} }, {})
   };
   izer = create_unionizer("greedy", "drop", 10, .1, {}, {"oneway"});
   do_test(izer, input, expected, "Direction preserving during union did not produce the expected output");
@@ -173,7 +175,7 @@ void test_generic() {
     create_feature({ { 0,-1}, {0, 0} }, {{"gutes_zeug", "yes"}})
   };
   expected = {
-    create_feature({ {-1, 0}, {0, 0}, { 0, 0}, {0, -1} }, {{"gutes_zeug", "yes"}})
+    create_feature({ {-1, 0}, {0, 0}, {0, -1} }, {{"gutes_zeug", "yes"}})
   };
   izer = create_unionizer("greedy", "drop", 10, .1, {"gutes_zeug"}, {});
   do_test(izer, input, expected, "Tag dropping during union did not produce the expected output");
@@ -185,7 +187,7 @@ void test_generic() {
     create_feature({ { 0, 2}, {0, 0} }, {})
   };
   expected = {
-    create_feature({ {-1, 0}, {0, 0}, { 0, 0}, {0, -1} }, {}),
+    create_feature({ {-1, 0}, {0, 0}, {0, -1} }, {}),
     create_feature({ { 0, 2}, {0, 0} }, {})
   };
   izer = create_unionizer("greedy", "drop", 10, .1, {}, {});

@@ -288,11 +288,12 @@ namespace {
     auto cmp = candidates.key_comp();
     for(set<candidate, candidate_comparator>::const_iterator candidate = candidates.begin(); candidate != candidates.end(); ++candidate){
       //for all the adjacent candidates (same point and tags)
-      //reuse the comparators less than, if one that came after this
-      //one isn't less than (meaning equal in this case)
-      //then we are done making pairs for the current candidate
+      //reuse the comparators less than, if the current one
+      //isn't less than the next one then they must be equal
+      //because we know the current one isn't greater than
+      //the next one since the set is already sorted
       auto next_candidate = next(candidate);
-      while(next_candidate != candidates.end() && cmp(*next_candidate, *candidate)){
+      while(next_candidate != candidates.end() && !cmp(*candidate, *next_candidate)){
         //see if they are compatible
         boost::optional<couple_t> couple = make_couple(*candidate, *next_candidate);
         if(couple)
@@ -315,7 +316,7 @@ namespace {
       double x, y;
       mapnik::geometry_type& dst = couple.first.m_parent->get_geometry(couple.first.m_index);
       mapnik::geometry_type& src = couple.second.m_parent->get_geometry(couple.second.m_index);
-      for(size_t i = 0; i < src.size(); ++i) {
+      for(size_t i = 1; i < src.size(); ++i) {
         if(src.vertex(i, &x, &y) != mapnik::SEG_END)
           dst.line_to(x, y);
       }
@@ -335,7 +336,7 @@ namespace {
         double x, y;
         mapnik::geometry_type& dst = couple.first.m_parent->get_geometry(couple.first.m_index);
         mapnik::geometry_type& src = couple.second.m_parent->get_geometry(couple.second.m_index);
-        for(size_t i = 0; i < src.size(); ++i) {
+        for(size_t i = 1; i < src.size(); ++i) {
           if(src.vertex((src.size() - i) - 1, &x, &y) != mapnik::SEG_END)
             dst.line_to(x, y);
         }
@@ -359,7 +360,7 @@ namespace {
         }
         //add the vertices of the second segment in normal order
         mapnik::geometry_type& src2 = couple.second.m_parent->get_geometry(couple.second.m_index);
-        for(size_t i = 0; i < src2.size(); ++i) {
+        for(size_t i = 1; i < src2.size(); ++i) {
           if(src2.vertex(i, &x, &y) != mapnik::SEG_END)
             dst->line_to(x, y);
         }
