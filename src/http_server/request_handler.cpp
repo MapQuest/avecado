@@ -39,6 +39,10 @@ std::string make_http_date() {
   setlocale(LC_TIME, oldlocale);
   return std::string(buf);
 }
+
+std::string strip_query_params(const std::string &str) {
+  return str.substr(0, str.find('?'));
+}
 } // anonymous namespace
 
 namespace http {
@@ -61,7 +65,7 @@ void request_handler::handle_request_impl(const request &req, reply &rep)
 {
   // Decode url to path.
   std::string request_path;
-  if (!url_decode(req.uri, request_path))
+  if (!url_decode(strip_query_params(req.uri), request_path))
   {
     rep = reply::stock_reply(reply::bad_request);
     return;
