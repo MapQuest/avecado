@@ -128,7 +128,7 @@ check_PROGRAMS = \
 	test/generalizer \
 	test/adminizer \
 	test/multi_verification \
-	test/unionizer
+	test/unionizer \
 	test/render_vector_tile \
 	test/overzoom \
 	test/http \
