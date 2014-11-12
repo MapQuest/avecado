@@ -81,12 +81,20 @@ void test_angle() {
   };
   izer = create_unionizer("acute", "intersect", 10, .1, {}, {});
   do_test(izer, input, expected, "Acute heuristic during union did not produce the expected output");
-}
 
-//check if the greedy algorithm unions properly
-void test_greedy() {
-  //TODO: come up with a case that depends on the order of the input and sorting?
-  //perhaps where the angle based heuristics would come up with different answers
+  //test degenerate angles
+  input = {
+    test::create_feature({ {-1, 0}, {2, 2} }, {}),
+    test::create_feature({ {-1, 0}, {-1, 0} }, {}),
+    test::create_feature({ {-1, 1}, {0, 0} }, {}),
+    test::create_feature({ { 0, 0}, {1, 1} }, {})
+  };
+  expected = {
+    test::create_feature({ {-1, 0}, {-1, 0}, {2, 2} }, {}),
+    test::create_feature({ {1, 0}, {0, 0}, {1, 1} }, {})
+  };
+  izer = create_unionizer("acute", "intersect", 10, .1, {}, {});
+  do_test(izer, input, expected, "Degenerate angle during union did not produce the expected output");
 }
 
 //check some basic properties of unioning

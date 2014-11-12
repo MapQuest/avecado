@@ -33,6 +33,7 @@ namespace {
 
   //used to approximate a curve with a single directional vector
   struct curve_approximator {
+    public:
       //pass it the start point of the curve
       curve_approximator(double x, double y, double consume_x, double consume_y):
         m_x(x), m_y(y), m_consume_x(consume_x), m_consume_y(consume_y), m_total_length(0){}
@@ -73,6 +74,7 @@ namespace {
 
       //returns the vector from the origin that follows the general
       //direction of the portion of the curve that was sampled
+      static constexpr double sq_length_tolerance = .00001;
       void get_approximation(double& x, double& y) {
         //this seems like a reasonable approximation. basically we
         //take all the vectors from the union point to each point along the curve
@@ -82,6 +84,10 @@ namespace {
 
         //a place to hold the approximate direction of the curve
         x = y = 0;
+
+        //no direction on this, should check for smaller than a tolerance really
+        if(fabs(m_total_length) < sq_length_tolerance)
+          return;
 
         //normalize the length to use as a weight to apply when averaging the vectors
         double scale = 1 / m_total_length;
@@ -274,6 +280,9 @@ namespace {
 
   //favor them by smallest cosine similarity
   score_t obtuse_score(const couple_t& couple) {
+    //if we have a degenerate curve it gets a crappy score
+    if((couple.first.m_dx == 0 && couple.first.m_dy == 0) || (couple.second.m_dx == 0 && couple.second.m_dy == 0))
+      return 0;
     //valid interval from -1 to 1 where -1 is opposite directions, 0 is right angle and 1 is same direction
     double dot = couple.first.m_dx*couple.second.m_dx + couple.first.m_dy*couple.second.m_dy;
     //move the dot into the range of 0 - 2, cut it in half to make it a percentage to scale the max score by
@@ -282,6 +291,9 @@ namespace {
 
   //favor the largest cosine similarity
   score_t acute_score(const couple_t& couple) {
+    //if we have a degenerate curve it gets a crappy score
+    if((couple.first.m_dx == 0 && couple.first.m_dy == 0) || (couple.second.m_dx == 0 && couple.second.m_dy == 0))
+      return 0;
     return MAX_SCORE - obtuse_score(couple);
   }
 
