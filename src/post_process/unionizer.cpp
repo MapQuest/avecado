@@ -391,12 +391,13 @@ namespace {
     for(auto kv = couple.first.m_parent->begin(); kv != couple.first.m_parent->end(); ++kv) {
       //the second partner does even recognize this particular item
       string key = get<0>(*kv);
-      if(strategy == INTERSECT && !couple.second.m_parent->has_key(key)){
+      if(!couple.second.m_parent->has_key(key)){
         //so the first partner must throw it out!
         //NOTE: this feels a bit like a hack, setting this to value_null
         //relies on the fact that when serializing feature_ptrs into pbf vector
         //tiles we only write kv pairs where the value is non-null
-        couple.first.m_parent->put(key, mapnik::value_null());
+        if(strategy == INTERSECT)
+          couple.first.m_parent->put(key, mapnik::value_null());
       }//the second partner doesn't agree on this particular item
       else if(get<1>(*kv) != couple.second.m_parent->get(key)) {
         //so the first partner must throw it out!
@@ -409,9 +410,9 @@ namespace {
     for(auto kv = couple.second.m_parent->begin(); strategy == ACCUMULATE && kv != couple.second.m_parent->end(); ++kv) {
       //the first partner doesn't have this particular item
       string key = get<0>(*kv);
-      if(!couple.second.m_parent->has_key(key)){
-        //so the first partner must throw it out!
-        couple.first.m_parent->put(key, get<1>(*kv));
+      if(!couple.first.m_parent->has_key(key)){
+        //so the first partner must take it
+        couple.first.m_parent->put_new(key, get<1>(*kv));
       }
     }
   }

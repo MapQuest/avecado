@@ -121,9 +121,45 @@ void test_generic() {
   izer = create_unionizer("greedy", "intersect", 10, .1, {}, {"oneway"});
   do_test(izer, input, expected, "Direction preserving during union did not produce the expected output");
 
-  //TODO: check multi's make it through unmolested
+  //check multi's make it through properly molested
+  input = {
+    test::create_multi_feature({ { {-1, 0}, {0, 0} }, { { 1, 0}, {1, 1} } }, {{"a", "yes"}}),
+    test::create_feature({ { 2, 2}, {1, 1} }, { {"a", "yes"} }),
+    test::create_feature({ { 0, 1}, {0, 0} }, {})
+  };
+  expected = {
+    test::create_multi_feature({ { {-1, 0}, {0, 0} }, { { 1, 0}, {1, 1}, {2, 2} } }, {{"a", "yes"}}),
+    test::create_feature({ { 0, 1}, {0, 0} }, {})
+  };
+  izer = create_unionizer("greedy", "intersect", 10, .1, {"a"}, {});
+  do_test(izer, input, expected, "Multilinestring union did not produce the expected output");
 
-  //TODO: check self union within a multi
+  //check self union within a multi
+  input = {
+    test::create_multi_feature({ { {-1, 0}, {0, 0} }, { { 0, 0}, {1, 0} } }, {{"a", "yes"}}),
+    test::create_feature({ { 0,-1}, {0, 0} }, {}),
+    test::create_feature({ { 0, 1}, {0, 0} }, {})
+  };
+  expected = {
+    test::create_feature({ {-1, 0}, {0, 0}, {1, 0} }, {{"a", "yes"}}),
+    test::create_feature({ { 0,-1}, {0, 0} }, {}),
+    test::create_feature({ { 0, 1}, {0, 0} }, {})
+  };
+  izer = create_unionizer("greedy", "intersect", 10, .1, {"a"}, {});
+  do_test(izer, input, expected, "Multilinestring self-union did not produce the expected output");
+
+  //multi unioned with itself and with other non multi
+  input = {
+    test::create_multi_feature({ { {-1, 0}, {0, 0} }, { { 1, 1}, {1, 0} } }, {{"a", "yes"}}),
+    test::create_feature({ { 1, 0}, {0, 0} }, { {"a", "yes"} }),
+    test::create_feature({ { 0, 1}, {0, 0} }, {})
+  };
+  expected = {
+    test::create_feature({ {-1, 0}, {0, 0}, {1, 0}, {1, 1} }, {{"a", "yes"}}),
+    test::create_feature({ { 0, 1}, {0, 0} }, {})
+  };
+  izer = create_unionizer("greedy", "intersect", 10, .1, {"a"}, {});
+  do_test(izer, input, expected, "Multilinestring multi-union did not produce the expected output");
 
   //check that the tags are dropped on the unioned features
   input = {
@@ -135,6 +171,28 @@ void test_generic() {
   };
   izer = create_unionizer("greedy", "intersect", 10, .1, {"gutes_zeug"}, {});
   do_test(izer, input, expected, "Tag intersection during union did not produce the expected output");
+
+  //check that the tags are kept on the unioned features when not present in the right part of the union
+  input = {
+    test::create_feature({ {-1, 0}, {0, 0} }, {{"gutes_zeug", "yes"}, {"zusaetzliches_tag", "schrott"}}),
+    test::create_feature({ { 0,-1}, {0, 0} }, {{"gutes_zeug", "yes"}})
+  };
+  expected = {
+    test::create_feature({ {-1, 0}, {0, 0}, {0, -1} }, {{"gutes_zeug", "yes"}, {"zusaetzliches_tag", "schrott"}})
+  };
+  izer = create_unionizer("greedy", "accumulate", 10, .1, {"gutes_zeug"}, {});
+  do_test(izer, input, expected, "Tag accumulation during union did not produce the expected output");
+
+  //check that the tags are added when not present in the left part of the union
+  input = {
+    test::create_feature({ {-1, 0}, {0, 0} }, {{"gutes_zeug", "yes"}}),
+    test::create_feature({ { 0,-1}, {0, 0} }, {{"gutes_zeug", "yes"}, {"zusaetzliches_tag", "schrott"}})
+  };
+  expected = {
+    test::create_feature({ {-1, 0}, {0, 0}, {0, -1} }, {{"gutes_zeug", "yes"}, {"zusaetzliches_tag", "schrott"}})
+  };
+  izer = create_unionizer("greedy", "accumulate", 10, .1, {"gutes_zeug"}, {});
+  do_test(izer, input, expected, "Tag accumulation during union did not produce the expected output");
 
   //check that the right number of unions happen with limited iterations
   input = {
