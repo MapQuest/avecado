@@ -90,8 +90,8 @@ void test_angle() {
     test::create_feature({ { 0, 0}, {1, 1} }, {})
   };
   expected = {
-    test::create_feature({ {-1, 0}, {-1, 0}, {2, 2} }, {}),
-    test::create_feature({ {1, 0}, {0, 0}, {1, 1} }, {})
+    test::create_feature({ {2, 2}, {-1, 0}, {-1, 0} }, {}),
+    test::create_feature({ {-1, 1}, {0, 0}, {1, 1} }, {})
   };
   izer = create_unionizer("acute", "intersect", 10, .1, {}, {});
   do_test(izer, input, expected, "Degenerate angle during union did not produce the expected output");
