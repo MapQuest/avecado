@@ -43,8 +43,10 @@ namespace {
       //doesn't want anymore points
       bool consume(double x, double y) {
         //consume this bit
-        double x_diff = abs(m_x - x);
-        double y_diff = abs(m_y - y);
+        double x_offset = m_x - x;
+        double y_offset = m_y - y;
+        double x_diff = abs(x_offset);
+        double y_diff = abs(y_offset);
 
         //if we've consumed too much x (what could possibly go wrong?)
         if(m_consume_x - x_diff < 0){
@@ -64,8 +66,12 @@ namespace {
         m_consume_x -= x_diff;
         m_consume_y -= y_diff;
 
+        //give x and y their sign back
+        x_offset = (x_offset < 0 ? -1 * x_diff : x_diff);
+        y_offset = (y_offset < 0 ? -1 * y_diff : y_diff);
+
         //keep stats on how far away this point is
-        m_points.emplace_back(x_diff, y_diff, x_diff*x_diff + y_diff*y_diff);
+        m_points.emplace_back(x_offset, y_offset, x_offset*x_offset + y_offset*y_offset);
         m_total_length += get<2>(m_points.back());
 
         //do we have length left to consume
@@ -282,7 +288,7 @@ namespace {
   score_t obtuse_score(const couple_t& couple) {
     //if we have a degenerate curve it gets a crappy score
     if((couple.first.m_dx == 0 && couple.first.m_dy == 0) || (couple.second.m_dx == 0 && couple.second.m_dy == 0))
-      return 0;
+      return MAX_SCORE;
     //valid interval from -1 to 1 where -1 is opposite directions, 0 is right angle and 1 is same direction
     double dot = couple.first.m_dx*couple.second.m_dx + couple.first.m_dy*couple.second.m_dy;
     //move the dot into the range of 0 - 2, cut it in half to make it a percentage to scale the max score by
@@ -293,7 +299,7 @@ namespace {
   score_t acute_score(const couple_t& couple) {
     //if we have a degenerate curve it gets a crappy score
     if((couple.first.m_dx == 0 && couple.first.m_dy == 0) || (couple.second.m_dx == 0 && couple.second.m_dy == 0))
-      return 0;
+      return MAX_SCORE;
     return MAX_SCORE - obtuse_score(couple);
   }
 
@@ -516,6 +522,15 @@ void unionizer::process(vector<mapnik::feature_ptr>& layer, mapnik::Map const& m
   double width_units = map.get_current_extent().width() * m_angle_union_sample_ratio;
   double height_units = map.get_current_extent().height() * m_angle_union_sample_ratio;
 
+  //TODO: this could be a lot more efficient and is currently only implemented for ease of reading.
+  //we could instead of getting the candidates every time only compute them once and make new ones
+  //as candidates merge. this would be useful as some of the info about each candidate, especially
+  //if merging based on angle would be better off cached, also we would have to reallocate memory
+  //for the multiset each time.
+
+  //a place to hold the scored pairs of candidates
+  std::map<score_t, couple_t> scored;
+
   //only do up to as many iterations as the user specified
   for(size_t i = 0; i < m_max_iterations; ++i){
 
@@ -523,10 +538,8 @@ void unionizer::process(vector<mapnik::feature_ptr>& layer, mapnik::Map const& m
     multiset<candidate, candidate_comparator> candidates =
         get_candidates(layer, m_match_tags, m_preserve_direction_tags, m_heuristic, make_pair(width_units, height_units));
 
-    //a place to hold the scored pairs of candidates
-    std::map<score_t, couple_t> scored;
-
-    //templated by the different scoring heuristic of which are the best unions
+    //score pairs of candidates based on the heuristic
+    scored.clear();
     switch(m_heuristic) {
       case GREEDY:
         //score all the pairs of candidates
