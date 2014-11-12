@@ -3,8 +3,8 @@
 
 namespace avecado {
 
-tile::tile()
-  : m_mapnik_tile(new mapnik::vector::tile) {
+tile::tile(unsigned int z_, unsigned int x_, unsigned int y_)
+  : z(z_), x(x_), y(y_), m_mapnik_tile(new mapnik::vector::tile) {
 }
 
 tile::~tile() {
@@ -19,6 +19,14 @@ std::string tile::get_data() const {
   } else {
     throw std::runtime_error("Error while serializing protocol buffer tile.");
   }
+}
+
+mapnik::vector::tile const &tile::mapnik_tile() const {
+  return *m_mapnik_tile;
+}
+
+mapnik::vector::tile &tile::mapnik_tile() {
+  return *m_mapnik_tile;
 }
 
 } // namespace avecado

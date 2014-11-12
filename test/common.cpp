@@ -25,6 +25,7 @@
 
 #include "common.hpp"
 #include "../logging/logger.hpp"
+#include "util.hpp"
 #include <boost/property_tree/ptree.hpp>
 #include <boost/filesystem.hpp>
 #include <boost/system/error_code.hpp>
@@ -48,7 +49,6 @@ using std::vector;
 namespace fs = boost::filesystem;
 
 #define TEST_NAME_WIDTH (45)
-#define WORLD_SIZE (40075016.68)
 
 namespace {
 
@@ -146,18 +146,6 @@ temp_dir::~temp_dir() {
    }
 }
 
-// get the mercator bounding box for a tile coordinate
-mapnik::box2d<double> box_for_tile(int z, int x, int y) {
-  const double scale = WORLD_SIZE / double(1 << z);
-  const double half_world = 0.5 * WORLD_SIZE;
-
-  return mapnik::box2d<double>(
-    x * scale - half_world,
-    half_world - (y+1) * scale,
-    (x+1) * scale - half_world,
-    half_world - y * scale);
-}
-
 mapnik::Map make_map(std::string style_file, unsigned tile_resolution, int z, int x, int y) {
   // load map config from disk
   mapnik::Map map;
@@ -165,7 +153,7 @@ mapnik::Map make_map(std::string style_file, unsigned tile_resolution, int z, in
 
   // setup map parameters
   map.resize(tile_resolution, tile_resolution);
-  map.zoom_to_box(box_for_tile(z, x, y));
+  map.zoom_to_box(avecado::util::box_for_tile(z, x, y));
   return map;
 }
 

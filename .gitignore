@@ -36,6 +36,7 @@ avecado_server
 include/vector_tile.pb.h
 src/vector_tile.pb.cc
 libavecado.la
+libavecado_server.la
 *.lo
 .libs/
 avecado.la
@@ -50,6 +51,11 @@ test/adminizer
 test/multi_verification
 test/post_processor
 test/unionizer
+test/render_vector_tile
+test/overzoom
+test/http
+test/http_cache
+test/tilejson
 test/*.log
 test/*.trs
 
