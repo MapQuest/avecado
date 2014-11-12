@@ -39,7 +39,9 @@ Avecado has three main executable programs:
 
 `scripts/override_xml.py`, a utility for altering settings in an XML datasource configuration. This is useful for correcting or overriding any settings which may be different between the output of Mapbox Studio, or your configuration files in version control, and your local or production setups.
 
-Each of these programs takes as input a Mapnik XML file, although none read the styling information and instead look only at the `Map` definition, `Layer`s and `Datasource`s. These make up the definition of the vector tile, as styling information is applied at the time the vector tile is rendered - either on the client or potentially another server.
+Each of these programs takes as input a Mapnik XML file. When used to make vector tiles they do not read the styling information and instead look only at the `Map` definition, `Layer`s and `Datasource`s. These make up the definition of the vector tile.
+
+Styling information is applied at the time the vector tile is rendered - either on the client, another server, or another instance of a program using Avecado.
 
 Contributing
 ------------
