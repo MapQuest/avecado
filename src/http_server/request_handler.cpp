@@ -15,6 +15,7 @@
 #include <iomanip>
 #include <boost/lexical_cast.hpp>
 #include <boost/algorithm/string/predicate.hpp>
+#include <boost/format.hpp>
 
 #include "http_server/request_handler.hpp"
 #include "http_server/parse_path.hpp"
@@ -86,7 +87,8 @@ void request_handler::handle_request_impl(const request &req, reply &rep)
 }
 
 void request_handler::handle_request_json(const request &req, reply &rep) {
-  std::string json = avecado::make_tilejson(*map_ptr_);
+  std::string base_url = (boost::format("http://localhost:%1%") % options_.port).str();
+  std::string json = avecado::make_tilejson(*map_ptr_, base_url);
 
   rep.status = reply::ok;
   rep.is_hard_error = false;

@@ -25,7 +25,7 @@ std::unique_ptr<fetcher> make_tilejson_fetcher(const boost::property_tree::ptree
 
 /* Extracts data from a mapnik::Map to make TileJSON.
  */
-std::string make_tilejson(const mapnik::Map &map);
+std::string make_tilejson(const mapnik::Map &map, const std::string &base_url);
 
 } // namespace avecado
 
