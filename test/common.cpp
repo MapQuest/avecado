@@ -185,8 +185,11 @@ std::string to_string(const mapnik::geometry_type& a) {
 std::string to_string(const mapnik::feature_ptr& a) {
   std::string result = "{{";
   //for each tag value of a
-  for(auto& kv : *a) {
-    result += (boost::format("[%1%, %2%],") % std::get<0>(kv) % std::get<1>(kv)).str();
+  for(const auto& kv : *a) {
+    const mapnik::value& val = std::get<1>(kv);
+    //skip any mapnik::value_null
+    if(!val.is_null())
+      result += (boost::format("[%1%, %2%],") % std::get<0>(kv) % val).str();
   }
   if(result.back() == ',')
     result.pop_back();
@@ -213,30 +216,33 @@ std::string to_string(const std::vector<mapnik::feature_ptr>& a) {
 }
 
 bool equal_tags(const mapnik::feature_ptr& a, const mapnik::feature_ptr& b) {
-  //cant be the same if they dont have the same number of items in them
-  if(a->size() != b->size())
-    return false;
-
-  //NOTE: not sure how this is implemented underneath, but since the keys are
-  //in a map, we should be able to just do one pass over them both and as soon
-  //as one isn't equal bail. just to be safe we do the check of all pairs though
-
-  //for each key value tuple of a
-  for(auto akv : *a) {
-    bool found = false;
-    //for each key value tuple of b
-    for(auto bkv : *b) {
-      //if they are equal we are good, tuple equality should work fine
-      if(akv == bkv) {
-        found = true;
-        break;
-      }
+  //NOTE: we don't care about kv pairs whose values are mapnik::value_null
+  //to avoid having worrying about it we simply copy all the non nulls first
+  size_t a_count = 0;
+  for(const auto& kv : *a) {
+    //if we have a non null value here
+    const mapnik::value& v = std::get<1>(kv);
+    if(!v.is_null()){
+      //if b doesnt have it we are done
+      if(b->get(std::get<0>(kv)) != v)
+        return false;
+      //b had it so we remember that
+      else
+        ++a_count;
     }
-    if(!found)
-      return false;
   }
 
-  return true;
+  //at this point b had everything a had, but we need to make sure it didn't have extra
+  for(const auto& kv : *b) {
+    //if we have a non null value here
+    const mapnik::value& v = std::get<1>(kv);
+    if(!v.is_null()){
+      --a_count;
+    }
+  }
+
+  //if a_count isn't 0 then b had more entries than a and therefore isn't equal
+  return a_count == 0;
 }
 
 bool equal(const mapnik::geometry_type& a, const mapnik::geometry_type& b) {

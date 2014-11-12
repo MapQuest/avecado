@@ -293,7 +293,6 @@ namespace {
     //check all consecutive candidate pairs, technically n^2 but practically never that
     auto cmp = candidates.key_comp();
     for(multiset<candidate, candidate_comparator>::const_iterator candidate = candidates.begin(); candidate != candidates.end(); ++candidate){
-      printf("\n%s\n", candidate->to_string().c_str());
       //for all the adjacent candidates (same point and tags)
       //reuse the comparators less than, if the current one
       //isn't less than the next one then they must be equal
@@ -394,6 +393,9 @@ namespace {
       string key = get<0>(*kv);
       if(strategy == INTERSECT && !couple.second.m_parent->has_key(key)){
         //so the first partner must throw it out!
+        //NOTE: this feels a bit like a hack, setting this to value_null
+        //relies on the fact that when serializing feature_ptrs into pbf vector
+        //tiles we only write kv pairs where the value is non-null
         couple.first.m_parent->put(key, mapnik::value_null());
       }//the second partner doesn't agree on this particular item
       else if(get<1>(*kv) != couple.second.m_parent->get(key)) {
