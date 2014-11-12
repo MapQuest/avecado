@@ -228,6 +228,7 @@ int main() {
 #define RUN_TEST(x) { tests_failed += test::run(#x, &(x)); }
 
   RUN_TEST(test_generic);
+  RUN_TEST(test_angle);
 
   std::cout << " >> Tests failed: " << tests_failed << std::endl << std::endl;
 
