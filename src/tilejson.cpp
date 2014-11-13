@@ -8,6 +8,11 @@
 
 #include <curl/curl.h>
 
+#include <mapnik/map.hpp>
+#include <mapnik/layer.hpp>
+#include <mapnik/feature_layer_desc.hpp>
+#include <mapnik/datasource.hpp>
+
 namespace bpt = boost::property_tree;
 namespace bal = boost::algorithm;
 
@@ -102,6 +107,98 @@ std::unique_ptr<fetcher> make_tilejson_fetcher(const bpt::ptree &conf) {
   std::unique_ptr<fetcher> overzoom(new fetch::overzoom(std::move(http), max_zoom, mask_zoom));
 
   return overzoom;
+}
+
+namespace {
+
+struct json_converter : public mapnik::util::static_visitor<> {
+  std::ostream &out;
+
+  json_converter(std::ostream &o) : out(o) {}
+
+  void operator()(const mapnik::value_null &) const {
+    out << "null";
+  }
+
+  void operator()(const mapnik::value_integer &i) const {
+    out << i;
+  }
+
+  void operator()(const mapnik::value_double &f) const {
+    out << std::setprecision(16) << f;
+  }
+
+  void operator()(const std::string &s) const {
+    out << "\"" << s << "\"";
+  }
+};
+
+} // anonymous namespace
+
+std::string make_tilejson(const mapnik::Map &map,
+                          const std::string &base_url) {
+  // TODO: remove super-hacky hard-coded 'JSON' serialiser and use
+  // a proper one.
+  std::ostringstream out;
+  out << "{";
+
+  for (auto const &row : map.get_extra_parameters()) {
+    out << "\"" << row.first << "\":";
+    mapnik::util::apply_visitor(json_converter(out), row.second);
+    out << ",";
+  }
+
+  for (auto const &key : {"maskLevel", "maxzoom", "minzoom"}) {
+    if (map.get_extra_parameters().find(key) == map.get_extra_parameters().end()) {
+      out << "\"" << key << "\":0,";
+    }
+  }
+
+  out << "\"format\":\"pbf\",";
+  out << "\"name\": \"Avecado Development Server\",";
+  out << "\"private\": true,";
+  out << "\"scheme\": \"xyz\",";
+  out << "\"tilejson\": \"2.0.0\",";
+
+  out << "\"tiles\": [";
+  out << "\"" << base_url << "/{z}/{x}/{y}.pbf\"";
+  out << "],";
+
+  out << "\"vector_layers\":[";
+  bool first = true;
+  for (auto const &layer : map.layers()) {
+    if (!layer.active()) {
+      continue;
+    }
+
+    if (first) {
+      first = false;
+    } else {
+      out << ",";
+    }
+
+    out << "{";
+    out << "\"id\": \"" << layer.name() << "\",";
+    out << "\"description\": \"\","; // layer description
+
+    bool field_first = true;
+    mapnik::layer_descriptor desc = layer.datasource()->get_descriptor();
+    out << "\"fields\":{";
+    for (auto const &attr : desc.get_descriptors()) {
+      if (field_first) {
+        field_first = false;
+      } else {
+        out << ",";
+      }
+
+      out << "\"" << attr.get_name() << "\": \"\"";
+    }
+    out << "}}";
+  }
+  out << "]";
+
+  out << "}";
+  return out.str();
 }
 
 } // namespace avecado

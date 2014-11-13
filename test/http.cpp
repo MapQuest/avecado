@@ -1,14 +1,19 @@
 #include "config.h"
 #include "common.hpp"
 #include "fetcher_io.hpp"
+#include "tilejson.hpp"
 #include "fetch/http.hpp"
 #include "logging/logger.hpp"
 #include "http_server/server.hpp"
 #include "vector_tile.pb.h"
 
+#include <boost/property_tree/ptree.hpp>
+
 #include <mapnik/datasource_cache.hpp>
 
 #include <iostream>
+
+namespace bpt = boost::property_tree;
 
 namespace {
 
@@ -149,6 +154,15 @@ void test_fetcher_io() {
   test::assert_equal<std::string>((boost::format("%1%") % fetch_status::not_implemented).str(), "Not Implemented");
 }
 
+void test_fetch_tilejson() {
+  using avecado::fetch_status;
+
+  server_guard guard("test/single_poly.xml");
+
+  bpt::ptree tilejson = avecado::tilejson(
+    (boost::format("%1%/tile.json") % guard.base_url()).str());
+}
+
 } // anonymous namespace
 
 int main() {
@@ -169,6 +183,7 @@ int main() {
   RUN_TEST(test_fetch_error_non_numeric);
   RUN_TEST(test_no_url_patterns_is_error);
   RUN_TEST(test_fetcher_io);
+  RUN_TEST(test_fetch_tilejson);
 
   std::cout << " >> Tests failed: " << tests_failed << std::endl << std::endl;
 

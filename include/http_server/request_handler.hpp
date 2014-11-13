@@ -53,6 +53,13 @@ private:
 
   /// Implementation detail of handling a request and producing a reply.
   void handle_request_impl(const request& req, reply& rep);
+
+  /// Handle request for TileJSON.
+  void handle_request_json(const request &req, reply &rep);
+
+  /// Handle request for a tile.
+  void handle_request_tile(const request &req, reply &rep,
+                           const std::string &request_path);
 };
 
 } // namespace server3

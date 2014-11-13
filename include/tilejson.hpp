@@ -5,6 +5,9 @@
 #include <memory>
 #include <boost/property_tree/ptree.hpp>
 
+/// forward declaration of mapnik::Map, only used by reference below.
+namespace mapnik { class Map; }
+
 namespace avecado {
 
 /* Fetches a URI and parses it as TileJSON.
@@ -19,6 +22,10 @@ boost::property_tree::ptree tilejson(const std::string &uri);
  * parameter is all that's necessary to specify a vector tile source.
  */
 std::unique_ptr<fetcher> make_tilejson_fetcher(const boost::property_tree::ptree &conf);
+
+/* Extracts data from a mapnik::Map to make TileJSON.
+ */
+std::string make_tilejson(const mapnik::Map &map, const std::string &base_url);
 
 } // namespace avecado
 
