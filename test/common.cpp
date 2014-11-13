@@ -157,4 +157,194 @@ mapnik::Map make_map(std::string style_file, unsigned tile_resolution, int z, in
   return map;
 }
 
+std::string to_string(const mapnik::geometry_type& a) {
+  std::string result = "{";
+  //for each vertex
+  double ax=0, ay=1;
+  for(size_t i = 0; i < a.size(); ++i) {
+    a.vertex(i, &ax, &ay);
+    result += (boost::format("[%3.1f, %3.1f],") % ax % ay).str();
+  }
+  if(result.back() == ',')
+    result.pop_back();
+  return result + "}";
+}
+
+std::string to_string(const mapnik::feature_ptr& a) {
+  std::string result = "{{";
+  //for each tag value of a
+  for(const auto& kv : *a) {
+    const mapnik::value& val = std::get<1>(kv);
+    //skip any mapnik::value_null
+    if(!val.is_null())
+      result += (boost::format("[%1%, %2%],") % std::get<0>(kv) % val).str();
+  }
+  if(result.back() == ',')
+    result.pop_back();
+  result += "}, ";
+
+  //for each geometry of a
+  for(auto& ag : a->paths()) {
+    result += to_string(ag) + ",";
+  }
+  if(result.back() == ',')
+      result.pop_back();
+  return result + "}";
+}
+
+std::string to_string(const std::vector<mapnik::feature_ptr>& a) {
+  std::string result = "{";
+  //for all features in a
+  for(const auto& af : a) {
+    result += to_string(af) + ",";
+  }
+  if(result.back() == ',')
+      result.pop_back();
+  return result + "}";
+}
+
+bool equal_tags(const mapnik::feature_ptr& a, const mapnik::feature_ptr& b) {
+  //NOTE: we don't care about kv pairs whose values are mapnik::value_null
+  //to avoid having worrying about it we simply copy all the non nulls first
+  size_t a_count = 0;
+  for(const auto& kv : *a) {
+    //if we have a non null value here
+    const mapnik::value& v = std::get<1>(kv);
+    if(!v.is_null()){
+      //if b doesnt have it we are done
+      if(b->get(std::get<0>(kv)) != v)
+        return false;
+      //b had it so we remember that
+      else
+        ++a_count;
+    }
+  }
+
+  //at this point b had everything a had, but we need to make sure it didn't have extra
+  for(const auto& kv : *b) {
+    //if we have a non null value here
+    const mapnik::value& v = std::get<1>(kv);
+    if(!v.is_null()){
+      --a_count;
+    }
+  }
+
+  //if a_count isn't 0 then b had more entries than a and therefore isn't equal
+  return a_count == 0;
+}
+
+bool equal(const mapnik::geometry_type& a, const mapnik::geometry_type& b) {
+  //cant be the same if they dont have the same number of vertices
+  if(a.size() != b.size())
+    return false;
+
+  //check every vertex
+  double ax=0, ay=1, bx=2, by=3;
+  for(size_t i = 0; i < a.size(); ++i) {
+    a.vertex(i, &ax, &ay);
+    b.vertex(i, &bx, &by);
+    if(ax != bx || ay != by)
+      return false;
+  }
+
+  return true;
+}
+
+bool equal(const mapnik::feature_ptr& a, const mapnik::feature_ptr& b, const bool match_tags) {
+  //cant be the same if they dont have the same number of geometries
+  if(a->num_geometries() != b->num_geometries())
+    return false;
+
+  //check the tags if we are asked to
+  if(match_tags && !equal_tags(a, b))
+    return false;
+
+  //for each geometry of a
+  for(auto& ag : a->paths()) {
+    bool found = false;
+    //for each geometry of b
+    for(auto& bg : b->paths()) {
+      //if they are equal we are good
+      if(equal(ag, bg)) {
+        found = true;
+        break;
+      }
+    }
+    if(!found)
+      return false;
+  }
+
+  return true;
+}
+
+bool equal(const std::vector<mapnik::feature_ptr>& a, const std::vector<mapnik::feature_ptr>& b, const bool match_tags) {
+  //cant be the same if they dont have the same number of features
+  if(a.size() != b.size())
+    return false;
+
+  //for all features in a
+  for(auto& af : a) {
+    bool found = false;
+    //for all features in b
+    for(auto& bf : b) {
+      //if they are equal we are good
+      if(equal(af, bf, match_tags)) {
+        found = true;
+        break;
+      }
+    }
+    if(!found)
+      return false;
+  }
+  return true;
+}
+
+mapnik::feature_ptr create_multi_feature(const std::vector<std::vector<std::pair<double, double> > >& lines, const std::vector<std::pair<std::string, std::string> >& tags) {
+  //a feature to hold the geometries and attribution
+  mapnik::context_ptr ctx = std::make_shared<mapnik::context_type>();
+  mapnik::feature_ptr feat = std::make_shared<mapnik::feature_impl>(ctx, 0);
+
+  //add the tagging to it
+  for(const auto& kv: tags) {
+    feat->put_new(kv.first, mapnik::value_unicode_string::fromUTF8(kv.second));
+  }
+
+  //make the geom
+  for(const auto& line : lines) {
+    mapnik::geometry_type *geom = new mapnik::geometry_type(mapnik::geometry_type::LineString);
+    mapnik::CommandType cmd = mapnik::SEG_MOVETO;
+    for(const auto& p : line) {
+      geom->push_vertex(p.first, p.second, cmd);
+      cmd = mapnik::SEG_LINETO;
+    }
+    feat->add_geometry(geom);
+  }
+
+  //hand it back
+  return feat;
+}
+
+mapnik::feature_ptr create_feature(const std::vector<std::pair<double, double> >& line, const std::vector<std::pair<std::string, std::string> >& tags) {
+  //a feature to hold the geometries and attribution
+  mapnik::context_ptr ctx = std::make_shared<mapnik::context_type>();
+  mapnik::feature_ptr feat = std::make_shared<mapnik::feature_impl>(ctx, 0);
+
+  //add the tagging to it
+  for(const auto& kv: tags) {
+    feat->put_new(kv.first, mapnik::value_unicode_string::fromUTF8(kv.second));
+  }
+
+  //make the geom
+  mapnik::geometry_type *geom = new mapnik::geometry_type(mapnik::geometry_type::LineString);
+  mapnik::CommandType cmd = mapnik::SEG_MOVETO;
+  for(const auto& p : line) {
+    geom->push_vertex(p.first, p.second, cmd);
+    cmd = mapnik::SEG_LINETO;
+  }
+  feat->add_geometry(geom);
+
+  //hand it back
+  return feat;
+}
+
 }

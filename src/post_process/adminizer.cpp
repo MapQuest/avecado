@@ -658,7 +658,7 @@ adminizer::adminizer(pt::ptree const& config)
   : m_param_name(config.get<std::string>("param_name"))
   , m_split(false)
   , m_collect(false)
-  , m_delimiter(icu::UnicodeString::fromUTF8(",")) {
+  , m_delimiter(mapnik::value_unicode_string::fromUTF8(",")) {
   mapnik::parameters params;
 
   boost::optional<pt::ptree const &> datasource_config =
@@ -684,7 +684,7 @@ adminizer::adminizer(pt::ptree const& config)
 
   boost::optional<std::string> delimiter = config.get_optional<std::string>("delimiter");
   if (delimiter) {
-    m_delimiter = mapnik::value_unicode_string(icu::UnicodeString::fromUTF8(*delimiter));
+    m_delimiter = mapnik::value_unicode_string::fromUTF8(*delimiter);
   }
 }
 

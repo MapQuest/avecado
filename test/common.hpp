@@ -1,4 +1,9 @@
+#ifndef TEST_COMMON
+#define TEST_COMMON
+
 #include <string>
+#include <vector>
+#include <utility>
 #include <sstream>
 #include <boost/function.hpp>
 #include <boost/format.hpp>
@@ -7,6 +12,7 @@
 #include <stdexcept>
 
 #include <mapnik/map.hpp>
+#include <mapnik/feature.hpp>
 
 namespace test{
 
@@ -41,6 +47,29 @@ void assert_greater_or_equal(T actual, T expected, std::string message = std::st
                                 % message % expected % actual).str());
    }
 }
+
+//NOTE: to_string and equals methods below could be passed to assertion methods above but we'd
+//still have duplication of code. would be best if mapnik objects had comparison and ostream operators
+
+std::string to_string(const mapnik::geometry_type& a);
+
+std::string to_string(const mapnik::feature_ptr& a);
+
+std::string to_string(const std::vector<mapnik::feature_ptr>& a);
+
+bool equal_tags(const mapnik::feature_ptr& a, const mapnik::feature_ptr& b);
+
+bool equal(const mapnik::geometry_type& a, const mapnik::geometry_type& b);
+
+bool equal(const mapnik::feature_ptr& a, const mapnik::feature_ptr& b, const bool match_tags = false);
+
+bool equal(const std::vector<mapnik::feature_ptr>& a, const std::vector<mapnik::feature_ptr>& b, const bool match_tags = false);
+
+mapnik::feature_ptr create_multi_feature(const std::vector<std::vector<std::pair<double, double> > >& lines,
+  const std::vector<std::pair<std::string, std::string> >& tags);
+
+mapnik::feature_ptr create_feature(const std::vector<std::pair<double, double> >& line,
+  const std::vector<std::pair<std::string, std::string> >& tags);
 
 
 /* runs the test function, formats the output nicely and returns 1
@@ -117,3 +146,5 @@ private:
 mapnik::Map make_map(std::string style_file, unsigned tile_resolution, int z, int x, int y);
 
 } // namespace test
+
+#endif //TEST_COMMON

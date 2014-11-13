@@ -49,6 +49,8 @@ test/make_vector_tile
 test/generalizer
 test/adminizer
 test/multi_verification
+test/post_processor
+test/unionizer
 test/render_vector_tile
 test/overzoom
 test/http

@@ -128,6 +128,7 @@ check_PROGRAMS = \
 	test/generalizer \
 	test/adminizer \
 	test/multi_verification \
+	test/unionizer \
 	test/render_vector_tile \
 	test/overzoom \
 	test/http \
@@ -162,6 +163,9 @@ test_tilejson_LDADD = libavecado.la liblogging.la
 
 test_post_processor_SOURCES = test/post_processor.cpp test/common.cpp
 test_post_processor_LDADD = libavecado.la liblogging.la @BOOST_LDFLAGS@ @BOOST_ASIO_LIB@ @BOOST_THREAD_LIB@ @PTHREAD_LIBS@
+
+test_unionizer_SOURCES = test/unionizer.cpp test/common.cpp
+test_unionizer_LDADD = libavecado.la liblogging.la @BOOST_LDFLAGS@ @BOOST_ASIO_LIB@ @BOOST_THREAD_LIB@ @PTHREAD_LIBS@
 
 TESTS = $(check_PROGRAMS)
 TEST_EXTENSIONS = .sh
