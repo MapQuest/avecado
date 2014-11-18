@@ -24,7 +24,7 @@
 namespace bpo = boost::program_options;
 namespace bpt = boost::property_tree;
 
-int make_vector(int argc, char *argv[]) {
+struct vector_options {
   unsigned int path_multiplier;
   int buffer_size;
   double scale_factor;
@@ -32,10 +32,38 @@ int make_vector(int argc, char *argv[]) {
   unsigned int offset_y;
   unsigned int tolerance;
   std::string image_format;
-  mapnik::scaling_method_e scaling_method = mapnik::SCALING_NEAR;
   double scale_denominator;
+
+  void add(bpo::options_description &options) {
+    options.add_options()
+      ("path-multiplier,p", bpo::value<unsigned int>(&path_multiplier)->default_value(16),
+       "Create a tile with coordinates multiplied by this constant to get sub-pixel "
+       "accuracy.")
+      ("buffer-size,b", bpo::value<int>(&buffer_size)->default_value(0),
+       "Number of pixels around the tile to buffer in order to allow for features "
+       "whose rendering effects extend beyond the geometric extent.")
+      ("scale_factor,s", bpo::value<double>(&scale_factor)->default_value(1.0),
+       "Scale factor to multiply style values by.")
+      ("offset-x", bpo::value<unsigned int>(&offset_x)->default_value(0),
+       "Offset added to tile geometry x coordinates.")
+      ("offset-y", bpo::value<unsigned int>(&offset_y)->default_value(0),
+       "Offset added to tile geometry y coordinates.")
+      ("tolerance,t", bpo::value<unsigned int>(&tolerance)->default_value(1),
+       "Tolerance used to simplify output geometry.")
+      ("image-format,f", bpo::value<std::string>(&image_format)->default_value("jpeg"),
+       "Image file format used for embedding raster layers.")
+      ("scale-denominator,d", bpo::value<double>(&scale_denominator)->default_value(0.0),
+       "Override for scale denominator. A value of 0 means to use the sensible default "
+       "which Mapnik will generate from the tile context.")
+      ;
+  }
+};
+
+int make_vector(int argc, char *argv[]) {
   std::string output_file;
   std::string config_file;
+  mapnik::scaling_method_e scaling_method = mapnik::SCALING_NEAR;
+  vector_options vopt;
   std::string map_file;
   int z, x, y;
   std::string fonts_dir, input_plugins_dir;
@@ -46,38 +74,21 @@ int make_vector(int argc, char *argv[]) {
     "  Usage: avecado vector [options] <map-file> <tile-z> <tile-x> <tile-y>\n"
     "\n");
 
+  vopt.add(options);
+
   options.add_options()
     ("help,h", "Print this help message.")
     ("config-file,c", bpo::value<std::string>(&config_file),
      "JSON config file to specify post-processing for data layers.")
     ("output-file,o", bpo::value<std::string>(&output_file)->default_value("tile.pbf"),
      "File to serialise the vector tile to.")
-    ("path-multiplier,p", bpo::value<unsigned int>(&path_multiplier)->default_value(16),
-     "Create a tile with coordinates multiplied by this constant to get sub-pixel "
-     "accuracy.")
-    ("buffer-size,b", bpo::value<int>(&buffer_size)->default_value(0),
-     "Number of pixels around the tile to buffer in order to allow for features "
-     "whose rendering effects extend beyond the geometric extent.")
-    ("scale_factor,s", bpo::value<double>(&scale_factor)->default_value(1.0),
-     "Scale factor to multiply style values by.")
-    ("offset-x", bpo::value<unsigned int>(&offset_x)->default_value(0),
-     "Offset added to tile geometry x coordinates.")
-    ("offset-y", bpo::value<unsigned int>(&offset_y)->default_value(0),
-     "Offset added to tile geometry y coordinates.")
-    ("tolerance,t", bpo::value<unsigned int>(&tolerance)->default_value(1),
-     "Tolerance used to simplify output geometry.")
-    ("image-format,f", bpo::value<std::string>(&image_format)->default_value("jpeg"),
-     "Image file format used for embedding raster layers.")
-    ("scaling-method,m", bpo::value<std::string>()->default_value("near"),
-     "Method used to re-sample raster layers.")
-    ("scale-denominator,d", bpo::value<double>(&scale_denominator)->default_value(0.0),
-     "Override for scale denominator. A value of 0 means to use the sensible default "
-     "which Mapnik will generate from the tile context.")
     ("fonts", bpo::value<std::string>(&fonts_dir)->default_value(MAPNIK_DEFAULT_FONT_DIR),
      "Directory to tell Mapnik to look in for fonts.")
     ("input-plugins", bpo::value<std::string>(&input_plugins_dir)
      ->default_value(MAPNIK_DEFAULT_INPUT_PLUGIN_DIR),
      "Directory to tell Mapnik to look in for input plugins.")
+    ("scaling-method,m", bpo::value<std::string>()->default_value("near"),
+     "Method used to re-sample raster layers.")
     // positional arguments
     ("map-file", bpo::value<std::string>(&map_file), "Mapnik XML input file.")
     ("tile-z", bpo::value<int>(&z), "Zoom level.")
@@ -177,9 +188,10 @@ int make_vector(int argc, char *argv[]) {
     map.zoom_to_box(avecado::util::box_for_tile(z, x, y));
 
     // actually make the vector tile
-    avecado::make_vector_tile(tile, path_multiplier, map, buffer_size, scale_factor,
-                              offset_x, offset_y, tolerance, image_format,
-                              scaling_method, scale_denominator, pp);
+    avecado::make_vector_tile(tile, vopt.path_multiplier, map, vopt.buffer_size,
+                              vopt.scale_factor, vopt.offset_x, vopt.offset_y,
+                              vopt.tolerance, vopt.image_format, scaling_method,
+                              vopt.scale_denominator, pp);
 
     // serialise to file
     std::ofstream output(output_file);
