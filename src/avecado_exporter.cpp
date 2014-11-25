@@ -8,6 +8,7 @@
 #include <fstream>
 #include <stdexcept>
 #include <future>
+#include <unordered_set>
 
 #include <mapnik/utils.hpp>
 #include <mapnik/load_map.hpp>
@@ -22,6 +23,7 @@
 #include "fetcher_io.hpp"
 #include "util.hpp"
 #include "config.h"
+#include "vector_tile.pb.h"
 
 namespace bpo = boost::program_options;
 namespace bpt = boost::property_tree;
@@ -41,6 +43,7 @@ struct vector_options {
   unsigned int tolerance;
   std::string image_format;
   double scale_denominator;
+  std::vector<std::string> ignore_layers;
 
   void add(bpo::options_description &options) {
     options.add_options()
@@ -63,6 +66,9 @@ struct vector_options {
       ("scale-denominator,d", bpo::value<double>(&scale_denominator)->default_value(0.0),
        "Override for scale denominator. A value of 0 means to use the sensible default "
        "which Mapnik will generate from the tile context.")
+      ("ignore", bpo::value<std::vector<std::string> >(&ignore_layers),
+       "Ignore layers with these names when deciding whether or not to recurse when "
+       "bulk generating tiles.")
       ;
   }
 };
@@ -138,6 +144,7 @@ struct tile_generator {
   const vector_options &vopt;
   const mapnik::scaling_method_e scaling_method;
   const boost::optional<const avecado::post_processor &> pp;
+  const std::unordered_set<std::string> ignore_layers;
 
   tile_generator(const std::string &map_file,
                  const std::string &fonts_dir,
@@ -147,7 +154,8 @@ struct tile_generator {
                  mapnik::scaling_method_e scaling_method_,
                  boost::optional<const avecado::post_processor &> pp_)
     : map(), output_dir(output_dir_), vopt(vopt_),
-      scaling_method(scaling_method_), pp(pp_) {
+      scaling_method(scaling_method_), pp(pp_),
+      ignore_layers(vopt.ignore_layers.begin(), vopt.ignore_layers.end()) {
 
     // try to register fonts and input plugins
     mapnik::freetype_engine::register_fonts(fonts_dir);
@@ -184,6 +192,23 @@ struct tile_generator {
       vopt.scale_factor, vopt.offset_x, vopt.offset_y,
       vopt.tolerance, vopt.image_format, scaling_method,
       vopt.scale_denominator, pp);
+
+    // ignore the ignorable layers, if we want to ignore them
+    if (painted && !ignore_layers.empty()) {
+      bool ignore = true;
+
+      // if there are no layers which aren't ignored, then we
+      // can ignore the whole tile, even if it painted something.
+      for (const mapnik::vector::tile_layer &layer : tile.mapnik_tile().layers()) {
+        if (layer.has_name() && (ignore_layers.count(layer.name()) == 0)) {
+          ignore = false;
+        }
+      }
+
+      if (ignore) {
+        painted = false;
+      }
+    }
 
     // serialise to file
     bfs::path output_file = (boost::format("%1%/%2%/%3%/%4%.pbf")
