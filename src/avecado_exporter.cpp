@@ -6,8 +6,11 @@
 #include <boost/format.hpp>
 #include <boost/filesystem.hpp>
 #include <fstream>
+#include <exception>
 #include <stdexcept>
 #include <future>
+#include <atomic>
+#include <unordered_set>
 
 #include <mapnik/utils.hpp>
 #include <mapnik/load_map.hpp>
@@ -22,6 +25,7 @@
 #include "fetcher_io.hpp"
 #include "util.hpp"
 #include "config.h"
+#include "vector_tile.pb.h"
 
 namespace bpo = boost::program_options;
 namespace bpt = boost::property_tree;
@@ -41,6 +45,7 @@ struct vector_options {
   unsigned int tolerance;
   std::string image_format;
   double scale_denominator;
+  std::vector<std::string> ignore_layers;
 
   void add(bpo::options_description &options) {
     options.add_options()
@@ -63,6 +68,9 @@ struct vector_options {
       ("scale-denominator,d", bpo::value<double>(&scale_denominator)->default_value(0.0),
        "Override for scale denominator. A value of 0 means to use the sensible default "
        "which Mapnik will generate from the tile context.")
+      ("ignore", bpo::value<std::vector<std::string> >(&ignore_layers),
+       "Ignore layers with these names when deciding whether or not to recurse when "
+       "bulk generating tiles.")
       ;
   }
 };
@@ -125,6 +133,13 @@ struct tile_queue {
   }
 };
 
+struct generator_stopped : public std::exception {
+  virtual ~generator_stopped() {}
+  const char *what() const noexcept {
+    return "Generator stopped by exception thrown on a different thread";
+  }
+};
+
 /**
  * encapsulates logic for tile generation and storage in a
  * conventional z/x/y hierarchy. this holds the "long-lived"
@@ -138,6 +153,8 @@ struct tile_generator {
   const vector_options &vopt;
   const mapnik::scaling_method_e scaling_method;
   const boost::optional<const avecado::post_processor &> pp;
+  const std::unordered_set<std::string> ignore_layers;
+  std::atomic<bool> &stop_all_threads;
 
   tile_generator(const std::string &map_file,
                  const std::string &fonts_dir,
@@ -145,9 +162,12 @@ struct tile_generator {
                  const std::string &output_dir_,
                  const vector_options &vopt_,
                  mapnik::scaling_method_e scaling_method_,
-                 boost::optional<const avecado::post_processor &> pp_)
+                 boost::optional<const avecado::post_processor &> pp_,
+                 std::atomic<bool> &stop_all_threads_)
     : map(), output_dir(output_dir_), vopt(vopt_),
-      scaling_method(scaling_method_), pp(pp_) {
+      scaling_method(scaling_method_), pp(pp_),
+      ignore_layers(vopt.ignore_layers.begin(), vopt.ignore_layers.end()),
+      stop_all_threads(stop_all_threads_) {
 
     // try to register fonts and input plugins
     mapnik::freetype_engine::register_fonts(fonts_dir);
@@ -157,21 +177,39 @@ struct tile_generator {
     mapnik::load_map(map, map_file);
   }
 
-  // recursively generate tiles, ending the recursion when either
-  // `max_z` is reached, or a tile is genererated which is empty.
+  // generate a tile and, if it's non-empty and max_z > root_z,
+  // then generate a whole sub-tree.
   void generate(int root_z, int root_x, int root_y, int max_z) {
-    if (make_tile(root_z, root_x, root_y) &&
-        (root_z < max_z)) {
-      generate(root_z + 1, 2 * root_x,     2 * root_y,     max_z);
-      generate(root_z + 1, 2 * root_x + 1, 2 * root_y,     max_z);
-      generate(root_z + 1, 2 * root_x + 1, 2 * root_y + 1, max_z);
-      generate(root_z + 1, 2 * root_x,     2 * root_y + 1, max_z);
+    bool make_subtree = make_tile(root_z, root_x, root_y);
+
+    if (make_subtree && (root_z < max_z)) {
+      generate_subtree(root_z + 1, 2 * root_x,     2 * root_y,     max_z);
+      generate_subtree(root_z + 1, 2 * root_x + 1, 2 * root_y,     max_z);
+      generate_subtree(root_z + 1, 2 * root_x + 1, 2 * root_y + 1, max_z);
+      generate_subtree(root_z + 1, 2 * root_x,     2 * root_y + 1, max_z);
+    }
+  }
+
+  // generate a recursive sub-tree starting at the root and ending
+  // at `max_z`.
+  void generate_subtree(int root_z, int root_x, int root_y, int max_z) {
+    make_tile(root_z, root_x, root_y);
+
+    if (root_z < max_z) {
+      generate_subtree(root_z + 1, 2 * root_x,     2 * root_y,     max_z);
+      generate_subtree(root_z + 1, 2 * root_x + 1, 2 * root_y,     max_z);
+      generate_subtree(root_z + 1, 2 * root_x + 1, 2 * root_y + 1, max_z);
+      generate_subtree(root_z + 1, 2 * root_x,     2 * root_y + 1, max_z);
     }
   }
 
   // generate and store a single tile, returning true if the tile
   // had some data in it and false otherwise.
   bool make_tile(int z, int x, int y) {
+    if (stop_all_threads.load()) {
+      throw generator_stopped();
+    }
+
     avecado::tile tile(z, x, y);
 
     // setup map parameters
@@ -184,6 +222,23 @@ struct tile_generator {
       vopt.scale_factor, vopt.offset_x, vopt.offset_y,
       vopt.tolerance, vopt.image_format, scaling_method,
       vopt.scale_denominator, pp);
+
+    // ignore the ignorable layers, if we want to ignore them
+    if (painted && !ignore_layers.empty()) {
+      bool ignore = true;
+
+      // if there are no layers which aren't ignored, then we
+      // can ignore the whole tile, even if it painted something.
+      for (const mapnik::vector::tile_layer &layer : tile.mapnik_tile().layers()) {
+        if (layer.has_name() && (ignore_layers.count(layer.name()) == 0)) {
+          ignore = false;
+        }
+      }
+
+      if (ignore) {
+        painted = false;
+      }
+    }
 
     // serialise to file
     bfs::path output_file = (boost::format("%1%/%2%/%3%/%4%.pbf")
@@ -206,13 +261,24 @@ void make_vector_thread(std::shared_ptr<tile_queue> queue,
                         std::string output_dir,
                         vector_options vopt,
                         mapnik::scaling_method_e scaling_method,
-                        boost::optional<const avecado::post_processor &> pp) {
-  tile_generator generator(map_file, fonts_dir, input_plugins_dir, output_dir,
-                           vopt, scaling_method, pp);
+                        boost::optional<const avecado::post_processor &> pp,
+                        std::atomic<bool> &stop_all_threads) {
+  try {
+    tile_generator generator(map_file, fonts_dir, input_plugins_dir, output_dir,
+                             vopt, scaling_method, pp, stop_all_threads);
 
-  int root_z = 0, root_x = 0, root_y = 0, max_z = 0;
-  while (queue->next(root_z, root_x, root_y, max_z)) {
-    generator.generate(root_z, root_x, root_y, max_z);
+    int root_z = 0, root_x = 0, root_y = 0, max_z = 0;
+    while (queue->next(root_z, root_x, root_y, max_z)) {
+      generator.generate(root_z, root_x, root_y, max_z);
+    }
+
+  } catch (const std::exception &e) {
+    stop_all_threads.store(true);
+    throw;
+
+  } catch (...) {
+    stop_all_threads.store(true);
+    throw std::runtime_error("Unknown object thrown");
   }
 }
 
@@ -347,17 +413,42 @@ int make_vector_bulk(int argc, char *argv[]) {
   try {
     std::shared_ptr<tile_queue> queue =
       std::make_shared<tile_queue>(min_z, max_z, mask_z);
+    std::atomic<bool> stop(false);
 
     std::vector<std::future<void> > threads;
     for (int i = 0; i < num_threads; ++i) {
       threads.emplace_back(std::async(std::launch::async,
                                       &make_vector_thread,
                                       queue, map_file, fonts_dir, input_plugins_dir,
-                                      output_dir, vopt, scaling_method, pp));
+                                      output_dir, vopt, scaling_method, pp,
+                                      std::ref(stop)));
     }
 
+    // gather the exceptions from all the threads, but don't
+    // stop gathering - we want to harvest all the errors and
+    // join all the threads.
+    std::exception_ptr error;
     for (auto &fut : threads) {
-      fut.get();
+      try {
+        fut.get();
+
+      } catch (const generator_stopped &s) {
+        std::cerr << "ERROR: Thread stopped due to exception on other thread.\n";
+
+      } catch (const std::exception &e) {
+        error = std::current_exception();
+        std::cerr << "ERROR: " << e.what() << "\n";
+
+      } catch (...) {
+        error = std::current_exception();
+        std::cerr << "UNKNOWN ERROR!\n";
+      }
+    }
+
+    // if there was an error, re-throw it after the thread
+    // resources have been collected.
+    if (error) {
+      std::rethrow_exception(error);
     }
 
   } catch (const std::exception &e) {
