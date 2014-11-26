@@ -6,8 +6,10 @@
 #include <boost/format.hpp>
 #include <boost/filesystem.hpp>
 #include <fstream>
+#include <exception>
 #include <stdexcept>
 #include <future>
+#include <atomic>
 #include <unordered_set>
 
 #include <mapnik/utils.hpp>
@@ -131,6 +133,13 @@ struct tile_queue {
   }
 };
 
+struct generator_stopped : public std::exception {
+  virtual ~generator_stopped() {}
+  const char *what() const noexcept {
+    return "Generator stopped by exception thrown on a different thread";
+  }
+};
+
 /**
  * encapsulates logic for tile generation and storage in a
  * conventional z/x/y hierarchy. this holds the "long-lived"
@@ -145,6 +154,7 @@ struct tile_generator {
   const mapnik::scaling_method_e scaling_method;
   const boost::optional<const avecado::post_processor &> pp;
   const std::unordered_set<std::string> ignore_layers;
+  std::atomic<bool> &stop_all_threads;
 
   tile_generator(const std::string &map_file,
                  const std::string &fonts_dir,
@@ -152,10 +162,12 @@ struct tile_generator {
                  const std::string &output_dir_,
                  const vector_options &vopt_,
                  mapnik::scaling_method_e scaling_method_,
-                 boost::optional<const avecado::post_processor &> pp_)
+                 boost::optional<const avecado::post_processor &> pp_,
+                 std::atomic<bool> &stop_all_threads_)
     : map(), output_dir(output_dir_), vopt(vopt_),
       scaling_method(scaling_method_), pp(pp_),
-      ignore_layers(vopt.ignore_layers.begin(), vopt.ignore_layers.end()) {
+      ignore_layers(vopt.ignore_layers.begin(), vopt.ignore_layers.end()),
+      stop_all_threads(stop_all_threads_) {
 
     // try to register fonts and input plugins
     mapnik::freetype_engine::register_fonts(fonts_dir);
@@ -194,6 +206,10 @@ struct tile_generator {
   // generate and store a single tile, returning true if the tile
   // had some data in it and false otherwise.
   bool make_tile(int z, int x, int y) {
+    if (stop_all_threads.load()) {
+      throw generator_stopped();
+    }
+
     avecado::tile tile(z, x, y);
 
     // setup map parameters
@@ -245,13 +261,24 @@ void make_vector_thread(std::shared_ptr<tile_queue> queue,
                         std::string output_dir,
                         vector_options vopt,
                         mapnik::scaling_method_e scaling_method,
-                        boost::optional<const avecado::post_processor &> pp) {
-  tile_generator generator(map_file, fonts_dir, input_plugins_dir, output_dir,
-                           vopt, scaling_method, pp);
+                        boost::optional<const avecado::post_processor &> pp,
+                        std::atomic<bool> &stop_all_threads) {
+  try {
+    tile_generator generator(map_file, fonts_dir, input_plugins_dir, output_dir,
+                             vopt, scaling_method, pp, stop_all_threads);
 
-  int root_z = 0, root_x = 0, root_y = 0, max_z = 0;
-  while (queue->next(root_z, root_x, root_y, max_z)) {
-    generator.generate(root_z, root_x, root_y, max_z);
+    int root_z = 0, root_x = 0, root_y = 0, max_z = 0;
+    while (queue->next(root_z, root_x, root_y, max_z)) {
+      generator.generate(root_z, root_x, root_y, max_z);
+    }
+
+  } catch (const std::exception &e) {
+    stop_all_threads.store(true);
+    throw e;
+
+  } catch (...) {
+    stop_all_threads.store(true);
+    throw std::runtime_error("Unknown object thrown");
   }
 }
 
@@ -386,17 +413,42 @@ int make_vector_bulk(int argc, char *argv[]) {
   try {
     std::shared_ptr<tile_queue> queue =
       std::make_shared<tile_queue>(min_z, max_z, mask_z);
+    std::atomic<bool> stop(false);
 
     std::vector<std::future<void> > threads;
     for (int i = 0; i < num_threads; ++i) {
       threads.emplace_back(std::async(std::launch::async,
                                       &make_vector_thread,
                                       queue, map_file, fonts_dir, input_plugins_dir,
-                                      output_dir, vopt, scaling_method, pp));
+                                      output_dir, vopt, scaling_method, pp,
+                                      std::ref(stop)));
     }
 
+    // gather the exceptions from all the threads, but don't
+    // stop gathering - we want to harvest all the errors and
+    // join all the threads.
+    std::exception_ptr error;
     for (auto &fut : threads) {
-      fut.get();
+      try {
+        fut.get();
+
+      } catch (const generator_stopped &s) {
+        std::cerr << "ERROR: Thread stopped due to exception on other thread.\n";
+
+      } catch (const std::exception &e) {
+        error = std::current_exception();
+        std::cerr << "ERROR: " << e.what() << "\n";
+
+      } catch (...) {
+        error = std::current_exception();
+        std::cerr << "UNKNOWN ERROR!\n";
+      }
+    }
+
+    // if there was an error, re-throw it after the thread
+    // resources have been collected.
+    if (error) {
+      std::rethrow_exception(error);
     }
 
   } catch (const std::exception &e) {
