@@ -274,7 +274,7 @@ void make_vector_thread(std::shared_ptr<tile_queue> queue,
 
   } catch (const std::exception &e) {
     stop_all_threads.store(true);
-    throw e;
+    throw;
 
   } catch (...) {
     stop_all_threads.store(true);
