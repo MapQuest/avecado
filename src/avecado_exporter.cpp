@@ -165,15 +165,29 @@ struct tile_generator {
     mapnik::load_map(map, map_file);
   }
 
-  // recursively generate tiles, ending the recursion when either
-  // `max_z` is reached, or a tile is genererated which is empty.
+  // generate a tile and, if it's non-empty and max_z > root_z,
+  // then generate a whole sub-tree.
   void generate(int root_z, int root_x, int root_y, int max_z) {
-    if (make_tile(root_z, root_x, root_y) &&
-        (root_z < max_z)) {
-      generate(root_z + 1, 2 * root_x,     2 * root_y,     max_z);
-      generate(root_z + 1, 2 * root_x + 1, 2 * root_y,     max_z);
-      generate(root_z + 1, 2 * root_x + 1, 2 * root_y + 1, max_z);
-      generate(root_z + 1, 2 * root_x,     2 * root_y + 1, max_z);
+    bool make_subtree = make_tile(root_z, root_x, root_y);
+
+    if (make_subtree && (root_z < max_z)) {
+      generate_subtree(root_z + 1, 2 * root_x,     2 * root_y,     max_z);
+      generate_subtree(root_z + 1, 2 * root_x + 1, 2 * root_y,     max_z);
+      generate_subtree(root_z + 1, 2 * root_x + 1, 2 * root_y + 1, max_z);
+      generate_subtree(root_z + 1, 2 * root_x,     2 * root_y + 1, max_z);
+    }
+  }
+
+  // generate a recursive sub-tree starting at the root and ending
+  // at `max_z`.
+  void generate_subtree(int root_z, int root_x, int root_y, int max_z) {
+    make_tile(root_z, root_x, root_y);
+
+    if (root_z < max_z) {
+      generate_subtree(root_z + 1, 2 * root_x,     2 * root_y,     max_z);
+      generate_subtree(root_z + 1, 2 * root_x + 1, 2 * root_y,     max_z);
+      generate_subtree(root_z + 1, 2 * root_x + 1, 2 * root_y + 1, max_z);
+      generate_subtree(root_z + 1, 2 * root_x,     2 * root_y + 1, max_z);
     }
   }
 
