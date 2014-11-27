@@ -4,6 +4,9 @@
 #include <boost/property_tree/exceptions.hpp>
 #include <boost/utility/typed_in_place_factory.hpp>
 #include <boost/format.hpp>
+// BOOST_NO_CXX11_SCOPED_ENUMS for the boost::filesystem::copy_option
+// otherwise it fails to link properly...
+#define BOOST_NO_CXX11_SCOPED_ENUMS
 #include <boost/filesystem.hpp>
 #include <fstream>
 #include <exception>
@@ -198,13 +201,37 @@ struct tile_generator {
   // generate a recursive sub-tree starting at the root and ending
   // at `max_z`.
   void generate_subtree(int root_z, int root_x, int root_y, int max_z) {
-    make_tile(root_z, root_x, root_y);
+    bool painted = make_tile(root_z, root_x, root_y);
 
-    if (root_z < max_z) {
+    // skip full subtree if the tile is uninteresting and the
+    // skip subtree option is enabled.
+    if (vopt.skip_subtree && !painted) {
+      bfs::path output_file = (boost::format("%1%/%2%/%3%/%4%.pbf")
+                               % output_dir % root_z % root_x % root_y).str();
+      copy_subtree(output_file, root_z + 1, 2 * root_x,     2 * root_y,     max_z);
+      copy_subtree(output_file, root_z + 1, 2 * root_x + 1, 2 * root_y,     max_z);
+      copy_subtree(output_file, root_z + 1, 2 * root_x + 1, 2 * root_y + 1, max_z);
+      copy_subtree(output_file, root_z + 1, 2 * root_x,     2 * root_y + 1, max_z);
+
+    } else if (root_z < max_z) {
       generate_subtree(root_z + 1, 2 * root_x,     2 * root_y,     max_z);
       generate_subtree(root_z + 1, 2 * root_x + 1, 2 * root_y,     max_z);
       generate_subtree(root_z + 1, 2 * root_x + 1, 2 * root_y + 1, max_z);
       generate_subtree(root_z + 1, 2 * root_x,     2 * root_y + 1, max_z);
+    }
+  }
+
+  void copy_subtree(const bfs::path &from, int z, int x, int y, int max_z) {
+    bfs::path output_file = (boost::format("%1%/%2%/%3%/%4%.pbf")
+                             % output_dir % z % x % y).str();
+    bfs::create_directories(output_file.parent_path());
+    bfs::copy_file(from, output_file, bfs::copy_option::overwrite_if_exists);
+
+    if (z < max_z) {
+      copy_subtree(from, z + 1, 2 * x,     2 * y,     max_z);
+      copy_subtree(from, z + 1, 2 * x + 1, 2 * y,     max_z);
+      copy_subtree(from, z + 1, 2 * x + 1, 2 * y + 1, max_z);
+      copy_subtree(from, z + 1, 2 * x,     2 * y + 1, max_z);
     }
   }
 
