@@ -24,6 +24,7 @@
 #include "fetcher.hpp"
 #include "fetcher_io.hpp"
 #include "util.hpp"
+#include "util_tile.hpp"
 #include "config.h"
 #include "vector_tile.pb.h"
 
@@ -230,8 +231,11 @@ struct tile_generator {
       // if there are no layers which aren't ignored, then we
       // can ignore the whole tile, even if it painted something.
       for (const mapnik::vector::tile_layer &layer : tile.mapnik_tile().layers()) {
-        if (layer.has_name() && (ignore_layers.count(layer.name()) == 0)) {
-          ignore = false;
+        if (layer.has_name()) {
+          if ((ignore_layers.count(layer.name()) == 0) ||
+              (avecado::util::is_complete_cover(layer))) {
+            ignore = false;
+          }
         }
       }
 
