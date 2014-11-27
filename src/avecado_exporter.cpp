@@ -47,6 +47,7 @@ struct vector_options {
   std::string image_format;
   double scale_denominator;
   std::vector<std::string> ignore_layers;
+  bool skip_subtree;
 
   void add(bpo::options_description &options) {
     options.add_options()
@@ -72,6 +73,9 @@ struct vector_options {
       ("ignore", bpo::value<std::vector<std::string> >(&ignore_layers),
        "Ignore layers with these names when deciding whether or not to recurse when "
        "bulk generating tiles.")
+      ("skip-subtree", bpo::value<bool>(&skip_subtree)->default_value(false),
+       "Skip a whole subtree when an 'uninteresting' tile is found - that is one "
+       "where the tile is either completely empty or completely full.")
       ;
   }
 };
@@ -224,18 +228,22 @@ struct tile_generator {
       vopt.tolerance, vopt.image_format, scaling_method,
       vopt.scale_denominator, pp);
 
-    // ignore the ignorable layers, if we want to ignore them
-    if (painted && !ignore_layers.empty()) {
+    // ignore the ignorable layers, if we want to ignore them.
+    // also turn this logic on if we are going to skip generating
+    // each tile in a subtree for any tile not deemed
+    // "interesting".
+    if (painted &&
+        (!ignore_layers.empty() || vopt.skip_subtree)) {
       bool ignore = true;
 
-      // if there are no layers which aren't ignored, then we
-      // can ignore the whole tile, even if it painted something.
+      // if there all layers which are ignored or uninteresting,
+      // then we can ignore the whole tile, even if it painted
+      // something.
       for (const mapnik::vector::tile_layer &layer : tile.mapnik_tile().layers()) {
-        if (layer.has_name()) {
-          if ((ignore_layers.count(layer.name()) == 0) ||
-              (avecado::util::is_complete_cover(layer))) {
-            ignore = false;
-          }
+        if ((layer.has_name()) &&
+            (ignore_layers.count(layer.name()) == 0) &&
+            (avecado::util::is_interesting(layer))) {
+          ignore = false;
         }
       }
 
