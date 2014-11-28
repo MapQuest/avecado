@@ -203,21 +203,23 @@ struct tile_generator {
   void generate_subtree(int root_z, int root_x, int root_y, int max_z) {
     bool painted = make_tile(root_z, root_x, root_y);
 
-    // skip full subtree if the tile is uninteresting and the
-    // skip subtree option is enabled.
-    if (vopt.skip_subtree && !painted) {
-      bfs::path output_file = (boost::format("%1%/%2%/%3%/%4%.pbf")
-                               % output_dir % root_z % root_x % root_y).str();
-      copy_subtree(output_file, root_z + 1, 2 * root_x,     2 * root_y,     max_z);
-      copy_subtree(output_file, root_z + 1, 2 * root_x + 1, 2 * root_y,     max_z);
-      copy_subtree(output_file, root_z + 1, 2 * root_x + 1, 2 * root_y + 1, max_z);
-      copy_subtree(output_file, root_z + 1, 2 * root_x,     2 * root_y + 1, max_z);
+    if (root_z < max_z) {
+      // skip full subtree if the tile is uninteresting and the
+      // skip subtree option is enabled.
+      if (vopt.skip_subtree && !painted) {
+        bfs::path output_file = (boost::format("%1%/%2%/%3%/%4%.pbf")
+                                 % output_dir % root_z % root_x % root_y).str();
+        copy_subtree(output_file, root_z + 1, 2 * root_x,     2 * root_y,     max_z);
+        copy_subtree(output_file, root_z + 1, 2 * root_x + 1, 2 * root_y,     max_z);
+        copy_subtree(output_file, root_z + 1, 2 * root_x + 1, 2 * root_y + 1, max_z);
+        copy_subtree(output_file, root_z + 1, 2 * root_x,     2 * root_y + 1, max_z);
 
-    } else if (root_z < max_z) {
-      generate_subtree(root_z + 1, 2 * root_x,     2 * root_y,     max_z);
-      generate_subtree(root_z + 1, 2 * root_x + 1, 2 * root_y,     max_z);
-      generate_subtree(root_z + 1, 2 * root_x + 1, 2 * root_y + 1, max_z);
-      generate_subtree(root_z + 1, 2 * root_x,     2 * root_y + 1, max_z);
+      } else {
+        generate_subtree(root_z + 1, 2 * root_x,     2 * root_y,     max_z);
+        generate_subtree(root_z + 1, 2 * root_x + 1, 2 * root_y,     max_z);
+        generate_subtree(root_z + 1, 2 * root_x + 1, 2 * root_y + 1, max_z);
+        generate_subtree(root_z + 1, 2 * root_x,     2 * root_y + 1, max_z);
+      }
     }
   }
 
