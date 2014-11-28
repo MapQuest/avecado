@@ -21,6 +21,7 @@ struct server_options {
   unsigned short thread_hint;
   std::shared_ptr<avecado::post_processor> post_processor;
   std::shared_ptr<http::server3::access_logger> logger;
+  unsigned int max_age;
 };
 
 #endif /* SERVER_OPTIONS_HPP */

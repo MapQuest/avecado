@@ -52,7 +52,8 @@ namespace server3 {
 request_handler::request_handler(const boost::thread_specific_ptr<mapnik::Map> &map_ptr,
                                  const server_options &options)
   : map_ptr_(map_ptr),
-    options_(options)
+    options_(options),
+    max_age_value_((boost::format("max-age = %1%") % options_.max_age).str())
 {
 }
 
@@ -103,7 +104,7 @@ void request_handler::handle_request_json(const request &req, reply &rep) {
   rep.headers[3].name= "access-control-allow-methods";
   rep.headers[3].value = "GET";
   rep.headers[4].name = "Cache-control";
-  rep.headers[4].value = "max-age = 60"; // <-- TODO: make configurable.
+  rep.headers[4].value = max_age_value_;
   rep.headers[5].name = "Date";
   rep.headers[5].value = make_http_date();
 }
@@ -165,7 +166,7 @@ void request_handler::handle_request_tile(const request &req, reply &rep,
   rep.headers[3].name= "access-control-allow-methods";
   rep.headers[3].value = "GET";
   rep.headers[4].name = "Cache-control";
-  rep.headers[4].value = "max-age = 60"; // <-- TODO: make configurable.
+  rep.headers[4].value = max_age_value_;
   rep.headers[5].name = "Date";
   rep.headers[5].value = make_http_date();
 }
