@@ -14,6 +14,7 @@
 #include <boost/asio.hpp>
 #include <string>
 #include <vector>
+#include <exception>
 #include <boost/noncopyable.hpp>
 #include <boost/shared_ptr.hpp>
 #include <boost/thread.hpp>
@@ -92,6 +93,9 @@ private:
 
    /// The thread pool
    std::vector<boost::shared_ptr<boost::thread> > threads_;
+
+   /// Captured errors for the threads
+   std::vector<std::exception_ptr> thread_errors_;
 };
 
 } // namespace server3

@@ -26,15 +26,26 @@ namespace {
 void setup_thread(std::string map_xml,
                   std::string port,
                   boost::thread_specific_ptr<mapnik::Map> &ptr,
-                  boost::asio::io_service *service) {
-  std::cout << "Loading mapnik map..." << std::endl;
-  ptr.reset(new mapnik::Map);
-  mapnik::load_map(*ptr, map_xml);
-  std::cout << "Mapnik map loaded." << std::endl;
-  std::cout << "Server starting on port " << port
-            << ". Tiles should be available on URLs like "
-            << "http://localhost:" << port << "/0/0/0.pbf" << std::endl;
-  service->run();
+                  boost::asio::io_service *service,
+                  std::exception_ptr &error) {
+  try {
+    std::cout << "Loading mapnik map..." << std::endl;
+    ptr.reset(new mapnik::Map);
+    mapnik::load_map(*ptr, map_xml);
+    std::cout << "Mapnik map loaded." << std::endl;
+    std::cout << "Server starting on port " << port
+              << ". Tiles should be available on URLs like "
+              << "http://localhost:" << port << "/0/0/0.pbf" << std::endl;
+    service->run();
+
+  } catch (const std::exception &e) {
+    std::cerr << "ERROR: Thread terminating due to: " << e.what() << "\n";
+    error = std::current_exception();
+
+  } catch (...) {
+    std::cerr << "ERROR: Thread terminating due to UNKNOWN ERROR\n";
+    error = std::current_exception();
+  }
 }
 }
 
@@ -88,6 +99,10 @@ server::~server()
 
 void server::run(bool include_current_thread)
 {
+  // Create a set of exception pointers for threads to pass
+  // back their errors to the main thread.
+  thread_errors_.resize(thread_pool_size_);
+
   // Create a pool of threads to run all of the io_services.
   for (std::size_t i = (include_current_thread ? 1 : 0);
        i < thread_pool_size_; ++i)
@@ -99,12 +114,14 @@ void server::run(bool include_current_thread)
                 map_xml_,
                 port_,
                 boost::ref(thread_specific_ptr_),
-                &io_service_)));
+                &io_service_,
+                boost::ref(thread_errors_[i]))));
     threads_.push_back(thread);
   }
 
   if (include_current_thread) {
-    setup_thread(map_xml_, port_, thread_specific_ptr_, &io_service_);
+    setup_thread(map_xml_, port_, boost::ref(thread_specific_ptr_),
+                 &io_service_, boost::ref(thread_errors_[0]));
   }
 }
 
@@ -113,8 +130,30 @@ void server::stop()
    handle_stop();
 
    // Wait for all threads in the pool to exit.
-   for (std::size_t i = 0; i < threads_.size(); ++i)
-      threads_[i]->join();
+   for (std::size_t i = 0; i < threads_.size(); ++i) {
+     try {
+       threads_[i]->join();
+
+       // NOTE: these don't re-throw because we want to join
+       // all the threads, not bail half way through because
+       // one of them had an error.
+     } catch (const std::exception &e) {
+       std::cerr << "ERROR: Failed to join thread due to: " << e.what() << "\n";
+
+     } catch (...) {
+       std::cerr << "ERROR: Failed to join thread due to UNKNOWN EXCEPTION.\n";
+     }
+   }
+
+   // if any thread had an error, re-throw it now.
+   for (auto &ptr : thread_errors_) {
+     if (ptr) {
+       // this ignores subsequent errors, but they should have
+       // been printed out in the per-thread catch sections
+       // anyway.
+       std::rethrow_exception(ptr);
+     }
+   }
 }
 
 void server::start_accept()

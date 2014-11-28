@@ -161,6 +161,7 @@ int main(int argc, char *argv[]) {
 
   } catch (std::exception& e) {
     std::cerr << "Exception: " << e.what() << "\n";
+    return EXIT_FAILURE;
   }
 
   return EXIT_SUCCESS;
