@@ -133,32 +133,92 @@ struct json_converter : public mapnik::util::static_visitor<> {
   }
 };
 
+struct force_integer : public mapnik::util::static_visitor<mapnik::value_integer> {
+  mapnik::value_integer operator()(const mapnik::value_null &) const {
+    return mapnik::value_integer(0);
+  }
+
+  mapnik::value_integer operator()(const mapnik::value_integer &i) const {
+    return i;
+  }
+
+  mapnik::value_integer operator()(const mapnik::value_double &f) const {
+    return mapnik::value_integer(f);
+  }
+
+  mapnik::value_integer operator()(const std::string &s) const {
+    int result = 0;
+    if (mapnik::util::string2int(s, result)) {
+      return mapnik::value_integer(result);
+
+    } else {
+      throw std::runtime_error((boost::format("Could not parse \"%1%\" as integer")
+                                % s).str());
+    }
+  }
+};
+
+mapnik::parameters make_default_parameters() {
+  mapnik::parameters defaults;
+
+  defaults.emplace(std::string("minzoom"), mapnik::value_integer(0));
+  defaults.emplace(std::string("maxzoom"), mapnik::value_integer(0));
+  defaults.emplace(std::string("format"), std::string("pbf"));
+  defaults.emplace(std::string("name"), std::string("Avecado Development Server"));
+  defaults.emplace(std::string("private"), mapnik::value_bool(true));
+  defaults.emplace(std::string("scheme"), std::string("xyz"));
+  defaults.emplace(std::string("tilejson"), std::string("2.0.0"));
+
+  return defaults;
+}
+
 } // anonymous namespace
 
 std::string make_tilejson(const mapnik::Map &map,
                           const std::string &base_url) {
+  static const mapnik::parameters defaults = make_default_parameters();
+
   // TODO: remove super-hacky hard-coded 'JSON' serialiser and use
   // a proper one.
   std::ostringstream out;
   out << "{";
 
-  for (auto const &row : map.get_extra_parameters()) {
+  // copy Mapnik's parameters to make some changes and perhaps add
+  // some default values if they're not already present.
+  mapnik::parameters params = map.get_extra_parameters();
+
+  // force some parameters to be integers.
+  for (auto const &key : {"metatile", "maskLevel", "maxzoom", "minzoom"}) {
+    mapnik::parameters::iterator itr = params.find(key);
+    if (itr != params.end()) {
+      itr->second = mapnik::util::apply_visitor(force_integer(), itr->second);
+    }
+  }
+
+  // apply some defaults
+  for (auto const &row : defaults) {
+    mapnik::parameters::iterator itr = params.find(row.first);
+    if (itr == params.end()) {
+      params.emplace(row);
+    }
+  }
+
+  // maskLevel is a bit special - we want to default that to maxzoom
+  // if it's not already specified.
+  {
+    mapnik::parameters::iterator itr = params.find("maskLevel");
+    if (itr == params.end()) {
+      // we're guaranteed maxzoom exists, as it's inserted as a
+      // default if it wasn't provided by the Map.
+      params.emplace("maskLevel", params.find("maxzoom")->second);
+    }
+  }
+
+  for (auto const &row : params) {
     out << "\"" << row.first << "\":";
     mapnik::util::apply_visitor(json_converter(out), row.second);
     out << ",";
   }
-
-  for (auto const &key : {"maskLevel", "maxzoom", "minzoom"}) {
-    if (map.get_extra_parameters().find(key) == map.get_extra_parameters().end()) {
-      out << "\"" << key << "\":0,";
-    }
-  }
-
-  out << "\"format\":\"pbf\",";
-  out << "\"name\": \"Avecado Development Server\",";
-  out << "\"private\": true,";
-  out << "\"scheme\": \"xyz\",";
-  out << "\"tilejson\": \"2.0.0\",";
 
   out << "\"tiles\": [";
   out << "\"" << base_url << "/{z}/{x}/{y}.pbf\"";
