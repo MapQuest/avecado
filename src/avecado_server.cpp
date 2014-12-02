@@ -67,6 +67,8 @@ int main(int argc, char *argv[]) {
      "requests the server should be able to service.")
     ("config-file,c", bpo::value<std::string>(&config_file),
      "JSON config file to specify post-processing for data layers.")
+    ("max-age", bpo::value<unsigned int>(&srv_opts.max_age)->default_value(60),
+     "Maximum age, in seconds, to cache generated files for.")
     // positional arguments
     ("map-file", bpo::value<std::string>(&srv_opts.map_file), "Mapnik XML input file.")
     ("port", bpo::value<std::string>(&srv_opts.port), "Port upon which the server will listen.")

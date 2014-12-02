@@ -47,6 +47,9 @@ private:
   /// options, mostly passed to mapnik for making the vector tile
   server_options options_;
 
+  /// max-age header directive to use. pre-rendered to a string.
+  std::string max_age_value_;
+
   /// Perform URL-decoding on a string. Returns false if the encoding was
   /// invalid.
   static bool url_decode(const std::string& in, std::string& out);

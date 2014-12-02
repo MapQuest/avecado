@@ -76,7 +76,8 @@ libavecado_la_SOURCES = \
 	src/fetch/http.cpp \
 	src/fetch/http_date_parser.cpp \
 	src/tilejson.cpp \
-	src/util.cpp
+	src/util.cpp \
+	src/util_tile.cpp
 
 nodist_libavecado_la_SOURCES = \
 	src/vector_tile.pb.cc
@@ -134,7 +135,8 @@ check_PROGRAMS = \
 	test/http \
 	test/http_cache \
 	test/tilejson \
-	test/post_processor
+	test/post_processor \
+	test/util_tile
 
 liblogging_la_SOURCES = \
 	logging/logger.cpp \
@@ -166,6 +168,9 @@ test_post_processor_LDADD = libavecado.la liblogging.la @BOOST_LDFLAGS@ @BOOST_A
 
 test_unionizer_SOURCES = test/unionizer.cpp test/common.cpp
 test_unionizer_LDADD = libavecado.la liblogging.la @BOOST_LDFLAGS@ @BOOST_ASIO_LIB@ @BOOST_THREAD_LIB@ @PTHREAD_LIBS@
+
+test_util_tile_SOURCES = test/util_tile.cpp test/common.cpp
+test_util_tile_LDADD = libavecado.la liblogging.la
 
 TESTS = $(check_PROGRAMS)
 TEST_EXTENSIONS = .sh
