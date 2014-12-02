@@ -38,7 +38,6 @@
 
 using boost::function;
 using std::runtime_error;
-using std::nested_exception;
 using std::exception;
 using std::cout;
 using std::clog;
