@@ -31,6 +31,7 @@ server_options default_options(const std::string &map_file) {
   options.thread_hint = 1;
   options.map_file = map_file;
   options.port = "";
+  options.max_age = 60;
   return options;
 }
 

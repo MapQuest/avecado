@@ -30,6 +30,7 @@
 #include <boost/filesystem.hpp>
 #include <boost/system/error_code.hpp>
 #include <boost/system/system_error.hpp>
+#include <exception>
 #include <stdexcept>
 #include <iomanip>
 #include <iostream>
@@ -60,7 +61,21 @@ void run_with_output_redirected_to(const string &name, function<void ()> test) {
   test();
 }
 
+void unwind_nested_exception(std::ostream &out, const std::exception &e) {
+  out << e.what();
+  try {
+    std::rethrow_if_nested(e);
+
+  } catch (const std::exception &nested) {
+    out << ". Caused by: ";
+    unwind_nested_exception(out, nested);
+
+  } catch (...) {
+    out << ". Caused by UNKNOWN EXCEPTION";
+  }
 }
+
+} // anonymous namespace
 
 namespace test {
 
@@ -72,7 +87,9 @@ int run(const string &name, function<void ()> test) {
     return 0;
 
   } catch (const exception &ex) {
-    cout << "  [FAIL: " << ex.what() << "]" << endl;
+    cout << "  [FAIL: ";
+    unwind_nested_exception(cout, ex);
+    cout << "]" << endl;
     return 1;
 
   } catch (...) {

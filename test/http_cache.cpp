@@ -38,6 +38,7 @@ server_options default_options(const std::string &map_file, std::shared_ptr<http
   options.map_file = map_file;
   options.port = "";
   options.logger = logger;
+  options.max_age = 60;
   return options;
 }
 
