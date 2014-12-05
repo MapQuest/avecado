@@ -27,6 +27,9 @@ public:
   // Return the tile contents as PBF
   std::string get_data() const;
 
+  // parse the string as PBF to get a tile.
+  void from_string(const std::string &str);
+
   // Return the in-memory structure of the tile.
   mapnik::vector::tile const &mapnik_tile() const;
   mapnik::vector::tile &mapnik_tile();
@@ -37,6 +40,9 @@ public:
 private:
   std::unique_ptr<mapnik::vector::tile> m_mapnik_tile;
 };
+
+// read the tile from a zero-copy input stream
+std::istream &operator>>(std::istream &, tile &);
 
 // more efficient output function for zero-copy streams
 std::ostream &operator<<(std::ostream &, const tile &);

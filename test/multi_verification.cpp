@@ -61,8 +61,10 @@ void test_multiline() {
   avecado::make_vector_tile(tile, path_multiplier, map, buffer_size, scale_factor,
                             offset_x, offset_y, tolerance, image_format,
                             scaling_method, scale_denominator, boost::none);
-  mapnik::vector::tile result;
-  result.ParseFromString(tile.get_data());
+  avecado::tile tile2(_z, _x, _y);
+  tile2.from_string(tile.get_data());
+  const mapnik::vector::tile &result = tile2.mapnik_tile();
+
   test::assert_equal(result.layers_size(), 1, "Wrong number of layers");
   mapnik::vector::tile_layer layer = result.layers(0);
   test::assert_equal(layer.name(), std::string ("point"), "Wrong layer name");
@@ -111,8 +113,10 @@ void test_multipolygon() {
   avecado::make_vector_tile(tile, path_multiplier, map, buffer_size, scale_factor,
                             offset_x, offset_y, tolerance, image_format,
                             scaling_method, scale_denominator, boost::none);
-  mapnik::vector::tile result;
-  result.ParseFromString(tile.get_data());
+  avecado::tile tile2(_z, _x, _y);
+  tile2.from_string(tile.get_data());
+  const mapnik::vector::tile &result = tile2.mapnik_tile();
+
   test::assert_equal(result.layers_size(), 1, "Wrong number of layers");
   mapnik::vector::tile_layer layer = result.layers(0);
   test::assert_equal(layer.name(), std::string ("point"), "Wrong layer name");
