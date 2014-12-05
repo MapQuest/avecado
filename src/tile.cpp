@@ -13,14 +13,9 @@ tile::~tile() {
 }
 
 std::string tile::get_data() const {
-  std::string buffer;
-
-  if (m_mapnik_tile->SerializeToString(&buffer)) {
-    return buffer;
-
-  } else {
-    throw std::runtime_error("Error while serializing protocol buffer tile.");
-  }
+  std::ostringstream buffer;
+  buffer << *this;
+  return buffer.str();
 }
 
 mapnik::vector::tile const &tile::mapnik_tile() const {
