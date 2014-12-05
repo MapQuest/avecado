@@ -2,6 +2,7 @@
 #include "vector_tile.pb.h"
 
 #include <google/protobuf/io/zero_copy_stream_impl.h>
+#include <google/protobuf/io/gzip_stream.h>
 
 namespace avecado {
 
@@ -35,7 +36,8 @@ mapnik::vector::tile &tile::mapnik_tile() {
 
 std::istream &operator>>(std::istream &in, tile &t) {
   google::protobuf::io::IstreamInputStream stream(&in);
-  bool read_ok = t.mapnik_tile().ParseFromZeroCopyStream(&stream);
+  google::protobuf::io::GzipInputStream gz_stream(&stream);
+  bool read_ok = t.mapnik_tile().ParseFromZeroCopyStream(&gz_stream);
 
   if (!read_ok) {
     throw std::runtime_error("Unable to read tile from input stream.");
@@ -44,9 +46,17 @@ std::istream &operator>>(std::istream &in, tile &t) {
   return in;
 }
 
-std::ostream &operator<<(std::ostream &out, const tile &t) {
+std::ostream &operator<<(std::ostream &out, const tile_gzip &t) {
   google::protobuf::io::OstreamOutputStream stream(&out);
-  bool write_ok = t.mapnik_tile().SerializeToZeroCopyStream(&stream);
+
+  google::protobuf::io::GzipOutputStream::Options options;
+  if (t.compression_level_ >= 0) {
+    options.compression_level = t.compression_level_;
+  }
+  options.format = google::protobuf::io::GzipOutputStream::ZLIB;
+  google::protobuf::io::GzipOutputStream gz_stream(&stream);
+
+  bool write_ok = t.tile_.mapnik_tile().SerializeToZeroCopyStream(&gz_stream);
 
   if (!write_ok) {
     throw std::runtime_error("Unable to write tile to output stream.");

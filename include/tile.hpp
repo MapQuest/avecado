@@ -44,8 +44,24 @@ private:
 // read the tile from a zero-copy input stream
 std::istream &operator>>(std::istream &, tile &);
 
+// wrapper object so that information about the gzip compression
+// level can be passed into the output function.
+struct tile_gzip {
+  // set with the default level of compression
+  explicit tile_gzip(const tile &t) : tile_(t), compression_level_(-1) {}
+  // use an explicit level of compression
+  tile_gzip(const tile &t, int compression_level)
+    : tile_(t), compression_level_(compression_level) {}
+
+  const tile &tile_;
+  int compression_level_;
+};
+
 // more efficient output function for zero-copy streams
-std::ostream &operator<<(std::ostream &, const tile &);
+std::ostream &operator<<(std::ostream &, const tile_gzip &);
+inline std::ostream &operator<<(std::ostream &out, const tile &t) {
+  return (out << tile_gzip(t));
+}
 
 } // namespace avecado
 
