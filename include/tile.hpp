@@ -25,7 +25,7 @@ public:
   ~tile();
 
   // Return the tile contents as PBF
-  std::string get_data() const;
+  std::string get_data(int compression_level = -1) const;
 
   // parse the string as PBF to get a tile.
   void from_string(const std::string &str);

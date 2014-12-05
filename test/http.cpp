@@ -13,11 +13,13 @@
 
 #include <iostream>
 
+#include <curl/curl.h>
+
 namespace bpt = boost::property_tree;
 
 namespace {
 
-server_options default_options(const std::string &map_file) {
+server_options default_options(const std::string &map_file, int compression_level) {
   server_options options;
   options.path_multiplier = 16;
   options.buffer_size = 0;
@@ -32,6 +34,7 @@ server_options default_options(const std::string &map_file) {
   options.map_file = map_file;
   options.port = "";
   options.max_age = 60;
+  options.compression_level = compression_level;
   return options;
 }
 
@@ -40,8 +43,8 @@ struct server_guard {
   http::server3::server server;
   std::string port;
 
-  server_guard(const std::string &map_xml)
-    : options(default_options(map_xml))
+  server_guard(const std::string &map_xml, int compression_level = -1)
+    : options(default_options(map_xml, compression_level))
     , server("localhost", options)
     , port(server.port()) {
 
@@ -164,6 +167,47 @@ void test_fetch_tilejson() {
     (boost::format("%1%/tile.json") % guard.base_url()).str());
 }
 
+size_t write_callback(char *ptr, size_t size, size_t nmemb, void *userdata) {
+  std::stringstream *stream = static_cast<std::stringstream*>(userdata);
+  size_t total_bytes = size * nmemb;
+  stream->write(ptr, total_bytes);
+  return stream->good() ? total_bytes : 0;
+}
+
+#define CURL_SETOPT(curl, opt, arg) {                                   \
+    CURLcode res = curl_easy_setopt((curl), (opt), (arg));              \
+    if (res != CURLE_OK) {                                              \
+      throw std::runtime_error("Unable to set cURL option " #opt);      \
+    }                                                                   \
+  }
+
+void test_tile_is_compressed() {
+  server_guard guard("test/single_line.xml", 9);
+  std::string uri = (boost::format("%1%/0/0/0.pbf") % guard.base_url()).str();
+  std::stringstream stream;
+
+  CURL *curl = curl_easy_init();
+  CURL_SETOPT(curl, CURLOPT_URL, uri.c_str());
+  CURL_SETOPT(curl, CURLOPT_WRITEFUNCTION, write_callback);
+  CURL_SETOPT(curl, CURLOPT_WRITEDATA, &stream);
+
+  CURLcode res = curl_easy_perform(curl);
+  if (res != CURLE_OK) {
+    throw std::runtime_error("cURL operation failed");
+  }
+
+  curl_easy_cleanup(curl);
+
+  std::string data = stream.str();
+  test::assert_greater_or_equal<size_t>(data.size(), 2, "tile size");
+  // see http://tools.ietf.org/html/rfc1950 for header magic values
+  test::assert_equal<uint32_t>(uint8_t(data[0]) & 0xf, 8, "compression method = deflate");
+  test::assert_less_or_equal<uint32_t>(uint8_t(data[0]) >> 4, 7, "window size <= 7");
+  test::assert_equal<uint32_t>(
+    (uint32_t(uint8_t(data[0])) * 256 + uint32_t(uint8_t(data[1]))) % 31,
+    0, "FCHECK checksum2");
+}
+
 } // anonymous namespace
 
 int main() {
@@ -185,6 +229,7 @@ int main() {
   RUN_TEST(test_no_url_patterns_is_error);
   RUN_TEST(test_fetcher_io);
   RUN_TEST(test_fetch_tilejson);
+  RUN_TEST(test_tile_is_compressed);
 
   std::cout << " >> Tests failed: " << tests_failed << std::endl << std::endl;
 

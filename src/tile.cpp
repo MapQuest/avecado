@@ -13,9 +13,9 @@ tile::tile(unsigned int z_, unsigned int x_, unsigned int y_)
 tile::~tile() {
 }
 
-std::string tile::get_data() const {
+std::string tile::get_data(int compression_level) const {
   std::ostringstream buffer;
-  buffer << *this;
+  buffer << tile_gzip(*this, compression_level);
   return buffer.str();
 }
 
