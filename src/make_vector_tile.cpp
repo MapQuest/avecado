@@ -4,24 +4,11 @@
 #include <mapnik/map.hpp>
 #include <mapnik/feature.hpp>
 
-#include <google/protobuf/io/zero_copy_stream_impl.h>
-
 #include "mapnik3x_compatibility.hpp"
 #include "vector_tile_processor.hpp"
 #include "backend.hpp"
 
 namespace avecado {
-
-std::ostream &operator<<(std::ostream &out, const tile &t) {
-  google::protobuf::io::OstreamOutputStream stream(&out);
-  bool write_ok = t.mapnik_tile().SerializeToZeroCopyStream(&stream);
-
-  if (!write_ok) {
-    throw std::runtime_error("Unable to write tile to output stream.");
-  }
-
-  return out;
-}
 
 bool make_vector_tile(tile &tile,
                       unsigned int path_multiplier,

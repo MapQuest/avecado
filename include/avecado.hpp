@@ -14,9 +14,6 @@ namespace mapnik { class image_32; }
 
 namespace avecado {
 
-// more efficient output function for zero-copy streams
-std::ostream &operator<<(std::ostream &, const tile &);
-
 /**
  * make_vector_tile adds geometry from a mapnik query to a vector
  * tile object.

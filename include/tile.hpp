@@ -38,6 +38,9 @@ private:
   std::unique_ptr<mapnik::vector::tile> m_mapnik_tile;
 };
 
+// more efficient output function for zero-copy streams
+std::ostream &operator<<(std::ostream &, const tile &);
+
 } // namespace avecado
 
 #endif // AVECADO_TILE_HPP
