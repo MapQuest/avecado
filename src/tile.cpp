@@ -54,7 +54,7 @@ std::ostream &operator<<(std::ostream &out, const tile_gzip &t) {
     options.compression_level = t.compression_level_;
   }
   options.format = google::protobuf::io::GzipOutputStream::ZLIB;
-  google::protobuf::io::GzipOutputStream gz_stream(&stream);
+  google::protobuf::io::GzipOutputStream gz_stream(&stream, options);
 
   bool write_ok = t.tile_.mapnik_tile().SerializeToZeroCopyStream(&gz_stream);
 
