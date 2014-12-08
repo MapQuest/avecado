@@ -48,15 +48,21 @@ std::istream &operator>>(std::istream &in, tile &t) {
 
 std::ostream &operator<<(std::ostream &out, const tile_gzip &t) {
   google::protobuf::io::OstreamOutputStream stream(&out);
+  bool write_ok = false;
 
-  google::protobuf::io::GzipOutputStream::Options options;
-  if (t.compression_level_ >= 0) {
-    options.compression_level = t.compression_level_;
+  if (t.compression_level_ == 0) {
+    write_ok = t.tile_.mapnik_tile().SerializeToZeroCopyStream(&stream);
+
+  } else {
+    google::protobuf::io::GzipOutputStream::Options options;
+    if (t.compression_level_ >= 0) {
+      options.compression_level = t.compression_level_;
+    }
+    options.format = google::protobuf::io::GzipOutputStream::ZLIB;
+    google::protobuf::io::GzipOutputStream gz_stream(&stream, options);
+
+    write_ok = t.tile_.mapnik_tile().SerializeToZeroCopyStream(&gz_stream);
   }
-  options.format = google::protobuf::io::GzipOutputStream::ZLIB;
-  google::protobuf::io::GzipOutputStream gz_stream(&stream, options);
-
-  bool write_ok = t.tile_.mapnik_tile().SerializeToZeroCopyStream(&gz_stream);
 
   if (!write_ok) {
     throw std::runtime_error("Unable to write tile to output stream.");

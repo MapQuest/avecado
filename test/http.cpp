@@ -7,6 +7,8 @@
 #include "http_server/server.hpp"
 #include "vector_tile.pb.h"
 
+#include <google/protobuf/io/zero_copy_stream_impl.h>
+
 #include <boost/property_tree/ptree.hpp>
 
 #include <mapnik/datasource_cache.hpp>
@@ -208,6 +210,34 @@ void test_tile_is_compressed() {
     0, "FCHECK checksum2");
 }
 
+void test_tile_is_not_compressed() {
+  // check that when the compression level is set to zero, the tile is not
+  // compressed and is just the raw PBF.
+  server_guard guard("test/single_line.xml", 0);
+  std::string uri = (boost::format("%1%/0/0/0.pbf") % guard.base_url()).str();
+  std::stringstream stream;
+
+  CURL *curl = curl_easy_init();
+  CURL_SETOPT(curl, CURLOPT_URL, uri.c_str());
+  CURL_SETOPT(curl, CURLOPT_WRITEFUNCTION, write_callback);
+  CURL_SETOPT(curl, CURLOPT_WRITEDATA, &stream);
+
+  CURLcode res = curl_easy_perform(curl);
+  if (res != CURLE_OK) {
+    throw std::runtime_error("cURL operation failed");
+  }
+
+  curl_easy_cleanup(curl);
+
+  // note: this deliberately doesn't use the functions defined on avecado::tile
+  // because it needs to avoid any automatic ungzipping.
+  stream.seekp(0);
+  google::protobuf::io::IstreamInputStream gstream(&stream);
+  mapnik::vector::tile tile;
+  bool read_ok = tile.ParseFromZeroCopyStream(&gstream);
+  test::assert_equal<bool>(read_ok, true, "tile was plain PBF");
+}
+
 } // anonymous namespace
 
 int main() {
@@ -230,6 +260,7 @@ int main() {
   RUN_TEST(test_fetcher_io);
   RUN_TEST(test_fetch_tilejson);
   RUN_TEST(test_tile_is_compressed);
+  RUN_TEST(test_tile_is_not_compressed);
 
   std::cout << " >> Tests failed: " << tests_failed << std::endl << std::endl;
 
