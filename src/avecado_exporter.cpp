@@ -51,6 +51,7 @@ struct vector_options {
   double scale_denominator;
   std::vector<std::string> ignore_layers;
   bool skip_subtree;
+  int compression_level;
 
   void add(bpo::options_description &options) {
     options.add_options()
@@ -79,6 +80,9 @@ struct vector_options {
       ("skip-subtree", bpo::value<bool>(&skip_subtree)->default_value(false),
        "Skip a whole subtree when an 'uninteresting' tile is found - that is one "
        "where the tile is either completely empty or completely full.")
+      ("compression-level,z", bpo::value<int>(&compression_level)->default_value(-1),
+       "Zlib compression level: 0 means no compression, 1 is fastest, "
+       "9 is best compression. Leave as -1 to use the default.")
       ;
   }
 };
@@ -286,7 +290,7 @@ struct tile_generator {
                              % output_dir % z % x % y).str();
     bfs::create_directories(output_file.parent_path());
     std::ofstream output(output_file.native());
-    output << tile;
+    output << avecado::tile_gzip(tile, vopt.compression_level);
 
     return painted;
   }
@@ -636,7 +640,7 @@ int make_vector(int argc, char *argv[]) {
 
     // serialise to file
     std::ofstream output(output_file);
-    output << tile;
+    output << avecado::tile_gzip(tile, vopt.compression_level);
 
   } catch (const std::exception &e) {
     std::cerr << "Unable to make vector tile: " << e.what() << "\n";

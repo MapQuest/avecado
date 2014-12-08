@@ -641,12 +641,14 @@ void http::impl::handle_response(CURLcode res, CURL *curl) {
 
 bool http::impl::setup_response_tile(fetch_response &response, std::unique_ptr<std::stringstream> &stream, unsigned int z, unsigned int x, unsigned int y) {
   std::unique_ptr<tile> ptr(new tile(z, x, y));
+  bool ok = true;
 
-  google::protobuf::io::IstreamInputStream gstream(stream.get());
-
-  bool ok = ptr->mapnik_tile().ParseFromZeroCopyStream(&gstream);
-  if (ok) {
+  try {
+    (*stream) >> (*ptr);
     response = fetch_response(std::move(ptr));
+
+  } catch (...) {
+    ok = false;
   }
 
   return ok;

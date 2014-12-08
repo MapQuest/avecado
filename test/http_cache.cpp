@@ -39,6 +39,7 @@ server_options default_options(const std::string &map_file, std::shared_ptr<http
   options.port = "";
   options.logger = logger;
   options.max_age = 60;
+  options.compression_level = -1;
   return options;
 }
 

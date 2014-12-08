@@ -155,7 +155,7 @@ void request_handler::handle_request_tile(const request &req, reply &rep,
   // Fill out the reply to be sent to the client.
   rep.status = reply::ok;
   rep.is_hard_error = false;
-  rep.content = painted ? tile.get_data() : "";
+  rep.content = painted ? tile.get_data(options_.compression_level) : "";
   rep.headers.resize(6);
   rep.headers[0].name = "Content-Length";
   rep.headers[0].value = boost::lexical_cast<std::string>(rep.content.size());

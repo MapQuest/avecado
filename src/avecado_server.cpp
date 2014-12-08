@@ -69,6 +69,10 @@ int main(int argc, char *argv[]) {
      "JSON config file to specify post-processing for data layers.")
     ("max-age", bpo::value<unsigned int>(&srv_opts.max_age)->default_value(60),
      "Maximum age, in seconds, to cache generated files for.")
+    ("compression-level,z", bpo::value<int>(&srv_opts.compression_level)
+     ->default_value(-1),
+     "Zlib compression level: 0 means no compression, 1 is fastest, "
+     "9 is best compression. Leave as -1 to use the default.")
     // positional arguments
     ("map-file", bpo::value<std::string>(&srv_opts.map_file), "Mapnik XML input file.")
     ("port", bpo::value<std::string>(&srv_opts.port), "Port upon which the server will listen.")
