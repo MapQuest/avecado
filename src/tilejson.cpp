@@ -216,7 +216,11 @@ std::string make_tilejson(const mapnik::Map &map,
 
   for (auto const &row : params) {
     out << "\"" << row.first << "\":";
-    mapnik::util::apply_visitor(json_converter(out), row.second);
+    if (row.first == "center" || row.first == "bounds") {
+      out << "[" << row.second << "]";
+    } else {
+      mapnik::util::apply_visitor(json_converter(out), row.second);
+    }
     out << ",";
   }
 
