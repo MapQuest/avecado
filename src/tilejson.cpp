@@ -13,6 +13,8 @@
 #include <mapnik/feature_layer_desc.hpp>
 #include <mapnik/datasource.hpp>
 
+#include <unordered_set>
+
 namespace bpt = boost::property_tree;
 namespace bal = boost::algorithm;
 
@@ -177,6 +179,7 @@ mapnik::parameters make_default_parameters() {
 std::string make_tilejson(const mapnik::Map &map,
                           const std::string &base_url) {
   static const mapnik::parameters defaults = make_default_parameters();
+  static const std::unordered_set<std::string> array_keys = {"center", "bounds"};
 
   // TODO: remove super-hacky hard-coded 'JSON' serialiser and use
   // a proper one.
@@ -216,7 +219,11 @@ std::string make_tilejson(const mapnik::Map &map,
 
   for (auto const &row : params) {
     out << "\"" << row.first << "\":";
-    mapnik::util::apply_visitor(json_converter(out), row.second);
+    if (array_keys.count(row.first) > 0) {
+      out << "[" << row.second << "]";
+    } else {
+      mapnik::util::apply_visitor(json_converter(out), row.second);
+    }
     out << ",";
   }
 

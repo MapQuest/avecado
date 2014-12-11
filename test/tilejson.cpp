@@ -92,6 +92,22 @@ void test_tilejson_generate_numeric() {
         }
       }
 
+      // Some params need to be arrays of integers
+      for (auto &param : {"center", "bounds"}) {
+        // The same check as above for presense
+        sregex is_present = as_xpr('"') >> param >> '"' >> *space >> as_xpr(':');
+        if (regex_search(json.begin(), json.end(), is_present)) {
+          sregex is_array = as_xpr('"') >> param >> '"' >> *space >> as_xpr(':')
+                                        >> *space >> as_xpr('[');
+
+          if (!regex_search(json.begin(), json.end(), is_array)) {
+            throw std::runtime_error(
+              (boost::format("Parameter \"%1%\" should be an array of numbers, but is not "
+                             "in TileJSON: %2%") % param % json).str());
+          }
+        }
+      }
+
     } catch (const std::exception &e) {
       std::throw_with_nested(
         std::runtime_error(
