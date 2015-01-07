@@ -14,7 +14,12 @@ Building
 
 Avecado uses the [GNU Build System](http://www.gnu.org/software/automake/manual/html_node/GNU-Build-System.html) to configure and build itself and requires [Mapnik](http://mapnik.org/) 3.x, the [Boost libraries](http://boost.org/) and [Python](http://python.org/). To install on a Debian or Ubuntu system, please first install the prerequisites:
 
-    sudo apt-get install build-essential autoconf automake libtool libboost-all-dev python-dev libprotobuf-dev protobuf-compiler
+```
+sudo apt-get install build-essential autoconf automake libtool \
+  g++ python-dev libprotobuf-dev protobuf-compiler
+```
+
+You will need 1.56 or later of the Boost libraries. They can be obtained at [boost.org](http://boost.org)
 
 You will also need to install a 3.x version of the Mapnik library. This version of the library was tested with commit `01c6b422` from [Mapnik master](https://github.com/mapnik/mapnik).
 
