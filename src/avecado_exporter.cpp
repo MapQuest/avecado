@@ -752,7 +752,7 @@ int make_raster(int argc, char *argv[]) {
 
       std::unique_ptr<avecado::tile> tile(std::move(response.left()));
       avecado::render_vector_tile(image, *tile, map, scale_factor, buffer_size);
-      mapnik::save_to_file(image, output_file, "png");
+      mapnik::save_to_file(image.data(), output_file, "png");
 
     } else {
       throw std::runtime_error((boost::format("Error while fetching tile: %1%")
