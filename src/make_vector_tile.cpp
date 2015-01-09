@@ -24,7 +24,7 @@ bool make_vector_tile(tile &tile,
                       boost::optional<const post_processor &> pp) {
   
   typedef backend backend_type;
-  typedef mapnik::vector::processor<backend_type> renderer_type;
+  typedef mapnik::vector_tile_impl::processor<backend_type> renderer_type;
   
   backend_type backend(tile.mapnik_tile(), path_multiplier, map, pp);
   

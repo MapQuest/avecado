@@ -22,7 +22,7 @@ class post_processor;
 
 class backend {
 public:
-  backend(mapnik::vector::tile & tile,
+  backend(vector_tile::Tile & tile,
           unsigned path_multiplier,
           mapnik::Map const& map,
           boost::optional<const post_processor &> pp);
@@ -58,7 +58,7 @@ public:
   }
 
 private:
-  mapnik::vector::backend_pbf m_pbf;
+  mapnik::vector_tile_impl::backend_pbf m_pbf;
   mapnik::Map const& m_map;
   unsigned int m_tolerance;
   boost::optional<const post_processor &> m_post_processor;

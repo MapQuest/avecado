@@ -25,7 +25,7 @@ namespace {
  * the two can be different due to overzooming.
  */
 void process_layers(std::vector<mapnik::layer> const &layers,
-                    mapnik::vector::tile const &tile,
+                    vector_tile::Tile const &tile,
                     mapnik::request &request,
                     unsigned int z, unsigned int x, unsigned int y,
                     mapnik::projection const &projection,
@@ -45,7 +45,7 @@ void process_layers(std::vector<mapnik::layer> const &layers,
           mapnik::layer layer_copy(layer);
 
           layer_copy.set_datasource(
-            std::make_shared<mapnik::vector::tile_datasource>(
+            std::make_shared<mapnik::vector_tile_impl::tile_datasource>(
               layer_data, x, y, z, request.width()));
 
           std::set<std::string> names;
@@ -74,7 +74,7 @@ bool render_vector_tile(mapnik::image_32 &image,
   // them from.
   mapnik::attributes variables;
 
-  mapnik::vector::tile const &tile = avecado_tile.mapnik_tile();
+  vector_tile::Tile const &tile = avecado_tile.mapnik_tile();
 
   mapnik::request request(map.width(),
                           map.height(),
