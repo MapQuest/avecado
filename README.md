@@ -22,11 +22,14 @@ Then you should be able to bootstrap the build system:
 
     ./autogen.sh
 
-And then run the standard GNU build install:
+You need to increase the maximum vector size to 30 and then run the standard GNU build install:
 
+    CPPFLAGS="-DBOOST_MPL_CFG_NO_PREPROCESSED_HEADERS -DBOOST_MPL_LIMIT_VECTOR_SIZE=30" \
     ./configure && make && make install
 
 Please see `./configure --help` for more options on how to control the build process.
+
+There are detailed [instructions for CentOS 6](docs/building_centos6.md) in the `docs/` folder.
 
 Using
 -----
