@@ -68,12 +68,12 @@ void test_full() {
 
   avecado::tile tile(0, 0, 0);
   {
-    mapnik::vector::tile_layer *layer = tile.mapnik_tile().add_layers();
+    vector_tile::Tile_Layer *layer = tile.mapnik_tile().add_layers();
     layer->set_version(1);
     layer->set_name("layer");
-    mapnik::vector::tile_feature *feature = layer->add_features();
+    vector_tile::Tile_Feature *feature = layer->add_features();
     feature->set_id(1);
-    feature->set_type(mapnik::vector::tile::Polygon);
+    feature->set_type(vector_tile::Tile::Polygon);
     // this strange sequence of numbers comes from cranking the mapnik vector
     // tile geometry algorithm by hand on a [-180 -90, 180 90] box.
     for (uint32_t g : {9, 0, 128, 26, 512, 0, 0, 256, 511, 0, 7}) {

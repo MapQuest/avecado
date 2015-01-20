@@ -3,7 +3,7 @@
 
 namespace avecado {
 
-backend::backend(mapnik::vector::tile & tile,
+backend::backend(vector_tile::Tile & tile,
                  unsigned path_multiplier,
                  mapnik::Map const& map,
                  boost::optional<const post_processor &> pp)

@@ -272,7 +272,7 @@ struct tile_generator {
       // if there all layers which are ignored or uninteresting,
       // then we can ignore the whole tile, even if it painted
       // something.
-      for (const mapnik::vector::tile_layer &layer : tile.mapnik_tile().layers()) {
+      for (const vector_tile::Tile_Layer &layer : tile.mapnik_tile().layers()) {
         if ((layer.has_name()) &&
             (ignore_layers.count(layer.name()) == 0) &&
             (avecado::util::is_interesting(layer))) {
@@ -752,7 +752,7 @@ int make_raster(int argc, char *argv[]) {
 
       std::unique_ptr<avecado::tile> tile(std::move(response.left()));
       avecado::render_vector_tile(image, *tile, map, scale_factor, buffer_size);
-      mapnik::save_to_file(image, output_file, "png");
+      mapnik::save_to_file(image.data(), output_file, "png");
 
     } else {
       throw std::runtime_error((boost::format("Error while fetching tile: %1%")

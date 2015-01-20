@@ -63,13 +63,13 @@ void test_multiline() {
                             scaling_method, scale_denominator, boost::none);
   avecado::tile tile2(_z, _x, _y);
   tile2.from_string(tile.get_data());
-  const mapnik::vector::tile &result = tile2.mapnik_tile();
+  const vector_tile::Tile &result = tile2.mapnik_tile();
 
   test::assert_equal(result.layers_size(), 1, "Wrong number of layers");
-  mapnik::vector::tile_layer layer = result.layers(0);
+  vector_tile::Tile_Layer layer = result.layers(0);
   test::assert_equal(layer.name(), std::string ("point"), "Wrong layer name");
   test::assert_equal(layer.features_size(), 1, "Wrong number of features");
-  mapnik::vector::tile_feature feature = layer.features(0);
+  vector_tile::Tile_Feature feature = layer.features(0);
   test::assert_equal(int(feature.type()), 2, "Wrong feature type");
   // The geometry should be a move to, lineto, moveto, lineto
   test::assert_equal(feature.geometry_size(), 12, "Wrong feature geometry length");
@@ -83,7 +83,7 @@ void test_multiline() {
   /* If we're this far, the PBF checks out */
 
   // Query the layer with mapnik. See https://github.com/mapbox/mapnik-vector-tile/blob/2e3e2c28/test/vector_tile.cpp#L236
-  mapnik::vector::tile_datasource ds(layer, 0, 0, 0, tile_size);
+  mapnik::vector_tile_impl::tile_datasource ds(layer, 0, 0, 0, tile_size);
 
   mapnik::query qq = mapnik::query(bbox);
   qq.add_property_name("name");
@@ -115,13 +115,13 @@ void test_multipolygon() {
                             scaling_method, scale_denominator, boost::none);
   avecado::tile tile2(_z, _x, _y);
   tile2.from_string(tile.get_data());
-  const mapnik::vector::tile &result = tile2.mapnik_tile();
+  const vector_tile::Tile &result = tile2.mapnik_tile();
 
   test::assert_equal(result.layers_size(), 1, "Wrong number of layers");
-  mapnik::vector::tile_layer layer = result.layers(0);
+  vector_tile::Tile_Layer layer = result.layers(0);
   test::assert_equal(layer.name(), std::string ("point"), "Wrong layer name");
   test::assert_equal(layer.features_size(), 1, "Wrong number of features");
-  mapnik::vector::tile_feature feature = layer.features(0);
+  vector_tile::Tile_Feature feature = layer.features(0);
   test::assert_equal(int(feature.type()), 3, "Wrong feature type");
   // The geometry should be a move to, lineto, moveto, lineto
   test::assert_equal(feature.geometry_size(), 37, "Wrong feature geometry length");

@@ -8,7 +8,7 @@
 #include <boost/property_tree/ptree.hpp>
 #include <boost/format.hpp>
 
-using mapnik::vector::tile_layer;
+using vector_tile::Tile_Layer;
 
 namespace {
 
@@ -20,9 +20,9 @@ void test_cover_empty() {
 void test_cover_full() {
   tile_layer l;
   l.set_name("boundingbox");
-  mapnik::vector::tile_feature *feat = l.add_features();
+  vector_tile::Tile_Feature *feat = l.add_features();
   feat->set_id(1);
-  feat->set_type(mapnik::vector::tile::Polygon);
+  feat->set_type(vector_tile::Tile::Polygon);
   for (uint32_t i : {9, 63, 8256, 26, 0, 8319, 8320, 0, 0, 8320, 15}) {
     feat->add_geometry(i);
   }
@@ -36,9 +36,9 @@ void test_cover_full() {
 void test_cover_full_degenerate() {
   tile_layer l;
   l.set_name("water");
-  mapnik::vector::tile_feature *feat = l.add_features();
+  vector_tile::Tile_Feature *feat = l.add_features();
   feat->set_id(2);
-  feat->set_type(mapnik::vector::tile::Polygon);
+  feat->set_type(vector_tile::Tile::Polygon);
   for (uint32_t i : {9, 63, 8256, 58, 0, 8319, 8320, 0, 0, 8320, 8319,
         0, 8320, 0, 8319, 0, 8320, 0, 15}) {
     feat->add_geometry(i);
@@ -53,9 +53,9 @@ void test_cover_many() {
   tile_layer l;
   l.set_name("boundingbox");
   for (int32_t id : {1, 2}) {
-    mapnik::vector::tile_feature *feat = l.add_features();
+    vector_tile::Tile_Feature *feat = l.add_features();
     feat->set_id(id);
-    feat->set_type(mapnik::vector::tile::Polygon);
+    feat->set_type(vector_tile::Tile::Polygon);
     for (uint32_t i : {9, 63, 8256, 26, 0, 8319, 8320, 0, 0, 8320, 15}) {
       feat->add_geometry(i);
     }
@@ -70,9 +70,9 @@ void test_cover_many() {
 void test_cover_shape() {
   tile_layer l;
   l.set_name("boundingbox");
-  mapnik::vector::tile_feature *feat = l.add_features();
+  vector_tile::Tile_Feature *feat = l.add_features();
   feat->set_id(1);
-  feat->set_type(mapnik::vector::tile::Polygon);
+  feat->set_type(vector_tile::Tile::Polygon);
   for (uint32_t i : {9, 63, 8256, 26, 0, 8319, 8320, 0, 0, 8320, 15}) {
     feat->add_geometry(i);
   }
