@@ -29,7 +29,8 @@ on running it.
 Avecado embeds [mapnik-vector-tile](https://github.com/mapbox/mapnik-vector-tile)
 as a subrepository. Its version needs to match with Mapnik's. If building on a
 system with an older or newer Mapnik, an older or newer version of
-mapnik-vector-tile should be used. This is complicated, but should stabalize
+mapnik-vector-tile should be used. The version of Mapnik used when testing
+this version of Avecado was `87e9c64f`. This is complicated, but should stabilize
 when Mapnik 3 is released.
 
 ## Components ##
