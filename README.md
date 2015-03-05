@@ -16,7 +16,7 @@ Avecado uses the [GNU Build System](http://www.gnu.org/software/automake/manual/
 
     sudo apt-get install build-essential autoconf automake libtool libboost-all-dev python-dev libprotobuf-dev protobuf-compiler
 
-You will also need to install a 3.x version of the Mapnik library. This version of the library was tested with commit `01c6b422` from [Mapnik master](https://github.com/mapnik/mapnik).
+You will also need to install a 3.x version of the Mapnik library. This version of the library was tested with commit `87e9c64f` from [Mapnik master](https://github.com/mapnik/mapnik).
 
 Then you should be able to bootstrap the build system:
 

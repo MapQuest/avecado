@@ -7,7 +7,7 @@
 namespace avecado {
 
 tile::tile(unsigned int z_, unsigned int x_, unsigned int y_)
-  : z(z_), x(x_), y(y_), m_mapnik_tile(new mapnik::vector::tile) {
+  : z(z_), x(x_), y(y_), m_mapnik_tile(new vector_tile::Tile) {
 }
 
 tile::~tile() {
@@ -26,11 +26,11 @@ void tile::from_string(const std::string &str) {
   m_mapnik_tile.swap(t.m_mapnik_tile);
 }
 
-mapnik::vector::tile const &tile::mapnik_tile() const {
+vector_tile::Tile const &tile::mapnik_tile() const {
   return *m_mapnik_tile;
 }
 
-mapnik::vector::tile &tile::mapnik_tile() {
+vector_tile::Tile &tile::mapnik_tile() {
   return *m_mapnik_tile;
 }
 

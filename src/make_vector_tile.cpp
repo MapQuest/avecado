@@ -4,7 +4,6 @@
 #include <mapnik/map.hpp>
 #include <mapnik/feature.hpp>
 
-#include "mapnik3x_compatibility.hpp"
 #include "vector_tile_processor.hpp"
 #include "backend.hpp"
 
@@ -24,7 +23,7 @@ bool make_vector_tile(tile &tile,
                       boost::optional<const post_processor &> pp) {
   
   typedef backend backend_type;
-  typedef mapnik::vector::processor<backend_type> renderer_type;
+  typedef mapnik::vector_tile_impl::processor<backend_type> renderer_type;
   
   backend_type backend(tile.mapnik_tile(), path_multiplier, map, pp);
   

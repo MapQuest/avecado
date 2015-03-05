@@ -70,13 +70,13 @@ void test_single_point() {
                             scaling_method, scale_denominator, boost::none);
   avecado::tile tile2(_z, _x, _y);
   tile2.from_string(tile.get_data());
-  const mapnik::vector::tile &result = tile2.mapnik_tile();
+  const vector_tile::Tile &result = tile2.mapnik_tile();
 
   test::assert_equal(result.layers_size(), 1, "Wrong number of layers");
-  mapnik::vector::tile_layer layer = result.layers(0);
+  vector_tile::Tile_Layer layer = result.layers(0);
 
   // Query the layer with mapnik. See https://github.com/mapbox/mapnik-vector-tile/blob/2e3e2c28/test/vector_tile.cpp#L236
-  mapnik::vector::tile_datasource ds(layer, 0, 0, 0, tile_size);
+  mapnik::vector_tile_impl::tile_datasource ds(layer, 0, 0, 0, tile_size);
 
   mapnik::query qq = mapnik::query(bbox);
   qq.add_property_name("name");
@@ -98,13 +98,13 @@ void test_single_line() {
                             scaling_method, scale_denominator, boost::none);
   avecado::tile tile2(_z, _x, _y);
   tile2.from_string(tile.get_data());
-  const mapnik::vector::tile &result = tile2.mapnik_tile();
+  const vector_tile::Tile &result = tile2.mapnik_tile();
 
   test::assert_equal(result.layers_size(), 1, "Wrong number of layers");
-  mapnik::vector::tile_layer layer = result.layers(0);
+  vector_tile::Tile_Layer layer = result.layers(0);
 
   // Query the layer with mapnik. See https://github.com/mapbox/mapnik-vector-tile/blob/2e3e2c28/test/vector_tile.cpp#L236
-  mapnik::vector::tile_datasource ds(layer, 0, 0, 0, tile_size);
+  mapnik::vector_tile_impl::tile_datasource ds(layer, 0, 0, 0, tile_size);
 
   mapnik::query qq = mapnik::query(bbox);
   qq.add_property_name("name");
@@ -126,13 +126,13 @@ void test_single_polygon() {
                             scaling_method, scale_denominator, boost::none);
   avecado::tile tile2(_z, _x, _y);
   tile2.from_string(tile.get_data());
-  const mapnik::vector::tile &result = tile2.mapnik_tile();
+  const vector_tile::Tile &result = tile2.mapnik_tile();
 
   test::assert_equal(result.layers_size(), 1, "Wrong number of layers");
-  mapnik::vector::tile_layer layer = result.layers(0);
+  vector_tile::Tile_Layer layer = result.layers(0);
 
   // Query the layer with mapnik. See https://github.com/mapbox/mapnik-vector-tile/blob/2e3e2c28/test/vector_tile.cpp#L236
-  mapnik::vector::tile_datasource ds(layer, 0, 0, 0, tile_size);
+  mapnik::vector_tile_impl::tile_datasource ds(layer, 0, 0, 0, tile_size);
 
   mapnik::query qq = mapnik::query(bbox);
   qq.add_property_name("name");
@@ -154,14 +154,14 @@ void test_intersected_line() {
                             scaling_method, scale_denominator, boost::none);
   avecado::tile tile2(_z, _x, _y);
   tile2.from_string(tile.get_data());
-  const mapnik::vector::tile &result = tile2.mapnik_tile();
+  const vector_tile::Tile &result = tile2.mapnik_tile();
 
   test::assert_equal(result.layers_size(), 1, "Wrong number of layers");
-  mapnik::vector::tile_layer layer = result.layers(0);
+  vector_tile::Tile_Layer layer = result.layers(0);
 
   // Query the layer with mapnik. See https://github.com/mapbox/mapnik-vector-tile/blob/2e3e2c28/test/vector_tile.cpp#L236
   // note tile_datasource has x, y, z
-  mapnik::vector::tile_datasource ds(layer, 0, 0, 1, tile_size);
+  mapnik::vector_tile_impl::tile_datasource ds(layer, 0, 0, 1, tile_size);
 
   mapnik::query qq = mapnik::query(avecado::util::box_for_tile(1, 0, 0));
   qq.add_property_name("name");

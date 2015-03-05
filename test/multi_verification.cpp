@@ -63,13 +63,13 @@ void test_multiline() {
                             scaling_method, scale_denominator, boost::none);
   avecado::tile tile2(_z, _x, _y);
   tile2.from_string(tile.get_data());
-  const mapnik::vector::tile &result = tile2.mapnik_tile();
+  const vector_tile::Tile &result = tile2.mapnik_tile();
 
   test::assert_equal(result.layers_size(), 1, "Wrong number of layers");
-  mapnik::vector::tile_layer layer = result.layers(0);
+  vector_tile::Tile_Layer layer = result.layers(0);
   test::assert_equal(layer.name(), std::string ("point"), "Wrong layer name");
   test::assert_equal(layer.features_size(), 1, "Wrong number of features");
-  mapnik::vector::tile_feature feature = layer.features(0);
+  vector_tile::Tile_Feature feature = layer.features(0);
   test::assert_equal(int(feature.type()), 2, "Wrong feature type");
   // The geometry should be a move to, lineto, moveto, lineto
   test::assert_equal(feature.geometry_size(), 12, "Wrong feature geometry length");
@@ -83,7 +83,7 @@ void test_multiline() {
   /* If we're this far, the PBF checks out */
 
   // Query the layer with mapnik. See https://github.com/mapbox/mapnik-vector-tile/blob/2e3e2c28/test/vector_tile.cpp#L236
-  mapnik::vector::tile_datasource ds(layer, 0, 0, 0, tile_size);
+  mapnik::vector_tile_impl::tile_datasource ds(layer, 0, 0, 0, tile_size);
 
   mapnik::query qq = mapnik::query(bbox);
   qq.add_property_name("name");
@@ -94,10 +94,11 @@ void test_multiline() {
   test::assert_equal(feat->get_geometry(0).size(),size_t(4),"Wrong feature geometry length");
   // We should have the same moveto lineto moveto lineto as above
   double x, y = -1;
-  test::assert_equal<unsigned int>(feat->get_geometry(0).vertex(0, &x, &y),mapnik::SEG_MOVETO, "First command should be SEG_MOVETO");
-  test::assert_equal<unsigned int>(feat->get_geometry(0).vertex(1, &x, &y),mapnik::SEG_LINETO, "Second command should be SEG_LINETO");
-  test::assert_equal<unsigned int>(feat->get_geometry(0).vertex(2, &x, &y),mapnik::SEG_MOVETO, "Second command should be SEG_MOVETO");
-  test::assert_equal<unsigned int>(feat->get_geometry(0).vertex(3, &x, &y),mapnik::SEG_LINETO, "Second command should be SEG_LINETO");
+  mapnik::vertex_adapter path(feat->get_geometry(0));
+  test::assert_equal<unsigned int>(path.vertex(0, &x, &y),mapnik::SEG_MOVETO, "First command should be SEG_MOVETO");
+  test::assert_equal<unsigned int>(path.vertex(1, &x, &y),mapnik::SEG_LINETO, "Second command should be SEG_LINETO");
+  test::assert_equal<unsigned int>(path.vertex(2, &x, &y),mapnik::SEG_MOVETO, "Second command should be SEG_MOVETO");
+  test::assert_equal<unsigned int>(path.vertex(3, &x, &y),mapnik::SEG_LINETO, "Second command should be SEG_LINETO");
   // MULTILINESTRINGs don't work with GeoJSON, see mapnik/mapnik#2518
 }
 
@@ -115,13 +116,13 @@ void test_multipolygon() {
                             scaling_method, scale_denominator, boost::none);
   avecado::tile tile2(_z, _x, _y);
   tile2.from_string(tile.get_data());
-  const mapnik::vector::tile &result = tile2.mapnik_tile();
+  const vector_tile::Tile &result = tile2.mapnik_tile();
 
   test::assert_equal(result.layers_size(), 1, "Wrong number of layers");
-  mapnik::vector::tile_layer layer = result.layers(0);
+  vector_tile::Tile_Layer layer = result.layers(0);
   test::assert_equal(layer.name(), std::string ("point"), "Wrong layer name");
   test::assert_equal(layer.features_size(), 1, "Wrong number of features");
-  mapnik::vector::tile_feature feature = layer.features(0);
+  vector_tile::Tile_Feature feature = layer.features(0);
   test::assert_equal(int(feature.type()), 3, "Wrong feature type");
   // The geometry should be a move to, lineto, moveto, lineto
   test::assert_equal(feature.geometry_size(), 37, "Wrong feature geometry length");

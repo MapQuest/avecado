@@ -3,7 +3,6 @@
 
 #include <mapnik/map.hpp>
 #include <mapnik/feature.hpp>
-#include <mapnik/graphics.hpp>
 #include <mapnik/attribute.hpp>
 #include <mapnik/request.hpp>
 #include <mapnik/agg_renderer.hpp>
@@ -11,7 +10,6 @@
 #include <mapnik/projection.hpp>
 #include <mapnik/scale_denominator.hpp>
 
-#include "mapnik3x_compatibility.hpp"
 #include "vector_tile_datasource.hpp"
 
 namespace avecado {
@@ -25,13 +23,13 @@ namespace {
  * the two can be different due to overzooming.
  */
 void process_layers(std::vector<mapnik::layer> const &layers,
-                    mapnik::vector::tile const &tile,
+                    vector_tile::Tile const &tile,
                     mapnik::request &request,
                     unsigned int z, unsigned int x, unsigned int y,
                     mapnik::projection const &projection,
                     double scale_denom,
                     mapnik::attributes const &variables,
-                    mapnik::agg_renderer<mapnik::image_32> &renderer) {
+                    mapnik::agg_renderer<mapnik::image_rgba8> &renderer) {
   for (auto const &layer : layers) {
 
     if (layer.visible(scale_denom)) {
@@ -45,7 +43,7 @@ void process_layers(std::vector<mapnik::layer> const &layers,
           mapnik::layer layer_copy(layer);
 
           layer_copy.set_datasource(
-            std::make_shared<mapnik::vector::tile_datasource>(
+            std::make_shared<mapnik::vector_tile_impl::tile_datasource>(
               layer_data, x, y, z, request.width()));
 
           std::set<std::string> names;
@@ -62,19 +60,19 @@ void process_layers(std::vector<mapnik::layer> const &layers,
 
 } // anonymous namespace
 
-bool render_vector_tile(mapnik::image_32 &image,
+bool render_vector_tile(mapnik::image_rgba8 &image,
                         tile &avecado_tile,
                         mapnik::Map const &map,
                         double scale_factor,
                         unsigned int buffer_size) {
 
-  typedef mapnik::agg_renderer<mapnik::image_32> renderer_type;
+  typedef mapnik::agg_renderer<mapnik::image_rgba8> renderer_type;
 
   // TODO: find out what these are supposed to be, and where we're supposed to get
   // them from.
   mapnik::attributes variables;
 
-  mapnik::vector::tile const &tile = avecado_tile.mapnik_tile();
+  vector_tile::Tile const &tile = avecado_tile.mapnik_tile();
 
   mapnik::request request(map.width(),
                           map.height(),

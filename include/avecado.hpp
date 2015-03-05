@@ -9,9 +9,6 @@
 #include <mapnik/map.hpp>
 #include <mapnik/image_scaling.hpp>
 
-// forward declaration of mapnik's raster image type
-namespace mapnik { class image_32; }
-
 namespace avecado {
 
 /**
@@ -129,7 +126,7 @@ bool make_vector_tile(tile &tile,
  *     normally have an effect. (TODO: check this is what's
  *     actually happening.)
  */
-bool render_vector_tile(mapnik::image_32 &image,
+bool render_vector_tile(mapnik::image_rgba8 &image,
                         tile &tile,
                         mapnik::Map const &map,
                         double scale_factor,

@@ -7,7 +7,7 @@
 /* Forward declaration of vector tile type. This type is opaque
  * to users of Avecado, but we expose some methods in the
  * exported vector tile object below. */
-namespace mapnik { namespace vector { struct tile; } }
+namespace vector_tile { struct Tile; }
 
 namespace avecado {
 
@@ -31,14 +31,14 @@ public:
   void from_string(const std::string &str);
 
   // Return the in-memory structure of the tile.
-  mapnik::vector::tile const &mapnik_tile() const;
-  mapnik::vector::tile &mapnik_tile();
+  vector_tile::Tile const &mapnik_tile() const;
+  vector_tile::Tile &mapnik_tile();
 
   // coordinates of this tile
   const unsigned int z, x, y;
 
 private:
-  std::unique_ptr<mapnik::vector::tile> m_mapnik_tile;
+  std::unique_ptr<vector_tile::Tile> m_mapnik_tile;
 };
 
 // read the tile from a zero-copy input stream

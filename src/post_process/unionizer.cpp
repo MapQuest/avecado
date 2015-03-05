@@ -130,9 +130,11 @@ namespace {
       const pair<double, double>& xy_distance):
       m_position(position_), m_index(index_), m_parent(feature_), m_directional(directional), m_dx(NAN), m_dy(NAN) {
       //grab the geom
-      mapnik::geometry_type& geometry = m_parent->get_geometry(m_index);
+      const mapnik::geometry_type& geometry = m_parent->get_geometry(m_index);
+      // and adapt it for grabbing vertices
+      mapnik::vertex_adapter path(geometry);
       //grab the vertex
-      geometry.vertex(m_position == FRONT ? 0 : geometry.size() - 1, &m_x, &m_y);
+      path.vertex(m_position == FRONT ? 0 : path.size() - 1, &m_x, &m_y);
 
       //tweak the candidate according to the heuristic
       switch(heuristic_) {
@@ -145,12 +147,12 @@ namespace {
           //object to use to approximate the curve
           curve_approximator appx(m_x, m_y, xy_distance.first, xy_distance.second);
           //pull out the geometry until we've consumed enough
-          for(size_t i = 1; i < geometry.size(); ++i) {
+          for(size_t i = 1; i < path.size(); ++i) {
             //grab this point in the geom
             if(m_position == FRONT)
-              geometry.vertex(i, &x, &y);
+              path.vertex(i, &x, &y);
             else
-              geometry.vertex((geometry.size() - i) - 1, &x, &y);
+              path.vertex((path.size() - i) - 1, &x, &y);
             //if its done consuming then stop
             if(!appx.consume(x, y))
               break;
@@ -202,7 +204,7 @@ namespace {
     //grab some statistics about the geom so we can play match maker
     for (size_t i = 0; i < feature->num_geometries(); ++i) {
       //grab the geom
-      mapnik::geometry_type& geometry = feature->get_geometry(i);
+      const mapnik::geometry_type& geometry = feature->get_geometry(i);
       //we only handle (nontrivial) linestring unioning at present
       if (geometry.type() == mapnik::geometry_type::LineString && geometry.size() > 1) {
         //make placeholders for the front and back
@@ -344,8 +346,8 @@ namespace {
       }
       //add the vertices
       double x, y;
-      mapnik::geometry_type& dst = couple.first.m_parent->get_geometry(couple.first.m_index);
-      mapnik::geometry_type& src = couple.second.m_parent->get_geometry(couple.second.m_index);
+      mapnik::geometry_type& dst = couple.first.m_parent->paths()[couple.first.m_index];
+      mapnik::vertex_adapter src(couple.second.m_parent->get_geometry(couple.second.m_index));
       for(size_t i = 1; i < src.size(); ++i) {
         if(src.vertex(i, &x, &y) != mapnik::SEG_END)
           dst.line_to(x, y);
@@ -359,8 +361,8 @@ namespace {
       if(couple.first.m_position == candidate::BACK) {
         //add the vertices
         double x, y;
-        mapnik::geometry_type& dst = couple.first.m_parent->get_geometry(couple.first.m_index);
-        mapnik::geometry_type& src = couple.second.m_parent->get_geometry(couple.second.m_index);
+        mapnik::geometry_type& dst = couple.first.m_parent->paths()[couple.first.m_index];
+        mapnik::vertex_adapter src(couple.second.m_parent->get_geometry(couple.second.m_index));
         for(size_t i = 1; i < src.size(); ++i) {
           if(src.vertex((src.size() - i) - 1, &x, &y) != mapnik::SEG_END)
             dst.line_to(x, y);
@@ -373,7 +375,7 @@ namespace {
         //add the vertices of the first segment in reverse
         double x, y;
         auto_ptr<mapnik::geometry_type> dst(new mapnik::geometry_type());
-        mapnik::geometry_type& src1 = couple.first.m_parent->get_geometry(couple.first.m_index);
+        mapnik::vertex_adapter src1(couple.first.m_parent->get_geometry(couple.first.m_index));
         for(size_t i = 0; i < src1.size(); ++i) {
           if(src1.vertex((src1.size() - i) - 1, &x, &y) != mapnik::SEG_END){
             //first point must start with move to or will mess up rendering
@@ -384,7 +386,7 @@ namespace {
           }
         }
         //add the vertices of the second segment in normal order
-        mapnik::geometry_type& src2 = couple.second.m_parent->get_geometry(couple.second.m_index);
+        mapnik::vertex_adapter src2(couple.second.m_parent->get_geometry(couple.second.m_index));
         for(size_t i = 1; i < src2.size(); ++i) {
           if(src2.vertex(i, &x, &y) != mapnik::SEG_END)
             dst->line_to(x, y);

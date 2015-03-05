@@ -220,7 +220,7 @@ std::string make_tilejson(const mapnik::Map &map,
   for (auto const &row : params) {
     out << "\"" << row.first << "\":";
     if (array_keys.count(row.first) > 0) {
-      out << "[" << row.second << "]";
+      out << "[" << row.second.get<std::string>() << "]";
     } else {
       mapnik::util::apply_visitor(json_converter(out), row.second);
     }

@@ -9,7 +9,6 @@
 #include <mapnik/wkt/wkt_factory.hpp>
 #include <mapnik/wkt/wkt_grammar.hpp>
 #include <mapnik/wkt/wkt_grammar_impl.hpp>
-#include <mapnik/graphics.hpp>
 #include <mapnik/symbolizer.hpp>
 #include <mapnik/symbolizer_keys.hpp>
 #include <mapnik/symbolizer_utils.hpp>
@@ -23,7 +22,7 @@ namespace {
 
 void test_empty() {
   mapnik::color background_colour(0x8c, 0xc6, 0x3f);
-  mapnik::image_32 image(256, 256);
+  mapnik::image_rgba8 image(256, 256);
   avecado::tile tile(0, 0, 0);
   mapnik::Map map(256, 256);
   map.set_background(background_colour);
@@ -32,10 +31,10 @@ void test_empty() {
 
   test::assert_equal<bool>(status, true, "should have rendered an image");
 
-  const unsigned int rgba = background_colour.rgba();
+  const rgba8_t::type rgba = background_colour.rgba();
   for (unsigned int y = 0; y < image.height(); ++y) {
     for (unsigned int x = 0; x < image.width(); ++x) {
-      test::assert_equal<unsigned int>(image.data()(x, y), rgba, "should have set background colour");
+      test::assert_equal<rgba8_t::type>(image(x, y), rgba, "should have set background colour");
     }
   }
 }
@@ -43,7 +42,7 @@ void test_empty() {
 void test_full() {
   mapnik::color background_colour(0x8c, 0xc6, 0x3f);
   mapnik::color fill_colour(0x51, 0x21, 0x4d);
-  mapnik::image_32 image(256, 256);
+  mapnik::image_rgba8 image(256, 256);
 
   mapnik::Map map(256, 256);
   {
@@ -68,12 +67,12 @@ void test_full() {
 
   avecado::tile tile(0, 0, 0);
   {
-    mapnik::vector::tile_layer *layer = tile.mapnik_tile().add_layers();
+    vector_tile::Tile_Layer *layer = tile.mapnik_tile().add_layers();
     layer->set_version(1);
     layer->set_name("layer");
-    mapnik::vector::tile_feature *feature = layer->add_features();
+    vector_tile::Tile_Feature *feature = layer->add_features();
     feature->set_id(1);
-    feature->set_type(mapnik::vector::tile::Polygon);
+    feature->set_type(vector_tile::Tile::POLYGON);
     // this strange sequence of numbers comes from cranking the mapnik vector
     // tile geometry algorithm by hand on a [-180 -90, 180 90] box.
     for (uint32_t g : {9, 0, 128, 26, 512, 0, 0, 256, 511, 0, 7}) {
@@ -86,10 +85,10 @@ void test_full() {
 
   test::assert_equal<bool>(status, true, "should have rendered an image");
 
-  const unsigned int rgba = fill_colour.rgba();
+  const rgba8_t::type rgba = fill_colour.rgba();
   for (unsigned int y = 0; y < image.height(); ++y) {
     for (unsigned int x = 0; x < image.width(); ++x) {
-      test::assert_equal<unsigned int>(image.data()(x, y), rgba, "should have set fill colour");
+      test::assert_equal<rgba8_t::type>(image(x, y), rgba, "should have set fill colour");
     }
   }
 }
