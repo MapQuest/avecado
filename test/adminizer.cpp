@@ -53,7 +53,8 @@ void assert_line_geom_equal(mapnik::feature_ptr &feat,
   auto itr = coords.begin();
   auto end = coords.end();
   auto expect_cmd = mapnik::SEG_MOVETO;
-  geom.rewind(0);
+  mapnik::vertex_adapter path(geom);
+  path.rewind(0);
 
   double expect_x = -1, expect_y = -1, actual_x = -1, actual_y = -1;
 
@@ -62,7 +63,7 @@ void assert_line_geom_equal(mapnik::feature_ptr &feat,
     if (itr == end) { break; }
     expect_y = *itr++;
 
-    auto actual_cmd = geom.vertex(&actual_x, &actual_y);
+    auto actual_cmd = path.vertex(&actual_x, &actual_y);
 
     test::assert_equal<unsigned int>(actual_cmd, expect_cmd, "command");
     test::assert_equal<double>(actual_x, expect_x, "x");
@@ -86,14 +87,15 @@ void assert_points_geom_equal(mapnik::feature_ptr &feat,
 
   auto itr = coords.begin();
   auto end = coords.end();
-  geom.rewind(0);
+  mapnik::vertex_adapter path(geom);
+  path.rewind(0);
 
   double expect_x = -1, expect_y = -1, actual_x = -1, actual_y = -1;
 
   while (itr != end) {
     boost::tie(expect_x, expect_y) = *itr++;
 
-    unsigned int actual_cmd = geom.vertex(&actual_x, &actual_y);
+    unsigned int actual_cmd = path.vertex(&actual_x, &actual_y);
 
     test::assert_equal<unsigned int>(actual_cmd, mapnik::SEG_MOVETO, "command");
     test::assert_equal<double>(actual_x, expect_x, "x");
@@ -120,8 +122,9 @@ void assert_wkt_geom_equal(mapnik::feature_ptr &feat, const std::string &wkt) {
   // until the test has a spurious failure because of re-ordering, let's
   // just assume the ordering remains the same.
   for (size_t i = 0; i < num_paths; ++i) {
-    const geometry_type &actual = actual_paths[i];
-    const geometry_type &expected = expected_paths[i];
+    const geometry_type &actual_geom = actual_paths[i];
+    const geometry_type &expected_geom = expected_paths[i];
+    mapnik::vertex_adapter actual(actual_geom), expected(expected_geom);
 
     test::assert_equal<geometry_type::types>(actual.type(), expected.type(),
                                              "geometry types");
@@ -322,11 +325,12 @@ void test_intersection_mode_split() {
       test::assert_equal<geometry_type::types>(geom.type(), geometry_type::LineString,
                                                "geometry should be LineString");
 
-      geom.rewind(0);
+      mapnik::vertex_adapter path(geom);
+      path.rewind(0);
       double x = 0, y = 0;
       unsigned int cmd = 0;
 
-      while ((cmd = geom.vertex(&x, &y)) != mapnik::SEG_END) {
+      while ((cmd = path.vertex(&x, &y)) != mapnik::SEG_END) {
         // we're expecting segments running L->R starting at x = -1, 0 & 3
         if (cmd == mapnik::SEG_MOVETO) {
           if (std::abs(x + 1.0) < 1.0e-6) {
@@ -400,11 +404,12 @@ void test_intersection_mode_split_first() {
       test::assert_equal<geometry_type::types>(geom.type(), geometry_type::LineString,
                                                "geometry should be LineString");
 
-      geom.rewind(0);
+      mapnik::vertex_adapter path(geom);
+      path.rewind(0);
       double x = 0, y = 0;
       unsigned int cmd = 0;
 
-      while ((cmd = geom.vertex(&x, &y)) != mapnik::SEG_END) {
+      while ((cmd = path.vertex(&x, &y)) != mapnik::SEG_END) {
         // we're expecting segments running L->R starting at x = -1, 0, 3 & 4
         if (cmd == mapnik::SEG_MOVETO) {
           if (std::abs(x + 1.0) < 1.0e-6) {
@@ -490,11 +495,12 @@ void test_intersection_mode_split_collect() {
       test::assert_equal<geometry_type::types>(geom.type(), geometry_type::LineString,
                                                "geometry should be LineString");
 
-      geom.rewind(0);
+      mapnik::vertex_adapter path(geom);
+      path.rewind(0);
       double x = 0, y = 0;
       unsigned int cmd = 0;
 
-      while ((cmd = geom.vertex(&x, &y)) != mapnik::SEG_END) {
+      while ((cmd = path.vertex(&x, &y)) != mapnik::SEG_END) {
         // we're expecting segments running L->R starting at x = -1, 0, 1, 3 & 4
         if (cmd == mapnik::SEG_MOVETO) {
           if (std::abs(x + 1.0) < 1.0e-6) {

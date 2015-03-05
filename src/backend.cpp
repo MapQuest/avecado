@@ -3,7 +3,7 @@
 
 namespace avecado {
 
-backend::backend(mapnik::vector::tile & tile,
+backend::backend(vector_tile::Tile & tile,
                  unsigned path_multiplier,
                  mapnik::Map const& map,
                  boost::optional<const post_processor &> pp)
@@ -32,7 +32,7 @@ void backend::stop_tile_layer() {
       m_current_image_buffer.reset();
     }
     for (size_t i = 0; i < feature->num_geometries(); i++) {
-      mapnik::geometry_type const& path = feature->get_geometry(i);
+      mapnik::vertex_adapter path(feature->get_geometry(i));
       // See hack note about tolerance below in add_path(...)
       m_pbf.add_path(path, m_tolerance, path.type());
     }
@@ -51,8 +51,8 @@ void backend::start_tile_feature(mapnik::feature_impl const& feature) {
   mapnik::feature_kv_iterator itr = feature.begin();
   mapnik::feature_kv_iterator end = feature.end();
   for ( ;itr!=end; ++itr) {
-    std::string const& name = MAPNIK_GET<0>(*itr);
-    mapnik::value const& val = MAPNIK_GET<1>(*itr);
+    std::string const& name = std::get<0>(*itr);
+    mapnik::value const& val = std::get<1>(*itr);
     m_current_feature->put_new(name, val);
   }
 }

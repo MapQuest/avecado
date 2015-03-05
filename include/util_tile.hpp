@@ -3,7 +3,7 @@
 
 #include "tile.hpp"
 
-namespace mapnik { namespace vector { struct tile_layer; } }
+namespace vector_tile { struct Tile_Layer; }
 
 namespace avecado { namespace util {
 
@@ -16,7 +16,7 @@ namespace avecado { namespace util {
  * will be true of all descendants and the subtree can be
  * skipped.
  */
-bool is_interesting(const mapnik::vector::tile_layer &);
+bool is_interesting(const vector_tile::Tile_Layer &);
 
 } } // namespace avecado::util
 

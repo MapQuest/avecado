@@ -178,8 +178,9 @@ std::string to_string(const mapnik::geometry_type& a) {
   std::string result = "{";
   //for each vertex
   double ax=0, ay=1;
-  for(size_t i = 0; i < a.size(); ++i) {
-    a.vertex(i, &ax, &ay);
+  mapnik::vertex_adapter va(a);
+  for(size_t i = 0; i < va.size(); ++i) {
+    va.vertex(i, &ax, &ay);
     result += (boost::format("[%3.1f, %3.1f],") % ax % ay).str();
   }
   if(result.back() == ',')
@@ -256,11 +257,12 @@ bool equal(const mapnik::geometry_type& a, const mapnik::geometry_type& b) {
     return false;
 
   //check every vertex
+  mapnik::vertex_adapter va(a), vb(b);
   double ax=0, ay=1, bx=2, by=3;
-  for(size_t i = 0; i < a.size(); ++i) {
-    a.vertex(i, &ax, &ay);
-    b.vertex(i, &bx, &by);
-    if(ax != bx || ay != by)
+  for(size_t i = 0; i < va.size(); ++i) {
+    int cmda = va.vertex(i, &ax, &ay);
+    int cmdb = vb.vertex(i, &bx, &by);
+    if(cmda != cmdb || ax != bx || ay != by)
       return false;
   }
 

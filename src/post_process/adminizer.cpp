@@ -179,11 +179,12 @@ multi_point_2d make_boost_point(const mapnik::geometry_type &geom) {
   multi_point_2d points;
   double x = 0, y = 0;
 
-  geom.rewind(0);
+  mapnik::vertex_adapter path(geom);
+  path.rewind(0);
 
   unsigned int cmd = mapnik::SEG_END;
 
-  while ((cmd = geom.vertex(&x, &y)) != mapnik::SEG_END) {
+  while ((cmd = path.vertex(&x, &y)) != mapnik::SEG_END) {
     points.push_back(bg::make<point_2d>(x, y));
   }
   return points;
@@ -193,10 +194,11 @@ multi_linestring_2d make_boost_linestring(const mapnik::geometry_type &geom) {
   multi_linestring_2d line;
   double x = 0, y = 0, prev_x = 0, prev_y = 0;
 
-  geom.rewind(0);
+  mapnik::vertex_adapter path(geom);
+  path.rewind(0);
 
   unsigned int cmd = mapnik::SEG_END;
-  while ((cmd = geom.vertex(&x, &y)) != mapnik::SEG_END) {
+  while ((cmd = path.vertex(&x, &y)) != mapnik::SEG_END) {
 
     if (cmd == mapnik::SEG_MOVETO) {
       line.push_back(linestring_2d());
@@ -222,10 +224,11 @@ polygon_2d make_boost_polygon(const mapnik::geometry_type &geom) {
   double x = 0, y = 0, prev_x = 0, prev_y = 0, first_x = 0, first_y = 0;
   unsigned int ring_count = 0;
 
-  geom.rewind(0);
+  mapnik::vertex_adapter path(geom);
+  path.rewind(0);
 
   unsigned int cmd = mapnik::SEG_END;
-  while ((cmd = geom.vertex(&x, &y)) != mapnik::SEG_END) {
+  while ((cmd = path.vertex(&x, &y)) != mapnik::SEG_END) {
 
     if (cmd == mapnik::SEG_MOVETO) {
       if (ring_count == 0) {

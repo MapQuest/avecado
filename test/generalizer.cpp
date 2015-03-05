@@ -52,11 +52,13 @@ void test_generalize_to_straight() {
   test::assert_equal<size_t>(geom.size(), 2);
   double x = -1, y = -1;
 
-  test::assert_equal<unsigned int>(geom.vertex(0, &x, &y), mapnik::SEG_MOVETO);
+  mapnik::vertex_adapter path(geom);
+
+  test::assert_equal<unsigned int>(path.vertex(0, &x, &y), mapnik::SEG_MOVETO);
   test::assert_equal<double>(x, 0);
   test::assert_equal<double>(y, 0);
 
-  test::assert_equal<unsigned int>(geom.vertex(1, &x, &y), mapnik::SEG_LINETO);
+  test::assert_equal<unsigned int>(path.vertex(1, &x, &y), mapnik::SEG_LINETO);
   test::assert_equal<double>(x, 4);
   test::assert_equal<double>(y, 0);
 }

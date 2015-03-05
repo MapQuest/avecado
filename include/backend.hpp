@@ -1,9 +1,6 @@
 #ifndef AVECADO_BACKEND_HPP
 #define AVECADO_BACKEND_HPP
 
-#include "mapnik3x_compatibility.hpp"
-#include MAPNIK_VARIANT_INCLUDE
-
 // mapnik
 #include <mapnik/feature.hpp>
 #include <mapnik/value_types.hpp>
@@ -22,7 +19,7 @@ class post_processor;
 
 class backend {
 public:
-  backend(mapnik::vector::tile & tile,
+  backend(vector_tile::Tile & tile,
           unsigned path_multiplier,
           mapnik::Map const& map,
           boost::optional<const post_processor &> pp);
@@ -38,7 +35,7 @@ public:
   void add_tile_feature_raster(std::string const& image_buffer);
 
   template <typename T>
-  inline unsigned add_path(T & path, unsigned tolerance, MAPNIK_GEOM_TYPE type) {
+  inline unsigned add_path(T & path, unsigned tolerance, mapnik::geometry_type::types type) {
     mapnik::geometry_type * geom = new mapnik::geometry_type(type);
     double x, y;
     unsigned command, count = 0;
@@ -58,7 +55,7 @@ public:
   }
 
 private:
-  mapnik::vector::backend_pbf m_pbf;
+  mapnik::vector_tile_impl::backend_pbf m_pbf;
   mapnik::Map const& m_map;
   unsigned int m_tolerance;
   boost::optional<const post_processor &> m_post_processor;

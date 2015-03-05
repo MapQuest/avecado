@@ -233,7 +233,7 @@ void test_tile_is_not_compressed() {
   // because it needs to avoid any automatic ungzipping.
   stream.seekp(0);
   google::protobuf::io::IstreamInputStream gstream(&stream);
-  mapnik::vector::tile tile;
+  vector_tile::Tile tile;
   bool read_ok = tile.ParseFromZeroCopyStream(&gstream);
   test::assert_equal<bool>(read_ok, true, "tile was plain PBF");
 }

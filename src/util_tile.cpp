@@ -41,7 +41,7 @@ struct minmax {
 
 } // anonymous namespace
 
-bool is_interesting(const mapnik::vector::tile_layer &l) {
+bool is_interesting(const vector_tile::Tile_Layer &l) {
   // empty features are not interesting
   if (l.features_size() == 0) {
     return false;
@@ -54,7 +54,7 @@ bool is_interesting(const mapnik::vector::tile_layer &l) {
 
   // now we know there's one feature, we can see if the
   // geometry is interesting, which means decoding the tile.
-  const mapnik::vector::tile_feature &f = l.features(0);
+  const vector_tile::Tile_Feature &f = l.features(0);
 
   const int32_t extent = l.extent();
   const uint32_t geometry_size = f.geometry_size();
