@@ -122,6 +122,14 @@ struct json_converter : public mapnik::util::static_visitor<> {
     out << "null";
   }
 
+  void operator()(const mapnik::value_bool &b) const {
+    if (b) {
+      out << "true";
+    } else {
+      out << "false";
+    }
+  }
+
   void operator()(const mapnik::value_integer &i) const {
     out << i;
   }
@@ -138,6 +146,10 @@ struct json_converter : public mapnik::util::static_visitor<> {
 struct force_integer : public mapnik::util::static_visitor<mapnik::value_integer> {
   mapnik::value_integer operator()(const mapnik::value_null &) const {
     return mapnik::value_integer(0);
+  }
+
+  mapnik::value_integer operator()(const mapnik::value_bool &b) const {
+    return mapnik::value_integer(b ? 1 : 0);
   }
 
   mapnik::value_integer operator()(const mapnik::value_integer &i) const {
