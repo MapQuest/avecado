@@ -31,10 +31,10 @@ void test_empty() {
 
   test::assert_equal<bool>(status, true, "should have rendered an image");
 
-  const rgba8_t::type rgba = background_colour.rgba();
+  const mapnik::rgba8_t::type rgba = background_colour.rgba();
   for (unsigned int y = 0; y < image.height(); ++y) {
     for (unsigned int x = 0; x < image.width(); ++x) {
-      test::assert_equal<rgba8_t::type>(image(x, y), rgba, "should have set background colour");
+      test::assert_equal<mapnik::rgba8_t::type>(image(x, y), rgba, "should have set background colour");
     }
   }
 }
@@ -85,10 +85,10 @@ void test_full() {
 
   test::assert_equal<bool>(status, true, "should have rendered an image");
 
-  const rgba8_t::type rgba = fill_colour.rgba();
+  const mapnik::rgba8_t::type rgba = fill_colour.rgba();
   for (unsigned int y = 0; y < image.height(); ++y) {
     for (unsigned int x = 0; x < image.width(); ++x) {
-      test::assert_equal<rgba8_t::type>(image(x, y), rgba, "should have set fill colour");
+      test::assert_equal<mapnik::rgba8_t::type>(image(x, y), rgba, "should have set fill colour");
     }
   }
 }
