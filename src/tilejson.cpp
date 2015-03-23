@@ -4,6 +4,8 @@
 
 #include <boost/format.hpp>
 #include <boost/algorithm/string/predicate.hpp>
+#include <boost/iostreams/filtering_streambuf.hpp>
+#include <boost/iostreams/filter/gzip.hpp>
 #include <boost/property_tree/json_parser.hpp>
 
 #include <curl/curl.h>
@@ -74,6 +76,25 @@ struct http_client {
 
 #undef CURL_SETOPT
 
+// checks the gzip header magic to see if this file looks like a gzip stream.
+// there are other reasons for files to start with [0x1f, 0x8b], but we are
+// expecting, if not a gzipped file, then a JSON file which isn't allowed to
+// start with an escape char like 0x1f.
+bool is_gzip_stream(std::stringstream &data) {
+  std::streampos pos = data.tellg();
+
+  // go read the first two bytes, which should contain the header magic
+  // if the file is really gzipped.
+  unsigned char h1, h2;
+  data >> h1 >> h2;
+  bool is_maybe_gzip = data.good() && (h1 == 0x1f) && (h2 == 0x8b);
+
+  // reset to original position
+  data.seekg(pos);
+
+  return is_maybe_gzip;
+}
+
 } // anonymous namespace
 
 namespace avecado {
@@ -92,7 +113,19 @@ bpt::ptree tilejson(const std::string &uri) {
   }
 
   bpt::ptree conf;
-  bpt::read_json(data, conf);
+  // check for gzip magic. if it's present, then we'll need to decompress the
+  // data before we can pass it to the property tree decoder.
+  if (is_gzip_stream(data)) {
+    boost::iostreams::filtering_streambuf<boost::iostreams::input> in;
+    in.push(boost::iostreams::gzip_decompressor());
+    in.push(data);
+    std::istream converted_in(&in);
+    bpt::read_json(converted_in, conf);
+
+  } else {
+    bpt::read_json(data, conf);
+  }
+
   return conf;
 }
 
