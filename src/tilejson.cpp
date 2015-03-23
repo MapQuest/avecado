@@ -57,6 +57,10 @@ struct http_client {
     CURL_SETOPT(m_curl, CURLOPT_WRITEDATA, &stream);
     CURL_SETOPT(m_curl, CURLOPT_ERRORBUFFER, &m_error_buffer[0]);
 
+    // get curl to send the Accept-Encoding header, and also transparently
+    // handle decoding before passing the data back to us.
+    CURL_SETOPT(m_curl, CURLOPT_ACCEPT_ENCODING, "gzip");
+
     CURLcode res = curl_easy_perform(m_curl);
     if (res != CURLE_OK) {
       throw std::runtime_error((boost::format("cURL operation failed: %1%") % m_error_buffer).str());
