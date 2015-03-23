@@ -24,6 +24,16 @@ void test_tilejson_fetch() {
   test::assert_equal<int>(conf.get<int>("minzoom"), 0, "minzoom");
 }
 
+void test_tilejson_fetch_gz() {
+  char cwd[PATH_MAX];
+  if (getcwd(&cwd[0], PATH_MAX) == NULL) { throw std::runtime_error("getcwd failed"); }
+  bpt::ptree conf = avecado::tilejson((boost::format("file://%1%/test/tilejson.json.gz") % cwd).str());
+
+  test::assert_equal<int>(conf.get<int>("maskLevel"), 8, "maskLevel");
+  test::assert_equal<int>(conf.get<int>("maxzoom"), 15, "maxzoom");
+  test::assert_equal<int>(conf.get<int>("minzoom"), 0, "minzoom");
+}
+
 // TODO: this is a pretty awful test, and isn't able to dig any deeper than
 // the overzoom, not even to inspect it. might need an upgrade to how the
 // built-in HTTP server works so that we can do more with these tests...
@@ -186,6 +196,7 @@ int main() {
 
 #define RUN_TEST(x) { tests_failed += test::run(#x, &(x)); }
   RUN_TEST(test_tilejson_fetch);
+  RUN_TEST(test_tilejson_fetch_gz);
   RUN_TEST(test_tilejson_parse);
   RUN_TEST(test_tilejson_generate_numeric);
   RUN_TEST(test_tilejson_generate_numeric_force);
