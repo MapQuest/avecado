@@ -254,7 +254,7 @@ reply reply::stock_reply(reply::status_type status)
   rep.headers[1].value = "text/html";
   rep.headers[2].name = "Access-Control-Allow-Origin";
   rep.headers[2].value = "*";
-  rep.headers[3].name= "access-control-allow-methods";
+  rep.headers[3].name= "Access-Control-Allow-Methods";
   rep.headers[3].value = "GET";
   return rep;
 }
