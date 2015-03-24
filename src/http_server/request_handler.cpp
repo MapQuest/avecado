@@ -101,7 +101,7 @@ void request_handler::handle_request_json(const request &req, reply &rep) {
   rep.headers[1].value = "application/json";
   rep.headers[2].name = "Access-Control-Allow-Origin";
   rep.headers[2].value = "*";
-  rep.headers[3].name= "access-control-allow-methods";
+  rep.headers[3].name= "Access-Control-Allow-Methods";
   rep.headers[3].value = "GET";
   rep.headers[4].name = "Cache-control";
   rep.headers[4].value = max_age_value_;
@@ -163,7 +163,7 @@ void request_handler::handle_request_tile(const request &req, reply &rep,
   rep.headers[1].value = "application/octet-stream";
   rep.headers[2].name = "Access-Control-Allow-Origin";
   rep.headers[2].value = "*";
-  rep.headers[3].name= "access-control-allow-methods";
+  rep.headers[3].name= "Access-Control-Allow-Methods";
   rep.headers[3].value = "GET";
   rep.headers[4].name = "Cache-control";
   rep.headers[4].value = max_age_value_;
