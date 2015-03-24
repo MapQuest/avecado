@@ -156,7 +156,7 @@ void request_handler::handle_request_tile(const request &req, reply &rep,
   rep.status = reply::ok;
   rep.is_hard_error = false;
   rep.content = painted ? tile.get_data(options_.compression_level) : "";
-  rep.headers.resize(6);
+  rep.headers.resize(7);
   rep.headers[0].name = "Content-Length";
   rep.headers[0].value = boost::lexical_cast<std::string>(rep.content.size());
   rep.headers[1].name = "Content-Type";
@@ -169,6 +169,16 @@ void request_handler::handle_request_tile(const request &req, reply &rep,
   rep.headers[4].value = max_age_value_;
   rep.headers[5].name = "Date";
   rep.headers[5].value = make_http_date();
+  // make sure that the response header is set appropriately for the level
+  // of compression that we are applying, so that the client doesn't have
+  // to inspect the file and try to figure out if it's supposed to be
+  // compressed or not.
+  rep.headers[6].name = "Content-Encoding";
+  if (options_.compression_level == 0) {
+    rep.headers[6].value = "identity";
+  } else {
+    rep.headers[6].value = "gzip";
+  }
 }
 
 bool request_handler::url_decode(const std::string& in, std::string& out)

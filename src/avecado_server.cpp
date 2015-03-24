@@ -71,7 +71,7 @@ int main(int argc, char *argv[]) {
      "Maximum age, in seconds, to cache generated files for.")
     ("compression-level,z", bpo::value<int>(&srv_opts.compression_level)
      ->default_value(-1),
-     "Zlib compression level: 0 means no compression, 1 is fastest, "
+     "Gzip compression level: 0 means no compression, 1 is fastest, "
      "9 is best compression. Leave as -1 to use the default.")
     // positional arguments
     ("map-file", bpo::value<std::string>(&srv_opts.map_file), "Mapnik XML input file.")
