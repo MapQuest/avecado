@@ -202,12 +202,10 @@ void test_tile_is_compressed() {
 
   std::string data = stream.str();
   test::assert_greater_or_equal<size_t>(data.size(), 2, "tile size");
-  // see http://tools.ietf.org/html/rfc1950 for header magic values
-  test::assert_equal<uint32_t>(uint8_t(data[0]) & 0xf, 8, "compression method = deflate");
-  test::assert_less_or_equal<uint32_t>(uint8_t(data[0]) >> 4, 7, "window size <= 7");
-  test::assert_equal<uint32_t>(
-    (uint32_t(uint8_t(data[0])) * 256 + uint32_t(uint8_t(data[1]))) % 31,
-    0, "FCHECK checksum2");
+  // see https://tools.ietf.org/html/rfc1952#page-6 for header magic values
+  test::assert_equal<uint32_t>(uint8_t(data[0]), 0x1f, "gzip header magic ID1");
+  test::assert_equal<uint32_t>(uint8_t(data[1]), 0x8b, "gzip header magic ID2");
+  test::assert_equal<uint32_t>(uint8_t(data[2]), 0x08, "gzip compression method = deflate");
 }
 
 void test_tile_is_not_compressed() {
