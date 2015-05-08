@@ -732,10 +732,10 @@ http::http(std::vector<std::string> &&patterns)
 http::~http() {
 }
 
-std::future<fetch_response> http::operator()(int z, int x, int y) {
+std::future<fetch_response> http::operator()(const avecado::request &r) {
   std::promise<fetch_response> promise;
   std::future<fetch_response> future = promise.get_future();
-  m_impl->start_request(std::move(promise), z, x, y);
+  m_impl->start_request(std::move(promise), r.z, r.x, r.y);
   return future;
 }
 

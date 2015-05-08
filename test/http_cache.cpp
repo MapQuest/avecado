@@ -71,7 +71,7 @@ void test_cache_once() {
     server_guard guard("test/empty_map_file.xml", counter);
 
     avecado::fetch::http fetch(guard.base_url(), "pbf");
-    avecado::fetch_response response(fetch(0, 0, 0).get());
+    avecado::fetch_response response(fetch(avecado::request(0, 0, 0)).get());
 
     test::assert_equal<bool>(response.is_left(), true, "should fetch tile OK");
     test::assert_equal<int>(response.left()->mapnik_tile().layers_size(), 0, "should have no layers");
@@ -89,12 +89,12 @@ void test_cache_twice() {
     fetch.enable_cache((dir.path() / "cache").native());
 
     {
-      avecado::fetch_response response(fetch(0, 0, 0).get());
+      avecado::fetch_response response(fetch(avecado::request(0, 0, 0)).get());
       test::assert_equal<bool>(response.is_left(), true, "should fetch tile OK");
       test::assert_equal<int>(response.left()->mapnik_tile().layers_size(), 0, "should have no layers");
     }
     {
-      avecado::fetch_response response(fetch(0, 0, 0).get());
+      avecado::fetch_response response(fetch(avecado::request(0, 0, 0)).get());
       test::assert_equal<bool>(response.is_left(), true, "should fetch tile OK");
       test::assert_equal<int>(response.left()->mapnik_tile().layers_size(), 0, "should have no layers");
     }
@@ -112,7 +112,7 @@ void test_cache_disable() {
     fetch.enable_cache((dir.path() / "cache").native());
 
     {
-      avecado::fetch_response response(fetch(0, 0, 0).get());
+      avecado::fetch_response response(fetch(avecado::request(0, 0, 0)).get());
       test::assert_equal<bool>(response.is_left(), true, "should fetch tile OK");
       test::assert_equal<int>(response.left()->mapnik_tile().layers_size(), 0, "should have no layers");
     }
@@ -122,7 +122,7 @@ void test_cache_disable() {
     fetch.disable_cache();
 
     {
-      avecado::fetch_response response(fetch(0, 0, 0).get());
+      avecado::fetch_response response(fetch(avecado::request(0, 0, 0)).get());
       test::assert_equal<bool>(response.is_left(), true, "should fetch tile OK");
       test::assert_equal<int>(response.left()->mapnik_tile().layers_size(), 0, "should have no layers");
     }

@@ -18,7 +18,7 @@ struct http : public fetcher {
 
   virtual ~http();
 
-  std::future<fetch_response> operator()(int z, int x, int y);
+  std::future<fetch_response> operator()(const request &);
 
   // enable local caching of tiles. this is disabled by default
   // and this method will throw an exception if caching has not

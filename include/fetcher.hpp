@@ -37,6 +37,16 @@ struct fetch_error {
 
 typedef either<std::unique_ptr<tile>, fetch_error> fetch_response;
 
+/* Request objects collect together the parameters needed
+ * to specify a tile request, such as its (z, x, y)
+ * location.
+ */
+struct request {
+  request(int z_, int x_, int y_);
+
+  int z, x, y;
+};
+
 /* Interface for objects which fetch tiles from sources.
  */
 struct fetcher {
@@ -44,7 +54,7 @@ struct fetcher {
 
    // fetches a tile from the source, returning either a
    // tile which contains the (z, x, y) tile or an error.
-  virtual std::future<fetch_response> operator()(int z, int x, int y) = 0;
+  virtual std::future<fetch_response> operator()(const request &) = 0;
 };
 
 } // namespace avecado

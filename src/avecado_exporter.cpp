@@ -744,7 +744,8 @@ int make_raster(int argc, char *argv[]) {
     bpt::ptree conf = avecado::tilejson(tilejson_uri);
     std::unique_ptr<avecado::fetcher> fetcher = avecado::make_tilejson_fetcher(conf);
 
-    avecado::fetch_response response = (*fetcher)(z, x, y).get();
+    avecado::request req(z, x, y);
+    avecado::fetch_response response = (*fetcher)(req).get();
 
     if (response.is_left()) {
       mapnik::image_rgba8 image(width, height);
