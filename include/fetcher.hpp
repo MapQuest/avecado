@@ -11,11 +11,15 @@
 
 namespace avecado {
 
-/* Status codes for fetch errors. Because they're an easy short-hand, we
+/* Status codes for fetches. Because they're an easy short-hand, we
  * model them on HTTP status codes. This means it should be pretty easy
  * to figure out at a glance what the status is when debugging.
  */
 enum class fetch_status : std::uint16_t {
+  /* for when the requested tile has not been modified. this will only
+   * be returned for requests which set either ETag or If-Modified-Since
+   */
+  not_modified = 304,
   /* for when the request was malformed in some way, e.g: x or y out of
    * range for the given z. */
   bad_request = 400,
@@ -29,13 +33,15 @@ enum class fetch_status : std::uint16_t {
   not_implemented = 501,
 };
 
-/* Describes the error encountered while fetching a tile.
+/* Describes the non-content status encountered while fetching a tile.
+ * This isn't necessarily an error: it could be a 304 Not Modified
+ * response.
  */
-struct fetch_error {
+struct fetch_result {
   fetch_status status;
 };
 
-typedef either<std::unique_ptr<tile>, fetch_error> fetch_response;
+typedef either<std::unique_ptr<tile>, fetch_result> fetch_response;
 
 /* Request objects collect together the parameters needed
  * to specify a tile request, such as its (z, x, y)

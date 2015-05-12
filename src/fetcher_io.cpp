@@ -2,13 +2,14 @@
 
 namespace avecado {
 
-std::ostream &operator<<(std::ostream &out, const fetch_error & error) {
-  out << "Fetch error: " << error.status;
+std::ostream &operator<<(std::ostream &out, const fetch_result &result) {
+  out << "Fetch result: " << result.status;
   return out;
 }
 
 std::ostream &operator<<(std::ostream &out, fetch_status status) {
   switch (status) {
+  case fetch_status::not_modified:    out << "Not Modified";    break;
   case fetch_status::bad_request:     out << "Bad Request";     break;
   case fetch_status::not_found:       out << "Not Found";       break;
   case fetch_status::server_error:    out << "Server Error";    break;

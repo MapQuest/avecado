@@ -422,7 +422,7 @@ private:
   void handle_response(CURLcode res, CURL *curl);
   void free_handle(CURL *curl);
   CURL *new_handle();
-  boost::optional<fetch_error> new_request(CURL *curl, request *r);
+  boost::optional<fetch_result> new_request(CURL *curl, request *r);
   std::string url_for(unsigned int z, unsigned int x, unsigned int y) const;
   bool setup_response_tile(fetch_response &response, std::unique_ptr<std::stringstream> &stream, unsigned int z, unsigned int x, unsigned int y);
 
@@ -449,7 +449,7 @@ http::impl::~impl() {
 
 void http::impl::start_request(std::promise<fetch_response> &&promise, int z, int x, int y) {
   if ((z < 0) || (x < 0) || (y < 0)) {
-    fetch_error err;
+    fetch_result err;
     err.status = fetch_status::not_found;
     fetch_response response(err);
     promise.set_value(std::move(response));
@@ -466,7 +466,7 @@ void http::impl::start_request(std::promise<fetch_response> &&promise, int z, in
       m_new_requests.emplace_back(std::move(req));
 
     } else {
-      fetch_error err;
+      fetch_result err;
       err.status = fetch_status::server_error;
       fetch_response response(err);
 
@@ -492,7 +492,7 @@ void http::impl::thread_func() {
     for (auto &ptr : requests) {
       request *req = ptr.release();
       CURL *curl = new_handle();
-      boost::optional<fetch_error> err = new_request(curl, req);
+      boost::optional<fetch_result> err = new_request(curl, req);
 
       if (err) {
         req->promise.set_value(fetch_response(*err));
@@ -598,15 +598,15 @@ void http::impl::handle_response(CURLcode res, CURL *curl) {
   request *req = nullptr;
   CURLcode res2 = curl_easy_getinfo(curl, CURLINFO_PRIVATE, &req);
 
-  fetch_error err;
-  err.status = fetch_status::server_error;
-  fetch_response response(err);
+  fetch_result fres;
+  fres.status = fetch_status::server_error;
+  fetch_response response(fres);
 
   if (res != CURLE_OK) {
     if (res == CURLE_REMOTE_FILE_NOT_FOUND) {
-      err.status = fetch_status::not_found;
+      fres.status = fetch_status::not_found;
     }
-    response = fetch_response(err);
+    response = fetch_response(fres);
 
   } else {
     long status_code = 0;
@@ -625,13 +625,14 @@ void http::impl::handle_response(CURLcode res, CURL *curl) {
 
     } else {
       switch (status_code) {
-      case 400: err.status = fetch_status::bad_request; break;
-      case 404: err.status = fetch_status::not_found; break;
-      case 501: err.status = fetch_status::not_implemented; break;
+      case 304: fres.status = fetch_status::not_modified; break;
+      case 400: fres.status = fetch_status::bad_request; break;
+      case 404: fres.status = fetch_status::not_found; break;
+      case 501: fres.status = fetch_status::not_implemented; break;
       default:
-        err.status = fetch_status::server_error;
+        fres.status = fetch_status::server_error;
       }
-      response = fetch_response(err);
+      response = fetch_response(fres);
     }
   }
 
@@ -677,8 +678,8 @@ CURL *http::impl::new_handle() {
   return handle;
 }
 
-boost::optional<fetch_error> http::impl::new_request(CURL *curl, request *r) {
-  fetch_error err;
+boost::optional<fetch_result> http::impl::new_request(CURL *curl, request *r) {
+  fetch_result err;
   err.status = fetch_status::server_error;
 
   CURLcode res = curl_easy_setopt(curl, CURLOPT_URL, r->url.c_str());

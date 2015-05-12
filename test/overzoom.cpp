@@ -22,7 +22,7 @@ struct test_fetcher : public avecado::fetcher {
       response.set_value(avecado::fetch_response(std::move(tile)));
 
     } else {
-      avecado::fetch_error err;
+      avecado::fetch_result err;
       err.status = m_status;
       response.set_value(avecado::fetch_response(err));
     }
@@ -58,7 +58,7 @@ void test_fetch_missing() {
 // like the previous test, except that the fetcher returns an
 // error. this should turn off the overzooming behaviour and
 // just return the error.
-void test_fetch_error() {
+void test_fetch_result() {
   std::unique_ptr<avecado::fetcher> f(new test_fetcher(11, 16, avecado::fetch_status::server_error));
   avecado::fetch::overzoom o(std::move(f), 18, 12);
 
@@ -109,7 +109,7 @@ int main() {
 
 #define RUN_TEST(x) { tests_failed += test::run(#x, &(x)); }
   RUN_TEST(test_fetch_missing);
-  RUN_TEST(test_fetch_error);
+  RUN_TEST(test_fetch_result);
   RUN_TEST(test_fetch_no_mask);
   RUN_TEST(test_fetch_no_mask2);
   

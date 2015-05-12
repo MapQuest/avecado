@@ -154,6 +154,7 @@ void test_no_url_patterns_is_error() {
 void test_fetcher_io() {
   using avecado::fetch_status;
 
+  test::assert_equal<std::string>((boost::format("%1%") % fetch_status::not_modified).str(), "Not Modified");
   test::assert_equal<std::string>((boost::format("%1%") % fetch_status::bad_request).str(), "Bad Request");
   test::assert_equal<std::string>((boost::format("%1%") % fetch_status::not_found).str(), "Not Found");
   test::assert_equal<std::string>((boost::format("%1%") % fetch_status::server_error).str(), "Server Error");

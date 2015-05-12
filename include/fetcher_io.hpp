@@ -7,7 +7,7 @@
 
 namespace avecado {
 
-std::ostream &operator<<(std::ostream &out, const fetch_error &error);
+std::ostream &operator<<(std::ostream &out, const fetch_result &);
 std::ostream &operator<<(std::ostream &out, fetch_status status);
 
 } // namespace avecado
