@@ -8,6 +8,7 @@
 #include <memory>
 #include <future>
 #include <boost/optional.hpp>
+#include <boost/date_time/posix_time/posix_time_types.hpp>
 
 namespace avecado {
 
@@ -50,7 +51,25 @@ typedef either<std::unique_ptr<tile>, fetch_result> fetch_response;
 struct request {
   request(int z_, int x_, int y_);
 
+  // Mandatory tile coordinates. z = zoom level, typically from 0
+  // to 18 or higher. x & y are coordinates ranging from 0 to 2^z
+  // where x=0 is west-most and increases heading east and y=0
+  // is north-most and increases heading south.
   int z, x, y;
+
+  // Optional "ETag" header value. If this is present, then it
+  // will be checked against ETags stored for the tile and may
+  // result in a response with code `fetch_status::not_modified`
+  boost::optional<std::string> etag;
+
+  // Optional time of last modificatin. If this value is present
+  // then it will be checked against the last modification time
+  // of the tile and, if the tile has not been modified since
+  // this date, a response code `fetch_status::not_modified`
+  // will be returned. Note that ETag is preferred, as the time
+  // value here only has granularity to the second, and so may
+  // miss updates.
+  boost::optional<boost::posix_time::ptime> if_modified_since;
 };
 
 /* Interface for objects which fetch tiles from sources.

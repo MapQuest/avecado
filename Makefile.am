@@ -82,7 +82,7 @@ libavecado_la_SOURCES = \
 nodist_libavecado_la_SOURCES = \
 	src/vector_tile.pb.cc
 
-libavecado_la_LIBADD = @MAPNIK_LIBS@ -lmapnik-json @PROTOC_LIBS@ @BOOST_PROGRAM_OPTIONS_LIB@ @BOOST_IOSTREAMS_LIB@ @LIBCURL_LIBS@
+libavecado_la_LIBADD = @MAPNIK_LIBS@ -lmapnik-json @PROTOC_LIBS@ @BOOST_PROGRAM_OPTIONS_LIB@ @BOOST_IOSTREAMS_LIB@ @BOOST_DATE_TIME_LIB@ @LIBCURL_LIBS@
 
 if HAVE_SQLITE3
 libavecado_la_LIBADD += @SQLITE3_LDFLAGS@
