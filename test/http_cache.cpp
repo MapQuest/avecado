@@ -4,11 +4,16 @@
 #include "fetch/http.hpp"
 #include "logging/logger.hpp"
 #include "http_server/server.hpp"
+#include "http_server/mapnik_handler_factory.hpp"
 #include "vector_tile.pb.h"
 
 #include <mapnik/datasource_cache.hpp>
 
 #include <iostream>
+
+using http::server3::server_options;
+using http::server3::mapnik_server_options;
+using http::server3::mapnik_handler_factory;
 
 namespace {
 
@@ -23,8 +28,17 @@ struct request_counter : public http::server3::access_logger {
   std::size_t num_requests;
 };
 
-server_options default_options(const std::string &map_file, std::shared_ptr<http::server3::access_logger> &logger) {
+server_options default_options(mapnik_server_options &map_opts) {
   server_options options;
+  options.thread_hint = 1;
+  options.port = "";
+  options.factory.reset(new mapnik_handler_factory(map_opts));
+  return options;
+}
+
+mapnik_server_options default_mapnik_options(const std::string &map_file,
+                                             std::shared_ptr<http::server3::access_logger> logger) {
+  mapnik_server_options options;
   options.path_multiplier = 16;
   options.buffer_size = 0;
   options.scale_factor = 1.0;
@@ -34,9 +48,7 @@ server_options default_options(const std::string &map_file, std::shared_ptr<http
   options.image_format = "jpeg";
   options.scaling_method = mapnik::SCALING_NEAR;
   options.scale_denominator = 0.0;
-  options.thread_hint = 1;
   options.map_file = map_file;
-  options.port = "";
   options.logger = logger;
   options.max_age = 60;
   options.compression_level = -1;
@@ -44,13 +56,15 @@ server_options default_options(const std::string &map_file, std::shared_ptr<http
 }
 
 struct server_guard {
-  server_options options;
+  mapnik_server_options map_opt;
+  server_options srv_opt;
   http::server3::server server;
   std::string port;
 
   server_guard(const std::string &map_xml, std::shared_ptr<http::server3::access_logger> logger)
-    : options(default_options(map_xml, logger))
-    , server("localhost", options)
+    : map_opt(default_mapnik_options(map_xml, logger))
+    , srv_opt(default_options(map_opt))
+    , server("localhost", srv_opt)
     , port(server.port()) {
 
     server.run(false);

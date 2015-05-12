@@ -16,53 +16,25 @@
 #include <boost/optional.hpp>
 #include <boost/thread/tss.hpp>
 
-#include "http_server/server_options.hpp"
-
-// forward declaration
-namespace mapnik { struct Map; }
-
 namespace http {
 namespace server3 {
 
 struct reply;
 struct request;
 
-/// The common handler for all incoming requests.
-class request_handler
-  : private boost::noncopyable
-{
-public:
-  /// Construct with a directory containing files to be served.
-  request_handler(const boost::thread_specific_ptr<mapnik::Map> &,
-                  const server_options &options);
+/* The common handler interface for all incoming requests.
+ * This should be implemented for each type of request you'd like to
+ * support. This is currently used for test mocking and vector tiles.
+ * See `mapnik_request_handler` for more information. */
+struct request_handler : private boost::noncopyable {
+  virtual ~request_handler();
 
   /// Handle a request and produce a reply.
-  void handle_request(const request& req, reply& rep);
-
-private:
-  /// pointer to thread-local copy of the mapnik Map object used to
-  /// do the rendering.
-  const boost::thread_specific_ptr<mapnik::Map> &map_ptr_;
-
-  /// options, mostly passed to mapnik for making the vector tile
-  server_options options_;
-
-  /// max-age header directive to use. pre-rendered to a string.
-  std::string max_age_value_;
+  virtual void handle_request(const request& req, reply& rep) = 0;
 
   /// Perform URL-decoding on a string. Returns false if the encoding was
   /// invalid.
   static bool url_decode(const std::string& in, std::string& out);
-
-  /// Implementation detail of handling a request and producing a reply.
-  void handle_request_impl(const request& req, reply& rep);
-
-  /// Handle request for TileJSON.
-  void handle_request_json(const request &req, reply &rep);
-
-  /// Handle request for a tile.
-  void handle_request_tile(const request &req, reply &rep,
-                           const std::string &request_path);
 };
 
 } // namespace server3

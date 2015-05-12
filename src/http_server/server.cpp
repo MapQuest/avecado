@@ -23,19 +23,13 @@
 namespace {
 // function to set up the mapnik::Map object on the thread
 // immediately after it has been created.
-void setup_thread(std::string map_xml,
+void setup_thread(const boost::shared_ptr<http::server3::handler_factory> &factory,
                   std::string port,
-                  boost::thread_specific_ptr<mapnik::Map> &ptr,
+                  boost::thread_specific_ptr<http::server3::request_handler> &ptr,
                   boost::asio::io_service *service,
                   std::exception_ptr &error) {
   try {
-    std::cout << "Loading mapnik map..." << std::endl;
-    ptr.reset(new mapnik::Map);
-    mapnik::load_map(*ptr, map_xml);
-    std::cout << "Mapnik map loaded." << std::endl;
-    std::cout << "Server starting on port " << port
-              << ". Tiles should be available on URLs like "
-              << "http://localhost:" << port << "/0/0/0.pbf" << std::endl;
+    factory->thread_setup(ptr, port);
     service->run();
 
   } catch (const std::exception &e) {
@@ -57,10 +51,8 @@ server::server(const std::string& address, const server_options &options)
     signals_(io_service_),
     acceptor_(io_service_),
     new_connection_(),
-    map_xml_(options.map_file),
-    port_(options.port),
-    thread_specific_ptr_(),
-    request_handler_(thread_specific_ptr_, options)
+    factory_(options.factory),
+    port_(options.port)
 {
   using boost::asio::ip::tcp;
 
@@ -111,7 +103,7 @@ void server::run(bool include_current_thread)
         new boost::thread(
             boost::bind(
                 &setup_thread,
-                map_xml_,
+                factory_,
                 port_,
                 boost::ref(thread_specific_ptr_),
                 &io_service_,
@@ -120,9 +112,13 @@ void server::run(bool include_current_thread)
   }
 
   if (include_current_thread) {
-    setup_thread(map_xml_, port_, boost::ref(thread_specific_ptr_),
+    setup_thread(factory_, port_, boost::ref(thread_specific_ptr_),
                  &io_service_, boost::ref(thread_errors_[0]));
   }
+
+  std::cout << "Server starting on port " << port_
+            << ". Tiles should be available on URLs like "
+            << "http://localhost:" << port_ << "/0/0/0.pbf" << std::endl;
 }
 
 void server::stop()
@@ -158,7 +154,7 @@ void server::stop()
 
 void server::start_accept()
 {
-  new_connection_.reset(new connection(io_service_, request_handler_));
+  new_connection_.reset(new connection(io_service_, thread_specific_ptr_));
   acceptor_.async_accept(new_connection_->socket(),
       boost::bind(&server::handle_accept, this,
         boost::asio::placeholders::error));

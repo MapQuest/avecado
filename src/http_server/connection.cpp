@@ -17,10 +17,10 @@ namespace http {
 namespace server3 {
 
 connection::connection(boost::asio::io_service& io_service,
-    request_handler& handler)
+                       boost::thread_specific_ptr<request_handler>& handler_ptr)
   : strand_(io_service),
     socket_(io_service),
-    request_handler_(handler)
+    request_handler_ptr_(handler_ptr)
 {
 }
 
@@ -39,7 +39,7 @@ void connection::start()
 }
 
 void connection::handle_read(const boost::system::error_code& e,
-    std::size_t bytes_transferred)
+                             std::size_t bytes_transferred)
 {
   if (!e)
   {
@@ -49,7 +49,7 @@ void connection::handle_read(const boost::system::error_code& e,
 
     if (result)
     {
-      request_handler_.handle_request(request_, reply_);
+      request_handler_ptr_->handle_request(request_, reply_);
       boost::asio::async_write(socket_, reply_.to_buffers(),
           strand_.wrap(
             boost::bind(&connection::handle_write, shared_from_this(),

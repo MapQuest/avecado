@@ -5,6 +5,7 @@
 #include "fetch/http.hpp"
 #include "logging/logger.hpp"
 #include "http_server/server.hpp"
+#include "http_server/mapnik_handler_factory.hpp"
 #include "vector_tile.pb.h"
 
 #include <google/protobuf/io/zero_copy_stream_impl.h>
@@ -18,11 +19,22 @@
 #include <curl/curl.h>
 
 namespace bpt = boost::property_tree;
+using http::server3::server_options;
+using http::server3::mapnik_server_options;
+using http::server3::mapnik_handler_factory;
 
 namespace {
 
-server_options default_options(const std::string &map_file, int compression_level) {
+server_options default_options(mapnik_server_options &map_opts) {
   server_options options;
+  options.thread_hint = 1;
+  options.port = "";
+  options.factory.reset(new mapnik_handler_factory(map_opts));
+  return options;
+}
+
+mapnik_server_options default_mapnik_options(const std::string &map_file, int compression_level) {
+  mapnik_server_options options;
   options.path_multiplier = 16;
   options.buffer_size = 0;
   options.scale_factor = 1.0;
@@ -32,22 +44,22 @@ server_options default_options(const std::string &map_file, int compression_leve
   options.image_format = "jpeg";
   options.scaling_method = mapnik::SCALING_NEAR;
   options.scale_denominator = 0.0;
-  options.thread_hint = 1;
   options.map_file = map_file;
-  options.port = "";
   options.max_age = 60;
   options.compression_level = compression_level;
   return options;
 }
 
 struct server_guard {
-  server_options options;
+  mapnik_server_options map_opt;
+  server_options srv_opt;
   http::server3::server server;
   std::string port;
 
   server_guard(const std::string &map_xml, int compression_level = -1)
-    : options(default_options(map_xml, compression_level))
-    , server("localhost", options)
+    : map_opt(default_mapnik_options(map_xml, compression_level))
+    , srv_opt(default_options(map_opt))
+    , server("localhost", srv_opt)
     , port(server.port()) {
 
     server.run(false);
