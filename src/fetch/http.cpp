@@ -9,6 +9,7 @@
 #include <boost/xpressive/xpressive.hpp>
 #include <boost/optional/optional_io.hpp>
 #include <boost/lexical_cast.hpp>
+#include <boost/date_time/posix_time/posix_time.hpp>
 
 #include <sstream>
 #include <list>
@@ -29,6 +30,17 @@
 namespace avecado { namespace fetch {
 
 namespace {
+
+std::string make_http_date(const boost::posix_time::ptime &ptime) {
+  std::stringstream out;
+  struct tm tt = boost::posix_time::to_tm(ptime);
+  char *oldlocale = setlocale(LC_TIME, NULL);
+  setlocale(LC_TIME, "C");
+  char buf[30];
+  strftime(buf, 30, "%a, %d %b %Y %H:%M:%S GMT", &tt);
+  setlocale(LC_TIME, oldlocale);
+  return std::string(buf);
+}
 
 size_t write_callback(char *ptr, size_t size, size_t nmemb, void *userdata) {
   std::stringstream *stream = static_cast<std::stringstream*>(userdata);
@@ -66,11 +78,12 @@ struct formatter {
 };
 
 struct request {
-  request(std::promise<fetch_response> &&p_, unsigned int z_, unsigned int x_, unsigned int y_, std::string url_)
-    : promise(std::move(p_)), z(z_), x(x_), y(y_), stream(new std::stringstream), url(url_) {}
+  request(std::promise<fetch_response> &&p_, const avecado::request &r_, std::string url_)
+    : promise(std::move(p_)), req(r_), z(r_.z), x(r_.x), y(r_.y), stream(new std::stringstream), url(url_) {}
 
   request(request &&r)
     : promise(std::move(r.promise))
+    , req(std::move(r.req))
     , z(r.z), x(r.x), y(r.y)
     , stream(std::move(r.stream))
     , url(std::move(r.url))
@@ -90,6 +103,7 @@ struct request {
   }
 
   std::promise<fetch_response> promise;
+  avecado::request req;
   unsigned int z, x, y;
   std::unique_ptr<std::stringstream> stream;
   std::string url;
@@ -410,7 +424,7 @@ struct http::impl {
   impl(std::vector<std::string> &&patterns);
   ~impl();
 
-  void start_request(std::promise<fetch_response> &&promise, int z, int x, int y);
+  void start_request(std::promise<fetch_response> &&promise, const avecado::request &r);
 
   void enable_cache(const std::string &cache_location);
   void disable_cache();
@@ -422,13 +436,14 @@ private:
   void handle_response(CURLcode res, CURL *curl);
   void free_handle(CURL *curl);
   CURL *new_handle();
-  boost::optional<fetch_error> new_request(CURL *curl, request *r);
+  boost::optional<fetch_result> new_request(CURL *curl, request *r);
   std::string url_for(unsigned int z, unsigned int x, unsigned int y) const;
   bool setup_response_tile(fetch_response &response, std::unique_ptr<std::stringstream> &stream, unsigned int z, unsigned int x, unsigned int y);
 
   const std::vector<std::string> m_url_patterns;
   std::atomic<bool> m_shutdown;
   std::thread m_thread;
+  curl_slist *custom_headers;
   std::mutex m_mutex;
   std::list<std::unique_ptr<request> > m_new_requests;
   std::queue<CURL*> m_handle_pool;
@@ -439,23 +454,25 @@ private:
 http::impl::impl(std::vector<std::string> &&patterns)
   : m_url_patterns(patterns)
   , m_shutdown(false)
-  , m_thread(&impl::thread_func, this) {
+  , m_thread(&impl::thread_func, this)
+  , custom_headers(nullptr) {
 }
 
 http::impl::~impl() {
   m_shutdown.store(true);
   m_thread.join();
+  curl_slist_free_all(custom_headers);
 }
 
-void http::impl::start_request(std::promise<fetch_response> &&promise, int z, int x, int y) {
-  if ((z < 0) || (x < 0) || (y < 0)) {
-    fetch_error err;
+void http::impl::start_request(std::promise<fetch_response> &&promise, const avecado::request &r) {
+  if ((r.z < 0) || (r.x < 0) || (r.y < 0)) {
+    fetch_result err;
     err.status = fetch_status::not_found;
     fetch_response response(err);
     promise.set_value(std::move(response));
 
   } else {
-    std::unique_ptr<request> req(new request(std::move(promise), z, x, y, url_for(z, x, y)));
+    std::unique_ptr<request> req(new request(std::move(promise), r, url_for(r.z, r.x, r.y)));
 
     if (m_cache) {
       m_cache->lookup(req);
@@ -466,11 +483,11 @@ void http::impl::start_request(std::promise<fetch_response> &&promise, int z, in
       m_new_requests.emplace_back(std::move(req));
 
     } else {
-      fetch_error err;
+      fetch_result err;
       err.status = fetch_status::server_error;
       fetch_response response(err);
 
-      setup_response_tile(response, req->stream, z, x, y);
+      setup_response_tile(response, req->stream, r.z, r.x, r.y);
 
       req->promise.set_value(std::move(response));
     }
@@ -492,7 +509,7 @@ void http::impl::thread_func() {
     for (auto &ptr : requests) {
       request *req = ptr.release();
       CURL *curl = new_handle();
-      boost::optional<fetch_error> err = new_request(curl, req);
+      boost::optional<fetch_result> err = new_request(curl, req);
 
       if (err) {
         req->promise.set_value(fetch_response(*err));
@@ -598,15 +615,15 @@ void http::impl::handle_response(CURLcode res, CURL *curl) {
   request *req = nullptr;
   CURLcode res2 = curl_easy_getinfo(curl, CURLINFO_PRIVATE, &req);
 
-  fetch_error err;
-  err.status = fetch_status::server_error;
-  fetch_response response(err);
+  fetch_result fres;
+  fres.status = fetch_status::server_error;
+  fetch_response response(fres);
 
   if (res != CURLE_OK) {
     if (res == CURLE_REMOTE_FILE_NOT_FOUND) {
-      err.status = fetch_status::not_found;
+      fres.status = fetch_status::not_found;
     }
-    response = fetch_response(err);
+    response = fetch_response(fres);
 
   } else {
     long status_code = 0;
@@ -625,13 +642,14 @@ void http::impl::handle_response(CURLcode res, CURL *curl) {
 
     } else {
       switch (status_code) {
-      case 400: err.status = fetch_status::bad_request; break;
-      case 404: err.status = fetch_status::not_found; break;
-      case 501: err.status = fetch_status::not_implemented; break;
+      case 304: fres.status = fetch_status::not_modified; break;
+      case 400: fres.status = fetch_status::bad_request; break;
+      case 404: fres.status = fetch_status::not_found; break;
+      case 501: fres.status = fetch_status::not_implemented; break;
       default:
-        err.status = fetch_status::server_error;
+        fres.status = fetch_status::server_error;
       }
-      response = fetch_response(err);
+      response = fetch_response(fres);
     }
   }
 
@@ -677,8 +695,8 @@ CURL *http::impl::new_handle() {
   return handle;
 }
 
-boost::optional<fetch_error> http::impl::new_request(CURL *curl, request *r) {
-  fetch_error err;
+boost::optional<fetch_result> http::impl::new_request(CURL *curl, request *r) {
+  fetch_result err;
   err.status = fetch_status::server_error;
 
   CURLcode res = curl_easy_setopt(curl, CURLOPT_URL, r->url.c_str());
@@ -697,6 +715,17 @@ boost::optional<fetch_error> http::impl::new_request(CURL *curl, request *r) {
   if (res != CURLE_OK) { return err; }
 
   res = curl_easy_setopt(curl, CURLOPT_HEADERDATA, r);
+  if (res != CURLE_OK) { return err; }
+
+  if (r->req.etag) {
+    std::string header = (boost::format("If-None-Match: \"%1%\"") % (*r->req.etag)).str();
+    custom_headers = curl_slist_append(custom_headers, header.c_str());
+
+  } else if (r->req.if_modified_since) {
+    std::string header = (boost::format("If-Modified-Since: %1%") % make_http_date(*r->req.if_modified_since)).str();
+    custom_headers = curl_slist_append(custom_headers, header.c_str());
+  }
+  res = curl_easy_setopt(curl, CURLOPT_HTTPHEADER, custom_headers);
   if (res != CURLE_OK) { return err; }
 
   return boost::none;
@@ -732,10 +761,10 @@ http::http(std::vector<std::string> &&patterns)
 http::~http() {
 }
 
-std::future<fetch_response> http::operator()(int z, int x, int y) {
+std::future<fetch_response> http::operator()(const avecado::request &r) {
   std::promise<fetch_response> promise;
   std::future<fetch_response> future = promise.get_future();
-  m_impl->start_request(std::move(promise), z, x, y);
+  m_impl->start_request(std::move(promise), r);
   return future;
 }
 

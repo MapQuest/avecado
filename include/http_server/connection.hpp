@@ -32,7 +32,7 @@ class connection
 public:
   /// Construct a connection with the given io_service.
   explicit connection(boost::asio::io_service& io_service,
-      request_handler& handler);
+                      boost::thread_specific_ptr<request_handler> &handler_ptr);
 
   /// Get the socket associated with the connection.
   boost::asio::ip::tcp::socket& socket();
@@ -55,7 +55,7 @@ private:
   boost::asio::ip::tcp::socket socket_;
 
   /// The handler used to process the incoming request.
-  request_handler& request_handler_;
+  boost::thread_specific_ptr<request_handler>& request_handler_ptr_;
 
   /// Buffer for incoming data.
   boost::array<char, 8192> buffer_;

@@ -12,6 +12,7 @@
 
 #include "avecado.hpp"
 #include "http_server/server.hpp"
+#include "http_server/mapnik_handler_factory.hpp"
 #include "config.h"
 
 namespace bpo = boost::program_options;
@@ -19,7 +20,11 @@ namespace pt = boost::property_tree;
 using boost::asio::ip::tcp;
 
 int main(int argc, char *argv[]) {
+  using http::server3::server_options;
+  using http::server3::mapnik_server_options;
+  
   server_options srv_opts;
+  mapnik_server_options map_opts;
   std::string fonts_dir, input_plugins_dir, config_file;
 
   bpo::options_description options(
@@ -36,25 +41,25 @@ int main(int argc, char *argv[]) {
 
   options.add_options()
     ("help,h", "Print this help message.")
-    ("path-multiplier,p", bpo::value<unsigned int>(&srv_opts.path_multiplier)->default_value(16),
+    ("path-multiplier,p", bpo::value<unsigned int>(&map_opts.path_multiplier)->default_value(16),
      "Create a tile with coordinates multiplied by this constant to get sub-pixel "
      "accuracy.")
-    ("buffer-size,b", bpo::value<int>(&srv_opts.buffer_size)->default_value(0),
+    ("buffer-size,b", bpo::value<int>(&map_opts.buffer_size)->default_value(0),
      "Number of pixels around the tile to buffer in order to allow for features "
      "whose rendering effects extend beyond the geometric extent.")
-    ("scale_factor,s", bpo::value<double>(&srv_opts.scale_factor)->default_value(1.0),
+    ("scale_factor,s", bpo::value<double>(&map_opts.scale_factor)->default_value(1.0),
      "Scale factor to multiply style values by.")
-    ("offset-x", bpo::value<unsigned int>(&srv_opts.offset_x)->default_value(0),
+    ("offset-x", bpo::value<unsigned int>(&map_opts.offset_x)->default_value(0),
      "Offset added to tile geometry x coordinates.")
-    ("offset-y", bpo::value<unsigned int>(&srv_opts.offset_y)->default_value(0),
+    ("offset-y", bpo::value<unsigned int>(&map_opts.offset_y)->default_value(0),
      "Offset added to tile geometry y coordinates.")
-    ("tolerance,t", bpo::value<unsigned int>(&srv_opts.tolerance)->default_value(1),
+    ("tolerance,t", bpo::value<unsigned int>(&map_opts.tolerance)->default_value(1),
      "Tolerance used to simplify output geometry.")
-    ("image-format,f", bpo::value<std::string>(&srv_opts.image_format)->default_value("jpeg"),
+    ("image-format,f", bpo::value<std::string>(&map_opts.image_format)->default_value("jpeg"),
      "Image file format used for embedding raster layers.")
     ("scaling-method,m", bpo::value<std::string>()->default_value("near"),
      "Method used to re-sample raster layers.")
-    ("scale-denominator,d", bpo::value<double>(&srv_opts.scale_denominator)->default_value(0.0),
+    ("scale-denominator,d", bpo::value<double>(&map_opts.scale_denominator)->default_value(0.0),
      "Override for scale denominator. A value of 0 means to use the sensible default "
      "which Mapnik will generate from the tile context.")
     ("fonts", bpo::value<std::string>(&fonts_dir)->default_value(MAPNIK_DEFAULT_FONT_DIR),
@@ -67,14 +72,14 @@ int main(int argc, char *argv[]) {
      "requests the server should be able to service.")
     ("config-file,c", bpo::value<std::string>(&config_file),
      "JSON config file to specify post-processing for data layers.")
-    ("max-age", bpo::value<unsigned int>(&srv_opts.max_age)->default_value(60),
+    ("max-age", bpo::value<unsigned int>(&map_opts.max_age)->default_value(60),
      "Maximum age, in seconds, to cache generated files for.")
-    ("compression-level,z", bpo::value<int>(&srv_opts.compression_level)
+    ("compression-level,z", bpo::value<int>(&map_opts.compression_level)
      ->default_value(-1),
      "Gzip compression level: 0 means no compression, 1 is fastest, "
      "9 is best compression. Leave as -1 to use the default.")
     // positional arguments
-    ("map-file", bpo::value<std::string>(&srv_opts.map_file), "Mapnik XML input file.")
+    ("map-file", bpo::value<std::string>(&map_opts.map_file), "Mapnik XML input file.")
     ("port", bpo::value<std::string>(&srv_opts.port), "Port upon which the server will listen.")
     ;
 
@@ -126,11 +131,11 @@ int main(int argc, char *argv[]) {
       return EXIT_FAILURE;
     }
 
-    srv_opts.scaling_method = *method;
+    map_opts.scaling_method = *method;
 
   } else {
     // default option
-    srv_opts.scaling_method = mapnik::SCALING_NEAR;
+    map_opts.scaling_method = mapnik::SCALING_NEAR;
   }
 
   if (vm.count("config-file")) {
@@ -140,8 +145,8 @@ int main(int argc, char *argv[]) {
       pt::read_json(config_file, config);
 
       // init processor
-      srv_opts.post_processor.reset(new avecado::post_processor);
-      srv_opts.post_processor->load(config);
+      map_opts.post_processor.reset(new avecado::post_processor);
+      map_opts.post_processor->load(config);
 
     } catch (pt::ptree_error const& e) {
       std::cerr << "Error while parsing config: " << config_file << std::endl;
@@ -161,6 +166,9 @@ int main(int argc, char *argv[]) {
     mapnik::freetype_engine::register_fonts(fonts_dir);
     mapnik::datasource_cache::instance().register_datasources(input_plugins_dir);
 
+    // set up the factory object
+    srv_opts.factory.reset(new http::server3::mapnik_handler_factory(map_opts));
+    
     // start the server running
     http::server3::server server("0.0.0.0", srv_opts);
     server.run(true);

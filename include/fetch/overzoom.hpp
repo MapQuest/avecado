@@ -15,7 +15,7 @@ struct overzoom : public fetcher {
   overzoom(std::unique_ptr<fetcher> &&source, int max_zoom, boost::optional<int> mask_zoom);
   virtual ~overzoom();
 
-  std::future<fetch_response> operator()(int z, int x, int y);
+  std::future<fetch_response> operator()(const request &);
 
 private:
   std::unique_ptr<fetcher> m_source;

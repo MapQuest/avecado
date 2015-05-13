@@ -36,7 +36,7 @@ class server
 {
 public:
   /// Construct the server to listen on the specified TCP address and port, and
-  /// serve up vector tiles based on the map XML file name given.
+  /// handle requests using handlers created by the option's factory.
   server(const std::string& address, const server_options &options);
 
   /// server destructor will need to call the mapnik::Map destructor, so
@@ -77,19 +77,17 @@ private:
   /// The next connection to be accepted.
   connection_ptr new_connection_;
 
-  /// the map XML config file for mapnik
-  std::string map_xml_;
+  /// the configuration for the request handler - also acts as a factory
+  /// for creating per-thread instances of request handlers.
+  boost::shared_ptr<handler_factory> factory_;
 
   /// The port to run on
   std::string port_;
 
-  /// thread local storage, so that we can construct Mapnik Map objects and
-  /// re-use them on threads without having to worry about locking them or
-  /// having any sort of pool of objects.
-  boost::thread_specific_ptr<mapnik::Map> thread_specific_ptr_;
-
-  /// The handler for all incoming requests.
-  request_handler request_handler_;
+  /// thread local storage, so that we can construct objects and re-use
+  /// them on threads without having to worry about locking them or having
+  /// any sort of pool of objects.
+  boost::thread_specific_ptr<request_handler> thread_specific_ptr_;
 
    /// The thread pool
    std::vector<boost::shared_ptr<boost::thread> > threads_;

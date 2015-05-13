@@ -5,11 +5,15 @@
 #include "fetch/http.hpp"
 #include "logging/logger.hpp"
 #include "http_server/server.hpp"
+#include "http_server/mapnik_handler_factory.hpp"
 #include "vector_tile.pb.h"
 
 #include <google/protobuf/io/zero_copy_stream_impl.h>
 
 #include <boost/property_tree/ptree.hpp>
+#include <boost/make_shared.hpp>
+#include <boost/format.hpp>
+#include <boost/algorithm/string.hpp>
 
 #include <mapnik/datasource_cache.hpp>
 
@@ -18,11 +22,26 @@
 #include <curl/curl.h>
 
 namespace bpt = boost::property_tree;
+using http::server3::request;
+using http::server3::reply;
+using http::server3::server_options;
+using http::server3::handler_factory;
+using http::server3::request_handler;
+using http::server3::mapnik_server_options;
+using http::server3::mapnik_handler_factory;
 
 namespace {
 
-server_options default_options(const std::string &map_file, int compression_level) {
+server_options default_options(mapnik_server_options &map_opts) {
   server_options options;
+  options.thread_hint = 1;
+  options.port = "";
+  options.factory.reset(new mapnik_handler_factory(map_opts));
+  return options;
+}
+
+mapnik_server_options default_mapnik_options(const std::string &map_file, int compression_level) {
+  mapnik_server_options options;
   options.path_multiplier = 16;
   options.buffer_size = 0;
   options.scale_factor = 1.0;
@@ -32,22 +51,22 @@ server_options default_options(const std::string &map_file, int compression_leve
   options.image_format = "jpeg";
   options.scaling_method = mapnik::SCALING_NEAR;
   options.scale_denominator = 0.0;
-  options.thread_hint = 1;
   options.map_file = map_file;
-  options.port = "";
   options.max_age = 60;
   options.compression_level = compression_level;
   return options;
 }
 
 struct server_guard {
-  server_options options;
+  mapnik_server_options map_opt;
+  server_options srv_opt;
   http::server3::server server;
   std::string port;
 
   server_guard(const std::string &map_xml, int compression_level = -1)
-    : options(default_options(map_xml, compression_level))
-    , server("localhost", options)
+    : map_opt(default_mapnik_options(map_xml, compression_level))
+    , srv_opt(default_options(map_opt))
+    , server("localhost", srv_opt)
     , port(server.port()) {
 
     server.run(false);
@@ -62,11 +81,44 @@ struct server_guard {
   }
 };
 
+// variant of the server guard which takes a custom handler factory
+struct server_guard2 {
+  boost::shared_ptr<handler_factory> factory;
+  server_options srv_opt;
+  http::server3::server server;
+  std::string port;
+
+  server_guard2(boost::shared_ptr<handler_factory> f)
+    : factory(f)
+    , srv_opt(mk_options(factory))
+    , server("localhost", srv_opt)
+    , port(server.port()) {
+
+    server.run(false);
+  }
+
+  ~server_guard2() {
+    server.stop();
+  }
+
+  std::string base_url() {
+    return (boost::format("http://localhost:%1%") % port).str();
+  }
+
+  static server_options mk_options(boost::shared_ptr<handler_factory> f) {
+    server_options opts;
+    opts.thread_hint = 1;
+    opts.port = "";
+    opts.factory = f;
+    return opts;
+  }
+};
+
 void test_fetch_empty() {
   server_guard guard("test/empty_map_file.xml");
 
   avecado::fetch::http fetch(guard.base_url(), "pbf");
-  avecado::fetch_response response(fetch(0, 0, 0).get());
+  avecado::fetch_response response(fetch(avecado::request(0, 0, 0)).get());
 
   test::assert_equal<bool>(response.is_left(), true, "should fetch tile OK");
   test::assert_equal<int>(response.left()->mapnik_tile().layers_size(), 0, "should have no layers");
@@ -76,14 +128,14 @@ void test_fetch_single_line() {
   server_guard guard("test/single_line.xml");
 
   avecado::fetch::http fetch(guard.base_url(), "pbf");
-  avecado::fetch_response response(fetch(0, 0, 0).get());
+  avecado::fetch_response response(fetch(avecado::request(0, 0, 0)).get());
 
   test::assert_equal<bool>(response.is_left(), true, "should fetch tile OK");
   test::assert_equal<int>(response.left()->mapnik_tile().layers_size(), 1, "should have one layer");
 }
 
 void assert_is_error(avecado::fetch::http &fetch, int z, int x, int y, avecado::fetch_status status) {
-  avecado::fetch_response response(fetch(z, x, y).get());
+  avecado::fetch_response response(fetch(avecado::request(z, x, y)).get());
   test::assert_equal<bool>(response.is_right(), true, (boost::format("(%1%, %2%, %3%): response should be failure") % z % x % y).str());
   test::assert_equal<avecado::fetch_status>(response.right().status, status,
                                             (boost::format("(%1%, %2%, %3%): response status is not what was expected") % z % x % y).str());
@@ -143,7 +195,7 @@ void test_no_url_patterns_is_error() {
   avecado::fetch::http fetch(std::move(patterns));
 
   try {
-    avecado::fetch_response response(fetch(0, 0, 0).get());
+    avecado::fetch_response response(fetch(avecado::request(0, 0, 0)).get());
   } catch (...) {
     threw = true;
   }
@@ -154,6 +206,7 @@ void test_no_url_patterns_is_error() {
 void test_fetcher_io() {
   using avecado::fetch_status;
 
+  test::assert_equal<std::string>((boost::format("%1%") % fetch_status::not_modified).str(), "Not Modified");
   test::assert_equal<std::string>((boost::format("%1%") % fetch_status::bad_request).str(), "Bad Request");
   test::assert_equal<std::string>((boost::format("%1%") % fetch_status::not_found).str(), "Not Found");
   test::assert_equal<std::string>((boost::format("%1%") % fetch_status::server_error).str(), "Server Error");
@@ -236,6 +289,70 @@ void test_tile_is_not_compressed() {
   test::assert_equal<bool>(read_ok, true, "tile was plain PBF");
 }
 
+struct cache_header_checker_handler : public request_handler {
+  virtual ~cache_header_checker_handler() {}
+
+  // returns 304 if the ETag header is present, otherwise a 500. this
+  // is used to check that the HTTP system is correctly sending the
+  // cache headers.
+  virtual void handle_request(const request &req, reply &rep) {
+    rep = reply::stock_reply(reply::internal_server_error);
+    for (const auto &header : req.headers) {
+      if (boost::iequals(header.name, "If-None-Match") && (header.value == "\"foo\"")) {
+        rep = reply::stock_reply(reply::not_modified);
+        break;
+      } else if (boost::iequals(header.name, "If-Modified-Since") && (header.value == "Wed, 13 May 2015 14:35:10 GMT")) {
+        rep = reply::stock_reply(reply::not_modified);
+        break;
+      }
+    }
+  }
+};
+
+struct cache_header_checker_factory : public handler_factory {
+  virtual ~cache_header_checker_factory() {}
+  virtual void thread_setup(boost::thread_specific_ptr<request_handler> &tss, const std::string &) {
+    tss.reset(new cache_header_checker_handler);
+  }
+};
+
+void test_http_etag() {
+  auto factory = boost::make_shared<cache_header_checker_factory>();
+  server_guard2 server(factory);
+
+  avecado::fetch::http fetch(server.base_url(), "png");
+
+  auto req = avecado::request(0, 0, 0);
+  req.etag = "foo";
+  avecado::fetch_response response(fetch(req).get());
+  if (response.is_left()) {
+    throw std::runtime_error("Expected 304 when using ETag header, but got 200 OK");
+  }
+  if (response.right().status != avecado::fetch_status::not_modified) {
+    throw std::runtime_error((boost::format("Expected status 304 when using ETag header, but got %1% %2%")
+                              % int(response.right().status) % response.right()).str());
+  }
+}
+
+void test_http_if_modified_since() {
+  auto factory = boost::make_shared<cache_header_checker_factory>();
+  server_guard2 server(factory);
+
+  avecado::fetch::http fetch(server.base_url(), "png");
+
+  auto req = avecado::request(0, 0, 0);
+  req.if_modified_since = boost::posix_time::ptime(boost::gregorian::date(2015, boost::gregorian::May, 13),
+                                                   boost::posix_time::time_duration(14, 35, 10));
+  avecado::fetch_response response(fetch(req).get());
+  if (response.is_left()) {
+    throw std::runtime_error("Expected 304 when using If-Modified-Since header, but got 200 OK");
+  }
+  if (response.right().status != avecado::fetch_status::not_modified) {
+    throw std::runtime_error((boost::format("Expected status 304 when using If-Modified-Since header, but got %1% %2%")
+                              % int(response.right().status) % response.right()).str());
+  }
+}
+
 } // anonymous namespace
 
 int main() {
@@ -259,6 +376,8 @@ int main() {
   RUN_TEST(test_fetch_tilejson);
   RUN_TEST(test_tile_is_compressed);
   RUN_TEST(test_tile_is_not_compressed);
+  RUN_TEST(test_http_etag);
+  RUN_TEST(test_http_if_modified_since);
 
   std::cout << " >> Tests failed: " << tests_failed << std::endl << std::endl;
 

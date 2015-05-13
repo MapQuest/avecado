@@ -82,7 +82,7 @@ libavecado_la_SOURCES = \
 nodist_libavecado_la_SOURCES = \
 	src/vector_tile.pb.cc
 
-libavecado_la_LIBADD = @MAPNIK_LIBS@ -lmapnik-json @PROTOC_LIBS@ @BOOST_PROGRAM_OPTIONS_LIB@ @BOOST_IOSTREAMS_LIB@ @LIBCURL_LIBS@
+libavecado_la_LIBADD = @MAPNIK_LIBS@ -lmapnik-json @PROTOC_LIBS@ @BOOST_PROGRAM_OPTIONS_LIB@ @BOOST_IOSTREAMS_LIB@ @BOOST_DATE_TIME_LIB@ @LIBCURL_LIBS@
 
 if HAVE_SQLITE3
 libavecado_la_LIBADD += @SQLITE3_LDFLAGS@
@@ -95,7 +95,10 @@ libavecado_server_la_SOURCES = \
 	src/http_server/reply.cpp \
 	src/http_server/request_handler.cpp \
 	src/http_server/request_parser.cpp \
-	src/http_server/server.cpp
+	src/http_server/server.cpp \
+	src/http_server/handler_factory.cpp \
+	src/http_server/mapnik_handler_factory.cpp \
+	src/http_server/mapnik_request_handler.cpp
 
 libavecado_server_la_LIBADD = @BOOST_LDFLAGS@ @BOOST_ASIO_LIB@ @BOOST_THREAD_LIB@ @PTHREAD_LIBS@
 
