@@ -62,7 +62,7 @@ struct request {
   // result in a response with code `fetch_status::not_modified`
   boost::optional<std::string> etag;
 
-  // Optional time of last modificatin. If this value is present
+  // Optional time of last modification. If this value is present
   // then it will be checked against the last modification time
   // of the tile and, if the tile has not been modified since
   // this date, a response code `fetch_status::not_modified`
