@@ -11,6 +11,9 @@
 #include <google/protobuf/io/zero_copy_stream_impl.h>
 
 #include <boost/property_tree/ptree.hpp>
+#include <boost/make_shared.hpp>
+#include <boost/format.hpp>
+#include <boost/algorithm/string.hpp>
 
 #include <mapnik/datasource_cache.hpp>
 
@@ -19,7 +22,11 @@
 #include <curl/curl.h>
 
 namespace bpt = boost::property_tree;
+using http::server3::request;
+using http::server3::reply;
 using http::server3::server_options;
+using http::server3::handler_factory;
+using http::server3::request_handler;
 using http::server3::mapnik_server_options;
 using http::server3::mapnik_handler_factory;
 
@@ -71,6 +78,39 @@ struct server_guard {
 
   std::string base_url() {
     return (boost::format("http://localhost:%1%") % port).str();
+  }
+};
+
+// variant of the server guard which takes a custom handler factory
+struct server_guard2 {
+  boost::shared_ptr<handler_factory> factory;
+  server_options srv_opt;
+  http::server3::server server;
+  std::string port;
+
+  server_guard2(boost::shared_ptr<handler_factory> f)
+    : factory(f)
+    , srv_opt(mk_options(factory))
+    , server("localhost", srv_opt)
+    , port(server.port()) {
+
+    server.run(false);
+  }
+
+  ~server_guard2() {
+    server.stop();
+  }
+
+  std::string base_url() {
+    return (boost::format("http://localhost:%1%") % port).str();
+  }
+
+  static server_options mk_options(boost::shared_ptr<handler_factory> f) {
+    server_options opts;
+    opts.thread_hint = 1;
+    opts.port = "";
+    opts.factory = f;
+    return opts;
   }
 };
 
@@ -249,6 +289,70 @@ void test_tile_is_not_compressed() {
   test::assert_equal<bool>(read_ok, true, "tile was plain PBF");
 }
 
+struct cache_header_checker_handler : public request_handler {
+  virtual ~cache_header_checker_handler() {}
+
+  // returns 304 if the ETag header is present, otherwise a 500. this
+  // is used to check that the HTTP system is correctly sending the
+  // cache headers.
+  virtual void handle_request(const request &req, reply &rep) {
+    rep = reply::stock_reply(reply::internal_server_error);
+    for (const auto &header : req.headers) {
+      if (boost::iequals(header.name, "If-None-Match") && (header.value == "\"foo\"")) {
+        rep = reply::stock_reply(reply::not_modified);
+        break;
+      } else if (boost::iequals(header.name, "If-Modified-Since") && (header.value == "Wed, 13 May 2015 14:35:10 GMT")) {
+        rep = reply::stock_reply(reply::not_modified);
+        break;
+      }
+    }
+  }
+};
+
+struct cache_header_checker_factory : public handler_factory {
+  virtual ~cache_header_checker_factory() {}
+  virtual void thread_setup(boost::thread_specific_ptr<request_handler> &tss, const std::string &) {
+    tss.reset(new cache_header_checker_handler);
+  }
+};
+
+void test_http_etag() {
+  auto factory = boost::make_shared<cache_header_checker_factory>();
+  server_guard2 server(factory);
+
+  avecado::fetch::http fetch(server.base_url(), "png");
+
+  auto req = avecado::request(0, 0, 0);
+  req.etag = "foo";
+  avecado::fetch_response response(fetch(req).get());
+  if (response.is_left()) {
+    throw std::runtime_error("Expected 304 when using ETag header, but got 200 OK");
+  }
+  if (response.right().status != avecado::fetch_status::not_modified) {
+    throw std::runtime_error((boost::format("Expected status 304 when using ETag header, but got %1% %2%")
+                              % int(response.right().status) % response.right()).str());
+  }
+}
+
+void test_http_if_modified_since() {
+  auto factory = boost::make_shared<cache_header_checker_factory>();
+  server_guard2 server(factory);
+
+  avecado::fetch::http fetch(server.base_url(), "png");
+
+  auto req = avecado::request(0, 0, 0);
+  req.if_modified_since = boost::posix_time::ptime(boost::gregorian::date(2015, boost::gregorian::May, 13),
+                                                   boost::posix_time::time_duration(14, 35, 10));
+  avecado::fetch_response response(fetch(req).get());
+  if (response.is_left()) {
+    throw std::runtime_error("Expected 304 when using If-Modified-Since header, but got 200 OK");
+  }
+  if (response.right().status != avecado::fetch_status::not_modified) {
+    throw std::runtime_error((boost::format("Expected status 304 when using If-Modified-Since header, but got %1% %2%")
+                              % int(response.right().status) % response.right()).str());
+  }
+}
+
 } // anonymous namespace
 
 int main() {
@@ -272,6 +376,8 @@ int main() {
   RUN_TEST(test_fetch_tilejson);
   RUN_TEST(test_tile_is_compressed);
   RUN_TEST(test_tile_is_not_compressed);
+  RUN_TEST(test_http_etag);
+  RUN_TEST(test_http_if_modified_since);
 
   std::cout << " >> Tests failed: " << tests_failed << std::endl << std::endl;
 
